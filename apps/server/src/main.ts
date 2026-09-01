@@ -55,6 +55,7 @@ import {
 import { inMemoryMediaConsents } from './dev/inMemoryMediaConsents.js';
 import { makeJwksResolveContext, makeJwtResolveContext } from './auth/resolveContext.js';
 import { authConfigFrom, requireDatabase } from './auth/authRequired.js';
+import { missingEnvWarning } from './env/missingEnvWarning.js';
 import type { FastifyRequest } from 'fastify';
 
 // tsx não carrega .env sozinho; Node 24 tem carregador nativo.
@@ -81,7 +82,14 @@ function buildNotifications(): NotificationGateway | undefined {
   const apiKey = process.env['RESEND_API_KEY'];
   const from = process.env['RESEND_FROM'];
   if (!apiKey || !from) {
-    console.warn('[dev] RESEND_API_KEY/RESEND_FROM ausentes — notificações ao cliente desligadas.');
+    // O guarda acima e a lista abaixo são a mesma condição: o aviso existe.
+    console.warn(
+      missingEnvWarning(
+        process.env,
+        ['RESEND_API_KEY', 'RESEND_FROM'],
+        'notificações ao cliente desligadas.',
+      )!,
+    );
     return undefined;
   }
   return resendNotificationGateway({ apiKey, from });
@@ -92,7 +100,13 @@ function buildAuthAdmin(): AuthAdminGateway | undefined {
   const url = process.env['SUPABASE_URL'];
   const serviceRoleKey = process.env['SUPABASE_SERVICE_ROLE_KEY'];
   if (!url || !serviceRoleKey) {
-    console.warn('[dev] SUPABASE_SERVICE_ROLE_KEY ausente — convite de equipe indisponível.');
+    console.warn(
+      missingEnvWarning(
+        process.env,
+        ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'],
+        'convite de equipe indisponível.',
+      )!,
+    );
     return undefined;
   }
   return supabaseAuthAdmin({ url, serviceRoleKey });
