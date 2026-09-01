@@ -200,6 +200,7 @@ export {
   type TermVariables,
 } from './documents/termAcceptance.js';
 export { renderMarkdownToSafeHtml } from './documents/markdownTerm.js';
+export { escapeHtml } from './documents/markdownTerm.js';
 export { resolveTermVariables, type TermVariableSource } from './documents/termVariables.js';
 
 // Webhook — perfil de mapeamento wp_flat_v1 (§5.7.1)

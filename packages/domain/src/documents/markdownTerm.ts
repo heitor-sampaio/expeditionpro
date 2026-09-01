@@ -18,7 +18,12 @@ export function renderMarkdownToSafeHtml(markdown: string): string {
     .join('\n');
 }
 
-function escapeHtml(text: string): string {
+/**
+ * Escapa para inserção em HTML. Exportado porque o mesmo escape precisa valer para o valor
+ * das variáveis do contrato (DOC-09) — duas implementações do mesmo escape é como uma
+ * delas fica para trás.
+ */
+export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
