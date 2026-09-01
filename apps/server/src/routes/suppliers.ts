@@ -2,6 +2,7 @@ import {
   addSupplierExpense,
   createSupplier,
   deleteSupplierExpense,
+  deleteSupplierPayment,
   getGroupResult,
   getSupplierFile,
   listGroupExpenses,
@@ -139,6 +140,19 @@ export function registerSupplierRoutes(app: FastifyInstance, deps: ServerDeps): 
       const ctx = await deps.resolveContext(request);
       await deleteSupplierExpense({ suppliers: deps.suppliers, audit: deps.audit }, ctx, {
         expenseId: request.params.expenseId,
+      });
+      return reply.status(204).send();
+    },
+  );
+
+  // GR-19 — exclui um pagamento lançado errado. Lógica, como o recebimento (IN-11).
+  typed.delete(
+    '/v1/supplier-payments/:paymentId',
+    { schema: { params: z.object({ paymentId: z.string().min(1) }) } },
+    async (request, reply) => {
+      const ctx = await deps.resolveContext(request);
+      await deleteSupplierPayment({ suppliers: deps.suppliers, audit: deps.audit }, ctx, {
+        paymentId: request.params.paymentId,
       });
       return reply.status(204).send();
     },

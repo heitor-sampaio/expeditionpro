@@ -447,6 +447,11 @@ export {
   type DeleteSupplierExpenseDeps,
 } from './suppliers/deleteSupplierExpense.js';
 export {
+  deleteSupplierPayment,
+  type DeleteSupplierPaymentCommand,
+  type DeleteSupplierPaymentDeps,
+} from './suppliers/deleteSupplierPayment.js';
+export {
   addSupplierExpense,
   type AddSupplierExpenseCommand,
   type AddSupplierExpenseDeps,

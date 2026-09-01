@@ -98,8 +98,10 @@ model Customer {
   responsibleId String? @map("responsible_id") @db.Uuid
 
   fullName        String    @map("full_name")
-  // CL-02: o nome normalizado (minúscula, sem acento) — busca sem SQL cru.
-  searchName      String    @map("search_name")
+  // CL-02: nome normalizado (minúscula, sem acento) para a busca. Coluna GERADA pelo
+  // Postgres: opcional aqui só para o Prisma nunca a incluir num INSERT — o banco recusa
+  // quem tentar escrevê-la. Nunca é nula de fato.
+  searchName      String?   @map("search_name")
   cpf             String
   birthDate       DateTime  @map("birth_date") @db.Date
   email           String?

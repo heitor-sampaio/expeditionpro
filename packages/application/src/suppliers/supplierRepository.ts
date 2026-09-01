@@ -116,6 +116,10 @@ export interface SupplierRepository {
   addPayment(payment: NewSupplierPayment): Promise<SupplierPaymentRecord>;
   /** Pagamentos a fornecedores de todo o grupo — para o "pago" e a margem (GR-10). */
   listPaymentsByGroup(tenantId: string, groupId: string): Promise<SupplierPaymentRecord[]>;
+  /** GR-19: o pagamento pelo id, para auditar o valor antes de excluir. */
+  findPaymentById(tenantId: string, paymentId: string): Promise<SupplierPaymentRecord | null>;
+  /** GR-19: exclusão lógica do pagamento. As leituras já filtram `deleted_at`. */
+  softDeletePayment(tenantId: string, paymentId: string): Promise<void>;
   /** FO-03: todos os pagamentos feitos a um fornecedor — para a ficha (extrato). */
   listPaymentsBySupplier(tenantId: string, supplierId: string): Promise<SupplierPaymentRecord[]>;
 }

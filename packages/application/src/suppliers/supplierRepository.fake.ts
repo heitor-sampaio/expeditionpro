@@ -23,6 +23,7 @@ export function fakeSupplierRepository(): SupplierRepository & {
   const categories: (SupplierCategoryRecord & { tenantId: string })[] = [];
   /** GR-18: ids de gasto excluídos logicamente — as leituras os ignoram, como o banco. */
   const deletedExpenses = new Set<string>();
+  const deletedPayments = new Set<string>();
 
   let seq = 0;
 
@@ -45,6 +46,7 @@ export function fakeSupplierRepository(): SupplierRepository & {
     suppliers,
     expenses,
     deletedExpenses,
+    deletedPayments,
     payments,
     createSupplier(supplier: NewSupplier) {
       seq += 1;
@@ -134,6 +136,17 @@ export function fakeSupplierRepository(): SupplierRepository & {
         ),
       );
     },
+    findPaymentById(tenantId: string, paymentId: string) {
+      const found = payments.find(
+        (x) => x.tenantId === tenantId && x.id === paymentId && !deletedPayments.has(x.id),
+      );
+      return Promise.resolve(found ?? null);
+    },
+    softDeletePayment(tenantId: string, paymentId: string) {
+      void tenantId;
+      deletedPayments.add(paymentId);
+      return Promise.resolve();
+    },
     softDeleteExpense(tenantId: string, expenseId: string) {
       void tenantId;
       deletedExpenses.add(expenseId);
@@ -141,7 +154,12 @@ export function fakeSupplierRepository(): SupplierRepository & {
     },
     countPaymentsByExpense(tenantId: string, expenseId: string) {
       return Promise.resolve(
-        payments.filter((p) => p.tenantId === tenantId && p.supplierExpenseId === expenseId).length,
+        payments.filter(
+          (p) =>
+            p.tenantId === tenantId &&
+            !deletedPayments.has(p.id) &&
+            p.supplierExpenseId === expenseId,
+        ).length,
       );
     },
     listExpensesBySupplier(tenantId: string, supplierId: string) {
@@ -170,7 +188,12 @@ export function fakeSupplierRepository(): SupplierRepository & {
         expenses.filter((e) => e.tenantId === tenantId && e.groupId === groupId).map((e) => e.id),
       );
       return Promise.resolve(
-        payments.filter((p) => p.tenantId === tenantId && expenseIds.has(p.supplierExpenseId)),
+        payments.filter(
+          (p) =>
+            p.tenantId === tenantId &&
+            !deletedPayments.has(p.id) &&
+            expenseIds.has(p.supplierExpenseId),
+        ),
       );
     },
     listPaymentsBySupplier(tenantId: string, supplierId: string) {
@@ -180,7 +203,12 @@ export function fakeSupplierRepository(): SupplierRepository & {
           .map((e) => e.id),
       );
       return Promise.resolve(
-        payments.filter((p) => p.tenantId === tenantId && expenseIds.has(p.supplierExpenseId)),
+        payments.filter(
+          (p) =>
+            p.tenantId === tenantId &&
+            !deletedPayments.has(p.id) &&
+            expenseIds.has(p.supplierExpenseId),
+        ),
       );
     },
   };

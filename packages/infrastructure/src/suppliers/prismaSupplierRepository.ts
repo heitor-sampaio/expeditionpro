@@ -162,6 +162,20 @@ export function prismaSupplierRepository(base: PrismaClient): SupplierRepository
       return rows.map(toExpenseRecord);
     },
 
+    async findPaymentById(tenantId: string, paymentId: string) {
+      const row = await tenantClient(base, tenantId).supplierPayment.findFirst({
+        where: { id: paymentId, deletedAt: null },
+      });
+      return row ? toPaymentRecord(row) : null;
+    },
+
+    async softDeletePayment(tenantId: string, paymentId: string): Promise<void> {
+      await tenantClient(base, tenantId).supplierPayment.update({
+        where: { id: paymentId },
+        data: { deletedAt: new Date() },
+      });
+    },
+
     async softDeleteExpense(tenantId: string, expenseId: string): Promise<void> {
       await tenantClient(base, tenantId).supplierExpense.update({
         where: { id: expenseId },

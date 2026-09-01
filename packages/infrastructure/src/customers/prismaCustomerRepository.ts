@@ -79,7 +79,6 @@ export function prismaCustomerRepository(base: PrismaClient): CustomerRepository
           tenantId: data.tenantId,
           responsibleId: data.responsibleId,
           fullName: data.fullName,
-          searchName: searchKey(data.fullName),
           cpf: data.cpf,
           birthDate: localDateToDate(data.birthDate),
           email: data.email,
@@ -168,7 +167,6 @@ export function prismaCustomerRepository(base: PrismaClient): CustomerRepository
         where: { id: customerId },
         data: {
           fullName: profile.fullName,
-          searchName: searchKey(profile.fullName),
           cpf: profile.cpf,
           birthDate: localDateToDate(profile.birthDate),
           email: profile.email,

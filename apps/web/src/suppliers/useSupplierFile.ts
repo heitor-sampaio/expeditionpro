@@ -105,5 +105,21 @@ export function useSupplierFile(supplierId: string) {
     [supplierId],
   );
 
-  return { state, refresh, update };
+  /** GR-19 — exclui um pagamento lançado errado. Ato financeiro: owner/admin no servidor. */
+  const deletePayment = useCallback(
+    async (paymentId: string): Promise<{ ok: true } | { ok: false; message: string }> => {
+      const res = await api(`/v1/supplier-payments/${paymentId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setReloadKey((k) => k + 1);
+        return { ok: true };
+      }
+      if (res.status === 403) {
+        return { ok: false, message: 'Excluir pagamento exige owner ou admin.' };
+      }
+      return { ok: false, message: `Não deu para excluir (${String(res.status)}).` };
+    },
+    [],
+  );
+
+  return { state, refresh, update, deletePayment };
 }

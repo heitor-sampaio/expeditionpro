@@ -2911,10 +2911,11 @@
   grid-template-columns: minmax(180px, 1.8fr) minmax(150px, 1.2fr) 130px 120px 130px;
 }
 .tbl-fpag {
-  min-width: 680px;
+  min-width: 760px;
 }
+/* A última coluna é a ação de excluir o pagamento (GR-19). */
 .tbl-fpag .tbl-row {
-  grid-template-columns: 120px minmax(150px, 1.4fr) minmax(140px, 1.4fr) 110px 120px;
+  grid-template-columns: 120px minmax(150px, 1.4fr) minmax(140px, 1.4fr) 110px 120px 90px;
 }
 .deflist {
   display: flex;

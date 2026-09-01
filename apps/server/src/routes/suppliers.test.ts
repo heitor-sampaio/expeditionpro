@@ -304,6 +304,49 @@ describe('FO-01/GR-08/09/10: rotas de fornecedor e margem', () => {
     expect(lista.json().some((e: { id: string }) => e.id === gasto.id)).toBe(true);
   });
 
+  it('GR-19: exclui o pagamento e o gasto volta a poder ser excluído', async () => {
+    const sup = (
+      await app.inject({ method: 'POST', url: '/v1/suppliers', payload: { name: 'Pousada erro' } })
+    ).json();
+    const gasto = (
+      await app.inject({
+        method: 'POST',
+        url: `/v1/groups/${groupId}/expenses`,
+        payload: { supplierId: sup.id, description: 'Pernoite', totalCents: 120000 },
+      })
+    ).json();
+    const pagamento = (
+      await app.inject({
+        method: 'POST',
+        url: `/v1/expenses/${gasto.id}/payments`,
+        payload: { amountCents: 120000, method: 'pix', paidAt: '2026-03-11' },
+      })
+    ).json();
+
+    /*
+     * O gasto recusa exclusão enquanto houver pagamento (GR-18) e manda excluir os
+     * pagamentos antes — instrução que até o GR-19 não tinha como ser seguida. A sequência
+     * inteira é o que prova que a mensagem virou caminho.
+     */
+    expect(
+      (await app.inject({ method: 'DELETE', url: `/v1/expenses/${gasto.id}` })).statusCode,
+    ).toBe(400);
+
+    const excluir = await app.inject({
+      method: 'DELETE',
+      url: `/v1/supplier-payments/${pagamento.id}`,
+    });
+    expect(excluir.statusCode).toBe(204);
+
+    const lista = await app.inject({ method: 'GET', url: `/v1/groups/${groupId}/expenses` });
+    const linha = lista.json().find((e: { id: string }) => e.id === gasto.id);
+    expect(linha.paidCents).toBe(0);
+
+    expect(
+      (await app.inject({ method: 'DELETE', url: `/v1/expenses/${gasto.id}` })).statusCode,
+    ).toBe(204);
+  });
+
   it('FO-05: renomeia a categoria e o fornecedor passa a mostrar o nome novo', async () => {
     const cat = (
       await app.inject({

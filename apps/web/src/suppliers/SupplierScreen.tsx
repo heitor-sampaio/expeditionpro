@@ -32,7 +32,7 @@ interface Props {
 }
 
 export function SupplierScreen({ supplierId, onBack, onOpenGroup }: Props): React.JSX.Element {
-  const { state, refresh, update } = useSupplierFile(supplierId);
+  const { state, refresh, update, deletePayment } = useSupplierFile(supplierId);
 
   return (
     <main className="page page-wide">
@@ -56,7 +56,12 @@ export function SupplierScreen({ supplierId, onBack, onOpenGroup }: Props): Reac
       )}
 
       {state.status === 'ready' && (
-        <File file={state.file} onOpenGroup={onOpenGroup} onUpdate={update} />
+        <File
+          file={state.file}
+          onOpenGroup={onOpenGroup}
+          onUpdate={update}
+          onDeletePayment={deletePayment}
+        />
       )}
     </main>
   );
@@ -66,10 +71,12 @@ function File({
   file,
   onOpenGroup,
   onUpdate,
+  onDeletePayment,
 }: {
   file: SupplierFileView;
   onOpenGroup: (groupId: string) => void;
   onUpdate: (patch: SupplierPatchInput) => Promise<{ ok: true } | { ok: false; message: string }>;
+  onDeletePayment: (id: string) => Promise<{ ok: true } | { ok: false; message: string }>;
 }): React.JSX.Element {
   const [tab, setTab] = useState<Tab>('saidas');
   const [editing, setEditing] = useState(false);
@@ -169,7 +176,9 @@ function File({
       </div>
 
       {tab === 'saidas' && <SaidasTab saidas={saidas} totals={totals} onOpenGroup={onOpenGroup} />}
-      {tab === 'pagamentos' && <PagamentosTab pagamentos={pagamentos} totals={totals} />}
+      {tab === 'pagamentos' && (
+        <PagamentosTab pagamentos={pagamentos} totals={totals} onDelete={onDeletePayment} />
+      )}
       {tab === 'fiscais' && <FiscaisTab supplier={supplier} />}
     </>
   );
@@ -242,10 +251,15 @@ function SaidasTab({
 function PagamentosTab({
   pagamentos,
   totals,
+  onDelete,
 }: {
   pagamentos: FileSupplierPayment[];
   totals: SupplierFileView['totals'];
+  onDelete: (paymentId: string) => Promise<{ ok: true } | { ok: false; message: string }>;
 }): React.JSX.Element {
+  const [erro, setErro] = useState<string | null>(null);
+  const [confirmar, setConfirmar] = useState<FileSupplierPayment | null>(null);
+
   if (pagamentos.length === 0) {
     return (
       <div className="state" role="status">
@@ -258,6 +272,12 @@ function PagamentosTab({
   }
   return (
     <div className="tbl-wrap">
+      {erro && (
+        <div className="feedback feedback-error" role="alert">
+          <span className="feedback-dot" />
+          <span>{erro}</span>
+        </div>
+      )}
       <div className="tbl tbl-fpag">
         <div className="tbl-row tbl-head">
           <span>Data</span>
@@ -265,6 +285,7 @@ function PagamentosTab({
           <span>Descrição</span>
           <span>Forma</span>
           <span className="col-num">Valor</span>
+          <span />
         </div>
         {pagamentos.map((payment) => (
           <div key={payment.id} className="tbl-row">
@@ -273,6 +294,18 @@ function PagamentosTab({
             <span className="cell-contact">{payment.expenseDescription}</span>
             <span>{methodLabel(payment.method)}</span>
             <span className="col-num mono">{brl(payment.amountCents)}</span>
+            <span className="col-right">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm btn-danger"
+                onClick={() => {
+                  setErro(null);
+                  setConfirmar(payment);
+                }}
+              >
+                Excluir
+              </button>
+            </span>
           </div>
         ))}
         <div className="tbl-row tbl-foot">
@@ -281,8 +314,43 @@ function PagamentosTab({
           <span />
           <span />
           <span className="col-num mono">{brl(totals.paidCents)}</span>
+          <span />
         </div>
       </div>
+
+      {confirmar && (
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="Excluir pagamento">
+          <div className="modal">
+            <h2 className="modal-title">Excluir pagamento?</h2>
+            <p className="modal-sub">
+              {brl(confirmar.amountCents)} de {confirmar.expenseDescription}. O valor sai da conta
+              do grupo e a margem muda. Não dá para desfazer.
+            </p>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirmar(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  const alvo = confirmar;
+                  setConfirmar(null);
+                  void onDelete(alvo.id).then((r) => {
+                    if (!r.ok) setErro(r.message);
+                  });
+                }}
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

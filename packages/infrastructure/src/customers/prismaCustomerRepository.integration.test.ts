@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { registerCustomer, DuplicateCpfError, type RequestContext } from '@expedition/application';
-import { parseCpf } from '@expedition/domain';
+import {
+  registerCustomer,
+  DuplicateCpfError,
+  EMPTY_ADDRESS,
+  type RequestContext,
+} from '@expedition/application';
+import { parseCpf, searchKey } from '@expedition/domain';
 import { createPrismaClient } from '../prisma/client.js';
 import { prismaCustomerRepository } from './prismaCustomerRepository.js';
 import { resetSchema, testDatabaseUrl } from '../testkit/db.js';
@@ -127,5 +132,49 @@ describe('CL-02: busca por nome sem acento (Prisma + Postgres real)', () => {
       const achados = await repo.search(tenantId, digitado, 'name');
       expect(achados.map((c) => c.fullName)).toEqual(['João Gonçalves']);
     }
+  });
+});
+
+describe('CL-02: a normalização do TypeScript e a do Postgres não podem divergir', () => {
+  let base: PrismaClient;
+  let tenantId: string;
+
+  beforeAll(async () => {
+    await resetSchema();
+    base = createPrismaClient(testDatabaseUrl());
+    tenantId = (await base.tenant.create({ data: { name: 'Drakkar', slug: 'drk' } })).id;
+  });
+
+  afterAll(async () => {
+    await base.$disconnect();
+  });
+
+  /*
+   * O termo digitado é normalizado em TypeScript (`searchKey`); o valor guardado, por uma
+   * coluna gerada em SQL. Duas definições da mesma coisa — e o modo de divergir é o pior
+   * possível, porque a busca passa a errar em silêncio.
+   *
+   * Este teste é a junta: grava um nome com cada letra acentuada do português e confere
+   * que o Postgres chegou exatamente onde o TypeScript chega.
+   */
+  it('as duas concordam letra por letra no alfabeto português', async () => {
+    const nome = 'Áàâãä Éèêë Íìîï Óòôõö Úùûü Çç Ññ Joao';
+    const criado = await base.customer.create({
+      data: {
+        tenantId,
+        fullName: nome,
+        cpf: '90000010057',
+        birthDate: new Date('1990-01-01'),
+        addressStreet: '',
+        addressNumber: '',
+        addressDistrict: '',
+        addressCity: '',
+        addressState: '',
+        addressZip: '',
+      },
+      select: { searchName: true },
+    });
+
+    expect(criado.searchName).toBe(searchKey(nome));
   });
 });
