@@ -54,6 +54,7 @@ import {
 } from './dev/inMemoryPaymentGateway.js';
 import { inMemoryMediaConsents } from './dev/inMemoryMediaConsents.js';
 import { makeJwksResolveContext, makeJwtResolveContext } from './auth/resolveContext.js';
+import { authConfigFrom } from './auth/authRequired.js';
 import type { FastifyRequest } from 'fastify';
 
 // tsx não carrega .env sozinho; Node 24 tem carregador nativo.
@@ -84,12 +85,6 @@ function buildNotifications(): NotificationGateway | undefined {
     return undefined;
   }
   return resendNotificationGateway({ apiKey, from });
-}
-
-/** URL do JWKS derivada da URL do projeto Supabase (endpoint padrão do GoTrue). */
-function jwksUrlFromEnv(): string | undefined {
-  const url = process.env['SUPABASE_URL'];
-  return url ? `${url.replace(/\/+$/, '')}/auth/v1/.well-known/jwks.json` : undefined;
 }
 
 /** Admin de identidade (§3.7) só com URL do Supabase + `service_role`; senão a rota é 503. */
@@ -173,26 +168,24 @@ function buildDeps(): ServerDeps {
 }
 
 /**
- * Auth real quando `SUPABASE_JWT_SECRET` está configurado: verifica o JWT do Supabase
- * (§3.7). Sem o segredo, cai num stub de dev por slug — para tocar o backend localmente
- * antes de plugar o Auth. Um aviso deixa claro que a proteção está desligada.
+ * Auth real do Supabase (§3.7). Em desenvolvimento e teste, sem configuração, cai num stub
+ * por slug — para tocar o backend antes de plugar o Auth. **Fora disso, recusa subir**:
+ * ver `authConfigFrom`.
  */
 function resolveContextForProd(base: ReturnType<typeof createPrismaClient>) {
-  // Ordem: JWKS explícito → segredo HS256 legado → JWKS derivado da URL → stub de dev.
-  const jwksUrl = jwksUrlFromEnv();
-  const explicitJwks = process.env['SUPABASE_JWKS_URL'];
-  const secret = process.env['SUPABASE_JWT_SECRET'];
-  if (explicitJwks) {
-    return makeJwksResolveContext(explicitJwks);
-  }
-  if (secret) {
-    return makeJwtResolveContext(secret);
-  }
-  if (jwksUrl) {
-    return makeJwksResolveContext(jwksUrl);
-  }
+  /*
+   * SEC-01: a decisão está em `authConfigFrom` (pura e testada). Fora de desenvolvimento,
+   * ausência das três variáveis **lança** — antes daqui saía um stub que aceitava qualquer
+   * requisição anônima como `owner`, com o tenant escolhido por header. Falha aberta é a
+   * pior forma de falhar: o sistema segue respondendo 200 e ninguém percebe.
+   */
+  const config = authConfigFrom(process.env, process.env['NODE_ENV']);
+
+  if (config.kind === 'jwks') return makeJwksResolveContext(config.url);
+  if (config.kind === 'secret') return makeJwtResolveContext(config.secret);
+
   console.warn(
-    '[dev] SUPABASE_JWT_SECRET/JWKS ausentes — resolveContext usa stub por x-tenant-slug (SEM auth).',
+    '[dev] SUPABASE_URL/JWKS/JWT_SECRET ausentes — resolveContext usa stub por x-tenant-slug (SEM auth).',
   );
   return async (request: FastifyRequest) => {
     const slug = (request.headers['x-tenant-slug'] as string | undefined) ?? 'drk';

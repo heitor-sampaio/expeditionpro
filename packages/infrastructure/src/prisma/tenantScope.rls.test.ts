@@ -39,7 +39,7 @@ describe('SEC-02: os seis modelos que cruzavam tenant (Prisma + Postgres real)',
       data: { tenantId: tenantB, itineraryId: itinerarioB, storagePath: 'b/1.webp', position: 0 },
     });
     await base.coupon.create({
-      data: { tenantId: tenantB, code: 'SEGREDO-B', kind: 'percent', percent: 10 },
+      data: { tenantId: tenantB, code: 'SEGREDO-B', mode: 'percent', value: BigInt(10) },
     });
     await base.supplierCategory.create({ data: { tenantId: tenantB, name: 'Hospedagem' } });
     await base.paymentIntegration.create({
@@ -57,19 +57,17 @@ describe('SEC-02: os seis modelos que cruzavam tenant (Prisma + Postgres real)',
     await base.$disconnect();
   });
 
-  it.each([
-    ['itineraryPhoto', 'ItineraryPhoto'],
-    ['coupon', 'Coupon'],
-    ['supplierCategory', 'SupplierCategory'],
-    ['paymentIntegration', 'PaymentIntegration'],
-  ] as const)('findMany de %s escopado em A não traz linha de B', async (delegate) => {
-    const scoped = tenantClient(base, tenantA) as unknown as Record<
-      string,
-      { findMany: () => Promise<{ tenantId: string }[]> }
-    >;
-    const rows = await scoped[delegate]!.findMany();
-    expect(rows).toHaveLength(0);
-  });
+  it.each(['itineraryPhoto', 'coupon', 'supplierCategory', 'paymentIntegration'] as const)(
+    'findMany de %s escopado em A não traz linha de B',
+    async (delegate) => {
+      const scoped = tenantClient(base, tenantA) as unknown as Record<
+        string,
+        { findMany: () => Promise<{ tenantId: string }[]> }
+      >;
+      const rows = await scoped[delegate]!.findMany();
+      expect(rows).toHaveLength(0);
+    },
+  );
 
   it('a credencial do gateway de B não vaza para A — era o pior caso', async () => {
     const scoped = tenantClient(base, tenantA);
