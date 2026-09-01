@@ -1139,7 +1139,7 @@ document_acceptances: customer_id, document_version_id, booking_id?,
 
 **Armazenamento e segurança do conteúdo**
 
-Conteúdo em **JSON estruturado** (ProseMirror/TipTap) mais HTML renderizado, sanitizado por allowlist antes de gravar e antes de exibir.
+Conteúdo em **Markdown**, com HTML renderizado e sanitizado por allowlist na gravação e na exibição. Decisão de 2026-09-01, fechada a favor do que foi construído: o renderizador escapa todo HTML **antes** de introduzir tags conhecidas, então é seguro por construção — nunca aceita HTML cru. Um editor rico de HTML (ProseMirror/TipTap) traria WYSIWYG e, junto, uma superfície de XSS armazenado para vigiar.
 
 > Editor rico é vetor clássico de XSS armazenado, e "só o admin escreve" não é defesa num sistema multi-tenant: o admin de um tenant escreve conteúdo que os clientes dele leem, e um `<script>` colado junto com texto do Word vira execução na sessão de quem abrir.
 

@@ -117,7 +117,7 @@ Vertical de cadastro de cliente (CL-01) descendo as camadas, por TDD:
 - [x] **Fiação HTTP** (+2 testes de rota DOC-01..05): `ServerDeps.documents` + rota `documents.ts` — `GET /v1/documents/term` (estado do editor: rascunho + vigente, novo caso `getTermEditorState`), `PUT /v1/documents/term/draft`, `POST /v1/documents/term/publish` (201), `GET /v1/customers/:id/term` (status de aceite), `POST /v1/customers/:id/term/accept` (canal derivado do ator, IP de `x-forwarded-for`/`request.ip`, UA do header). `inMemoryLegalDocuments` para dev; aceite duplicado → **400 `already_accepted`** (in-memory e Prisma via P2002→BusinessRuleError). Fluxo verde ponta a ponta: rascunho→publica→cliente aceita→coberto
 - [x] **Sanitização HTML por allowlist (DOC-09)** (domínio, 7 testes): `renderMarkdownToSafeHtml` — **seguro por construção**: escapa todo HTML antes e só emite tags conhecidas (títulos, parágrafos, negrito, itálico, lista, link de esquema seguro). `<script>` do texto vira texto; link `javascript:` vira texto; marcadores `{{var}}` preservados. `saveTermDraft` passou a receber **Markdown** e renderizar o HTML aqui (contentJson guarda a fonte)
 - [x] **UI Documentos (DOC-01/DOC-07)** — Configurações → Documentos: editor Markdown (`.field-textarea` do design system) + segmentado Editar/Pré-visualizar (HTML sanitizado do servidor via `dangerouslySetInnerHTML`) + publicar com switch "exige novo aceite" e resumo da mudança. Cinco estados (esqueleto, erro+retry, sem permissão para viewer via 403, vazio = editor com convite). Nav + rota no App; hook `useTermDocument`. Web compila e builda limpo; **fluxo provado ao vivo** (PUT draft→publish→status→accept: 200/201/200/201) numa instância limpa
-- [ ] **Escolha do usuário:** editor Markdown leve agora; trocar por TipTap (WYSIWYG) depois se quiser
+- [x] **Decidido (2026-09-01): fica o Markdown.** O PRD pedia ProseMirror/TipTap; fechou-se a favor do que existe, que é seguro por construção. O PRD foi corrigido, não o código
 - [x] **Aceite no portal do cliente (DOC-04)** — gate no `PortalApp`: ao entrar, `useTermAcceptance` consulta `GET /v1/customers/:id/term`; se precisa aceitar, **bloqueia o portal** com o texto do Termo (scroll dentro do cartão), checkbox obrigatório "Li e aceito o Termo de Adesão" e "Aceitar e continuar" (canal `portal`, IP/UA no servidor); depois libera a ficha. Cinco estados (esqueleto, erro+retry, coberto=passa direto); o header com "Sair" permanece. +2 testes de unidade da guarda **cliente-só-por-si** (consulta/aceita a si → ok; por outro → 403). Web builda limpo
 - [x] **Consentimento de marketing (DOC-06 · CM-04)** — vertical completa provada no Supabase:
   - [x] **Domínio/Aplicação** (7 testes): port `CommunicationConsentRepository` (ledger por canal) + `getCommunicationConsents` (estado {email,push}, desmarcado por padrão) + `setCommunicationConsent` (conceder idempotente / **opt-out de um clique**, histórico preservado). Guarda **cliente-só-por-si** (403); conceder após revogar cria nova linha ativa
@@ -515,6 +515,46 @@ Um token de cliente criava roteiro, editava qualquer um, trocava as fotos e lia 
 - **Preço vigente o cliente lê**, mas só o da vitrine: a apresentação do roteiro mostra preço
 - **Fora da vitrine responde 404, não 403** — 403 confirmaria que a saída fechada existe, e ela é justamente a que ninguém de fora deve saber que existe
 - **Teste em duas camadas**: a aplicação prova a guarda, a rota prova que a rota passa por ela. **A segunda é a que pegaria este defeito** — guarda no caso de uso não vale nada se a rota ler o repositório direto
+
+### Revisão de segurança completa — SEC-01/SEC-02 ✅ parcial (2026-09-01)
+
+O dono pediu revisão completa depois de três brechas aparecerem numa sessão, dizendo com todas as letras que estava preocupado porque **fui eu que escrevi tudo**. A preocupação estava certa: três auditorias independentes acharam **duas falhas críticas e cinco altas**, incluindo vazamento entre tenants no caminho do dinheiro — pior do que tudo o que já tinha aparecido.
+
+**Por que passou, que é o achado mais útil de todos.** Os portões automáticos verificavam a camada errada. O `check:rls` cobrava RLS em toda tabela nova — e a RLS está impecável, 38 de 38 com policy. Mas o servidor **não passa pela RLS**: o role do Prisma tem `BYPASSRLS`. Quem protege ali é a Client Extension, e **nada verificava se um modelo novo entrou nela**. Cada migration acendeu o portão certo; nenhuma acendeu o que importava.
+
+#### Crítico — fechado
+
+- **Seis modelos fora do escopo de tenant** (`ItineraryPhoto`, `Coupon`, `CouponRedemption`, `SupplierCategory`, `PaymentIntegration`, `PaymentCharge`). O tenant B emitia cobrança **com o access token do ASAAS do tenant A**, sobrescrevia a credencial dele ao conectar o próprio gateway, lia a integração de todos decifrando o token, e apagava a de todo mundo com um `deleteMany`. O segredo de webhook de B liquidava cobrança pela URL de A. Cupons de todos os tenants em `GET /v1/coupons`, editáveis e apagáveis.
+- **Autenticação falhando aberta**: sem `SUPABASE_URL`/`JWKS`/`JWT_SECRET`, o servidor **não recusava subir** — aceitava qualquer requisição anônima como `team`/`owner`, com o tenant escolhido pelo header `x-tenant-slug` do atacante. Estava no ramo de produção, e o `.env.example` nem listava as variáveis.
+
+#### Alto — fechado
+
+XSS armazenado no termo aceito (nome vindo do webhook público de inscrição executava ao abrir o contrato) · `viewer` **existia só como texto** e escrevia em 30 caminhos · `trustProxy` desligado (rate limit virava balde único e o IP da prova de aceite era forjável) · `GET /v1/suppliers` sem guarda, com chave PIX crua · `GET /v1/bookings/:id/payments` sem guarda.
+
+#### Médio — feito
+
+Agenda de back-office guardada · `redact` no log (`?q=<CPF>` ia em claro) · `issuer` do JWT · CSP no front (verificada no navegador) · trilha em recebimento, exclusão, estorno, decisão de identidade e convites.
+
+#### Os portões, que valem mais que as correções
+
+| Portão | O que impede |
+|---|---|
+| `tenantScopeCoverage.test.ts` | modelo com `tenant_id` fora da Client Extension |
+| `check:rls` (estendido) | tabela sem RLS **ou sem policy** |
+| `viewerReadOnly.test.ts` | `viewer` escrevendo em qualquer um dos 30 caminhos |
+| `audience.test.ts` | cliente alcançando back-office |
+| `authRequired.test.ts` | subir sem autenticação configurada |
+
+#### Deixado em aberto, com motivo
+
+- **`FORCE ROW LEVEL SECURITY`** — a auditoria recomendou; **não apliquei**. As 39 tabelas pertencem a `postgres` e o app conecta como `postgres`: com FORCE, as consultas do próprio servidor passariam a ser filtradas pela RLS e, sem `request.jwt.claims`, **toda consulta voltaria vazia**. Exige criar um role de aplicação sem posse das tabelas — mudança de infra, casada com o Railway.
+- **`webhook_token` em texto claro** — decisão do dono pendente: cifrar (sem impacto no ASAAS, uma regravação) ou hashear (mais forte, mas o `connectPaymentProvider` reaproveita o token ao reconectar, então toda reconexão exigiria reconfigurar o webhook).
+- **Revogação por `memberships`** — a tabela existe e **nunca é lida**: autorização é 100% JWT, então demitir alguém não tem efeito até o token expirar. É feature, não correção: exige decidir cache e custo por requisição.
+- Trilha em cashback, moderação e criação de gasto/pagamento a fornecedor; assimetria de papel entre criar e apagar obrigação financeira.
+
+#### Limite honesto
+
+Quem auditou é quem escreveu — ponto cego real. O que compensa em parte é o método: inventário exaustivo (128 rotas mapeadas uma a uma, 38 tabelas, 44 modelos) em vez de leitura por amostragem, e cada correção provada por teste. Para segunda opinião independente existe o `/code-review ultra`.
 
 ### Teste não passava pelo typecheck — achado, medido, não fechado ⏳ (2026-09-01)
 
