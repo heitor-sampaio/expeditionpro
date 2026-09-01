@@ -19,6 +19,7 @@ import {
   type UpdateItineraryInput,
 } from './useItinerariesAdmin.js';
 import { useScheduleEvents, type ScheduleEventDto } from '../agenda/useScheduleEvents.js';
+import { brl } from '../ui/money.js';
 
 /**
  * Página do roteiro (RO-01/02): toda a edição num só lugar — metadados, descrição markdown,
@@ -397,14 +398,6 @@ function PriceChip({ label, cents }: { label: string; cents: number }): React.JS
       <span className="rot-price-chip-val is-mono">R$ {brl(cents)}</span>
     </span>
   );
-}
-
-/** Centavos → "2.000,00" (pt-BR). */
-function brl(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }
 
 /** "2025-06-01" → "01 jun 2025". */

@@ -247,3 +247,4 @@ export {
   type PostValidationCode,
   type PostLayout,
 } from './community/post.js';
+export { searchKey } from './text/searchKey.js';

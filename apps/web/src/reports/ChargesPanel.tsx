@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../auth/api.js';
 import { useLiveRefresh } from '../live/useLiveRefresh.js';
+import { brl } from '../ui/money.js';
 
 /**
  * PG-06 — as cobranças emitidas pelo gateway, no financeiro da empresa.
@@ -170,11 +171,4 @@ function billingLabel(billingType: string): string {
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR');
-}
-
-function brl(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }

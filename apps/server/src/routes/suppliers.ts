@@ -8,7 +8,14 @@ import {
   registerSupplierPayment,
   updateSupplier,
 } from '@expedition/application';
-import { formatPixKey, type PixKeyType } from '@expedition/domain';
+import {
+  formatCnpj,
+  formatCpf,
+  formatPixKey,
+  parseCnpj,
+  parseCpf,
+  type PixKeyType,
+} from '@expedition/domain';
 import { z } from 'zod';
 import type {
   GroupExpenseRow,
@@ -188,7 +195,7 @@ function supplierDto(supplier: SupplierRecord) {
   return {
     id: supplier.id,
     name: supplier.name,
-    doc: maskDoc(supplier.doc, supplier.docType), // CPF mascarado (SEC-04); CNPJ é público
+    doc: formatDoc(supplier.doc, supplier.docType),
     docType: supplier.docType,
     phone: supplier.phone,
     email: supplier.email,
@@ -236,7 +243,7 @@ function fileToDto(file: SupplierFile) {
     supplier: {
       id: file.supplier.id,
       name: file.supplier.name,
-      doc: maskDoc(file.supplier.doc, file.supplier.docType),
+      doc: formatDoc(file.supplier.doc, file.supplier.docType),
       docType: file.supplier.docType,
       phone: file.supplier.phone,
       email: file.supplier.email,
@@ -278,12 +285,24 @@ function paymentDto(payment: SupplierFilePayment) {
 }
 
 /** CPF do fornecedor é dado pessoal → mascarado por padrão (SEC-04). CNPJ é público. */
-function maskDoc(doc: string | null, docType: string | null): string | null {
+/**
+ * Documento do fornecedor no back-office: **inteiro e pontuado**, como já era com o cliente
+ * (decisão do dono). A área de fornecedor é só da equipe (SEC-01), que é a audiência
+ * autorizada — documento mascarado ali é dado inútil para quem precisa conferir a nota
+ * contra o cadastro. Portal e log seguem mascarando.
+ */
+function formatDoc(doc: string | null, docType: string | null): string | null {
   if (!doc) return null;
-  if (docType !== 'cpf') return doc;
-  const digits = doc.replace(/\D/g, '');
-  if (digits.length !== 11) return '***';
-  return `${digits.slice(0, 3)}.***.***-${digits.slice(9)}`;
+  /*
+   * `parse` na leitura, não um cast: o documento foi validado na escrita, mas linha antiga
+   * ou importada pode não estar. Documento que não parseia sai como veio — a tela mostra o
+   * que está no banco em vez de estourar a ficha inteira por causa de um cadastro torto.
+   */
+  try {
+    return docType === 'cpf' ? formatCpf(parseCpf(doc)) : formatCnpj(parseCnpj(doc));
+  } catch {
+    return doc;
+  }
 }
 
 function isoDateOf(date: LocalDate): string {

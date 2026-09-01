@@ -1,4 +1,5 @@
 import { useDashboard, type Dashboard, type UpcomingGroupDto } from './useDashboard.js';
+import { brl } from '../ui/money.js';
 
 /**
  * Visão geral (dashboard operacional). Faixa de estatísticas do tenant — confirmado ×
@@ -168,13 +169,4 @@ function MoneyStat({
       <span className="stat-context">{context}</span>
     </div>
   );
-}
-
-function brl(cents: number): string {
-  const negative = cents < 0;
-  const abs = Math.abs(cents);
-  const reais = Math.floor(abs / 100);
-  const cent = String(abs % 100).padStart(2, '0');
-  const grouped = String(reais).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return `${negative ? '-' : ''}${grouped},${cent}`;
 }

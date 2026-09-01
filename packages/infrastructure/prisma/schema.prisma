@@ -98,6 +98,8 @@ model Customer {
   responsibleId String? @map("responsible_id") @db.Uuid
 
   fullName        String    @map("full_name")
+  // CL-02: o nome normalizado (minúscula, sem acento) — busca sem SQL cru.
+  searchName      String    @map("search_name")
   cpf             String
   birthDate       DateTime  @map("birth_date") @db.Date
   email           String?

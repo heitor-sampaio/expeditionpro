@@ -91,3 +91,41 @@ describe('CL-01: persistência de cliente (Prisma + Postgres real)', () => {
     expect(foundInB?.fullName).toBe('Na B');
   });
 });
+
+describe('CL-02: busca por nome sem acento (Prisma + Postgres real)', () => {
+  let base: PrismaClient;
+  let tenantId: string;
+
+  beforeAll(async () => {
+    await resetSchema();
+    base = createPrismaClient(testDatabaseUrl());
+    tenantId = (await base.tenant.create({ data: { name: 'Drakkar', slug: 'drk' } })).id;
+  });
+
+  afterAll(async () => {
+    await base.$disconnect();
+  });
+
+  it('acha "João" digitando "joao", e o contrário também', async () => {
+    const repo = prismaCustomerRepository(base);
+    await repo.create({
+      tenantId,
+      responsibleId: null,
+      fullName: 'João Gonçalves',
+      cpf: parseCpf('900.000.100-57'),
+      birthDate: '1985-04-02',
+      email: null,
+      phone: null,
+      address: EMPTY_ADDRESS,
+    });
+
+    /*
+     * O fake sempre tirou acento; o Prisma não tirava. A busca passava no teste e falhava
+     * na tela — por isso a prova tem de ser contra Postgres, não contra o fake.
+     */
+    for (const digitado of ['joao', 'João', 'GONCALVES', 'gonçalves']) {
+      const achados = await repo.search(tenantId, digitado, 'name');
+      expect(achados.map((c) => c.fullName)).toEqual(['João Gonçalves']);
+    }
+  });
+});

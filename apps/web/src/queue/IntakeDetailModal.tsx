@@ -4,6 +4,7 @@ import { whatsappLink } from '../ui/whatsapp.js';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon.js';
 import { initialGroupId } from './queueSelection.js';
 import type { ActionResult, GroupOption, QueueItem } from './useQueue.js';
+import { brl } from '../ui/money.js';
 
 /**
  * IN-17c — a ficha do pedido antes de aprovar: quem vai, que idade cada um terá **na data
@@ -177,11 +178,4 @@ function bandLabel(band: string): string {
 
 function firstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] ?? fullName;
-}
-
-function brl(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }

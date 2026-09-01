@@ -1,4 +1,5 @@
 import { useItineraryPrices } from './useItineraryPrices.js';
+import { brl } from '../ui/money.js';
 
 /**
  * Valores do roteiro na vitrine (§3.4). As cinco categorias não são do mesmo tipo e a tela
@@ -84,11 +85,4 @@ export function ItineraryPrices({
       ))}
     </div>
   );
-}
-
-function brl(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }

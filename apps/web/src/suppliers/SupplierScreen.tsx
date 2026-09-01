@@ -8,6 +8,7 @@ import {
 } from './useSupplierFile.js';
 import { useSupplierCategories } from './useSupplierCategories.js';
 import { SupplierForm, type SupplierFormValues } from './SupplierForm.js';
+import { brl } from '../ui/money.js';
 
 /**
  * Ficha do fornecedor (FO-03). Padrão "cabeçalho de entidade + abas + tabela": o
@@ -356,15 +357,6 @@ function FileSkeleton(): React.JSX.Element {
       ))}
     </div>
   );
-}
-
-function brl(cents: number): string {
-  const negative = cents < 0;
-  const abs = Math.abs(cents);
-  const reais = Math.floor(abs / 100);
-  const cent = String(abs % 100).padStart(2, '0');
-  const grouped = String(reais).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return `${negative ? '-' : ''}${grouped},${cent}`;
 }
 
 function methodLabel(method: string): string {

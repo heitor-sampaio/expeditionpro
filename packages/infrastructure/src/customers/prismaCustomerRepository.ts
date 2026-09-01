@@ -1,3 +1,4 @@
+import { searchKey } from '@expedition/domain';
 import type {
   Address,
   CustomerRecord,
@@ -48,7 +49,8 @@ export function prismaCustomerRepository(base: PrismaClient): CustomerRepository
       const digits = query.replace(/\D/g, '');
       const conditions: Prisma.CustomerWhereInput[] = [];
       if (trimmed) {
-        conditions.push({ fullName: { contains: trimmed, mode: 'insensitive' } });
+        // CL-02: compara chave com chave — 'joao' acha 'João' e 'João' acha 'joao'.
+        conditions.push({ searchName: { contains: searchKey(trimmed) } });
         conditions.push({ phone: { contains: trimmed } });
       }
       if (digits) {
@@ -77,6 +79,7 @@ export function prismaCustomerRepository(base: PrismaClient): CustomerRepository
           tenantId: data.tenantId,
           responsibleId: data.responsibleId,
           fullName: data.fullName,
+          searchName: searchKey(data.fullName),
           cpf: data.cpf,
           birthDate: localDateToDate(data.birthDate),
           email: data.email,
@@ -165,6 +168,7 @@ export function prismaCustomerRepository(base: PrismaClient): CustomerRepository
         where: { id: customerId },
         data: {
           fullName: profile.fullName,
+          searchName: searchKey(profile.fullName),
           cpf: profile.cpf,
           birthDate: localDateToDate(profile.birthDate),
           email: profile.email,

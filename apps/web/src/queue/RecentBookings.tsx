@@ -1,4 +1,5 @@
 import type { RecentState } from './useRecentBookings.js';
+import { brl } from '../ui/money.js';
 
 /**
  * IN-17b — as últimas inscrições já processadas: linhas homogêneas que se comparam, então
@@ -104,11 +105,4 @@ function statusLabel(status: string): string {
     rejected: 'recusada',
   };
   return map[status] ?? status;
-}
-
-function brl(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }

@@ -130,7 +130,7 @@ describe('FO-01/GR-08/09/10: rotas de fornecedor e margem', () => {
         payload: { name: 'Pousada', doc: '11.222.333/0001-81', docType: 'cnpj' },
       })
     ).json();
-    expect(sup.doc).toBe('11222333000181');
+    expect(sup.doc).toBe('11.222.333/0001-81'); // CNPJ pontuado, como o cliente já fazia
 
     const exp = (
       await app.inject({
@@ -157,7 +157,7 @@ describe('FO-01/GR-08/09/10: rotas de fornecedor e margem', () => {
     expect(r.supplierOutstandingCents).toBe(30000); // 80000 - 50000
   });
 
-  it('FO-03: ficha do fornecedor agrega saídas/pagamentos/totais e mascara o CPF', async () => {
+  it('FO-03: ficha do fornecedor agrega saídas/pagamentos/totais e mostra o CPF inteiro', async () => {
     const sup = (
       await app.inject({
         method: 'POST',
@@ -181,7 +181,12 @@ describe('FO-01/GR-08/09/10: rotas de fornecedor e margem', () => {
     const res = await app.inject({ method: 'GET', url: `/v1/suppliers/${sup.id}/file` });
     expect(res.statusCode).toBe(200);
     const file = res.json();
-    expect(file.supplier.doc).toBe('111.***.***-35'); // SEC-04
+    /*
+     * Back-office mostra o documento **inteiro e pontuado**, como já era com o cliente
+     * (decisão do dono). A área de fornecedor é só da equipe (SEC-01), que é a audiência
+     * autorizada; documento mascarado ali é dado inútil para quem precisa conferir a nota.
+     */
+    expect(file.supplier.doc).toBe('111.444.777-35');
     expect(file.saidas).toHaveLength(1);
     expect(file.saidas[0].contractedCents).toBe(200000);
     expect(file.saidas[0].paidCents).toBe(60000);

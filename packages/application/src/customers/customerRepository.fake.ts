@@ -1,3 +1,4 @@
+import { searchKey } from '@expedition/domain';
 import type { Cpf } from '@expedition/domain';
 import type {
   CustomerRecord,
@@ -17,7 +18,12 @@ export function fakeCustomerRepository(): CustomerRepository & { rows: CustomerR
   const rows: CustomerRecord[] = [];
   let seq = 0;
 
-  const norm = (value: string): string => value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  /*
+   * A mesma função que a coluna `search_name` guarda no Prisma. Antes havia uma cópia
+   * aqui: o fake tirava acento e o Prisma não, então a busca passava no teste e falhava
+   * na tela. Uma definição só, no domínio.
+   */
+  const norm = searchKey;
 
   // 'name' → A→Z; 'created' → mais recente primeiro (o array preserva a ordem de inserção).
   const ordered = (list: CustomerRecord[], sort: CustomerSort): CustomerRecord[] =>
