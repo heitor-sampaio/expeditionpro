@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { authConfigFrom, MissingAuthConfigError } from './authRequired.js';
+import {
+  authConfigFrom,
+  MissingAuthConfigError,
+  MissingDatabaseError,
+  requireDatabase,
+} from './authRequired.js';
 
 /**
  * SEC-01 — sem autenticação configurada, o servidor não sobe fora de desenvolvimento.
@@ -89,5 +94,37 @@ describe('SEC-01: autenticação é obrigatória fora de desenvolvimento', () =>
 
   it('teste também segue com o stub — a suíte de rota não tem Supabase', () => {
     expect(authConfigFrom({}, 'test')).toEqual({ kind: 'insecure-dev-stub' });
+  });
+});
+
+describe('SEC-01: sem banco configurado, produção também recusa subir', () => {
+  /*
+   * O segundo fail-open, por outra porta. `authConfigFrom` fecha o caminho do Prisma — mas
+   * sem `DATABASE_URL` o servidor nem chega lá: `buildDeps` cai no repositório em memória
+   * e devolve um `resolveContext` fixo com o mesmo ator `team`/`owner`. Em produção isso é
+   * uma API inteira aberta, agora servindo dados falsos.
+   *
+   * O fallback em memória é legítimo — permite tocar o front sem banco. O erro, de novo, é
+   * ele valer fora de desenvolvimento.
+   */
+  it('produção sem DATABASE_URL: recusa', () => {
+    expect(() => requireDatabase({}, 'production')).toThrow(MissingDatabaseError);
+  });
+
+  it('produção com a URL de exemplo, não substituída: recusa', () => {
+    // O `.env.example` traz `[SENHA]` como marcador. Subir com ele é subir sem banco.
+    expect(() =>
+      requireDatabase({ DATABASE_URL: 'postgresql://postgres:[SENHA]@host/db' }, 'production'),
+    ).toThrow(MissingDatabaseError);
+  });
+
+  it('produção com DATABASE_URL de verdade: passa', () => {
+    expect(() =>
+      requireDatabase({ DATABASE_URL: 'postgresql://u:p@host:5432/db' }, 'production'),
+    ).not.toThrow();
+  });
+
+  it('desenvolvimento sem banco: segue com o repositório em memória', () => {
+    expect(() => requireDatabase({}, 'development')).not.toThrow();
   });
 });

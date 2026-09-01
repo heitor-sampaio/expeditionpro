@@ -54,7 +54,7 @@ import {
 } from './dev/inMemoryPaymentGateway.js';
 import { inMemoryMediaConsents } from './dev/inMemoryMediaConsents.js';
 import { makeJwksResolveContext, makeJwtResolveContext } from './auth/resolveContext.js';
-import { authConfigFrom } from './auth/authRequired.js';
+import { authConfigFrom, requireDatabase } from './auth/authRequired.js';
 import type { FastifyRequest } from 'fastify';
 
 // tsx não carrega .env sozinho; Node 24 tem carregador nativo.
@@ -99,6 +99,10 @@ function buildAuthAdmin(): AuthAdminGateway | undefined {
 }
 
 function buildDeps(): ServerDeps {
+  // SEC-01: fora de desenvolvimento, sem banco o servidor recusa subir — o fallback em
+  // memória traz um ator de owner fixo e sem autenticação.
+  requireDatabase(process.env, process.env['NODE_ENV']);
+
   if (!databaseConfigured()) {
     console.warn(
       '[dev] DATABASE_URL não configurada — usando repositório in-memory (não persiste).',

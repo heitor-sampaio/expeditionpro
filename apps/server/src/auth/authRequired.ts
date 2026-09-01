@@ -26,6 +26,38 @@ export class MissingAuthConfigError extends Error {
   }
 }
 
+export class MissingDatabaseError extends Error {
+  constructor() {
+    super(
+      'DATABASE_URL não configurada (ou ainda com o marcador [SENHA] do exemplo). ' +
+        'Sem banco, o servidor cairia no repositório em memória — que vem com um ator de ' +
+        'owner fixo e sem autenticação. Por isso recusa subir.',
+    );
+    this.name = 'MissingDatabaseError';
+  }
+}
+
+/**
+ * SEC-01 — o **segundo** caminho de falha aberta, por outra porta.
+ *
+ * `authConfigFrom` fecha o caminho do Prisma. Mas sem `DATABASE_URL` o servidor nem chega
+ * lá: `buildDeps` cai no repositório em memória e devolve um `resolveContext` fixo com ator
+ * `team`/`owner`. Em produção isso é uma API inteira aberta, agora servindo dados falsos —
+ * pior ainda, porque parece funcionar.
+ *
+ * O fallback em memória é legítimo: permite tocar o front sem banco. O erro, de novo, é ele
+ * valer fora de desenvolvimento.
+ */
+export function requireDatabase(
+  env: Record<string, string | undefined>,
+  nodeEnv: string | undefined,
+): void {
+  if (nodeEnv === 'development' || nodeEnv === 'test') return;
+  const url = env['DATABASE_URL'];
+  // `[SENHA]` é o marcador do `.env.example`: subir com ele é subir sem banco.
+  if (!url || url.includes('[SENHA]')) throw new MissingDatabaseError();
+}
+
 /** A JWKS do projeto, derivada da URL — o caminho mais simples de configurar. */
 function jwksFromUrl(url: string): string {
   return `${url.replace(/\/+$/, '')}/auth/v1/.well-known/jwks.json`;
