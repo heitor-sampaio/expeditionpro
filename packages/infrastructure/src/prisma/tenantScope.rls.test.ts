@@ -48,7 +48,7 @@ describe('SEC-02: os seis modelos que cruzavam tenant (Prisma + Postgres real)',
         provider: 'asaas',
         environment: 'sandbox',
         accessToken: 'cifrado-do-B',
-        webhookToken: 'whk_segredo_do_B',
+        webhookTokenHash: 'hash-do-segredo-do-B',
       },
     });
   });
@@ -78,7 +78,9 @@ describe('SEC-02: os seis modelos que cruzavam tenant (Prisma + Postgres real)',
 
     // E o webhook: o segredo de B, apresentado pela URL de A, não resolve integração nenhuma.
     expect(
-      await scoped.paymentIntegration.findFirst({ where: { webhookToken: 'whk_segredo_do_B' } }),
+      await scoped.paymentIntegration.findFirst({
+        where: { webhookTokenHash: 'hash-do-segredo-do-B' },
+      }),
     ).toBeNull();
   });
 
@@ -95,7 +97,7 @@ describe('SEC-02: os seis modelos que cruzavam tenant (Prisma + Postgres real)',
         provider: 'asaas',
         environment: 'sandbox',
         accessToken: 'cifrado-do-A',
-        webhookToken: 'whk_segredo_do_A',
+        webhookTokenHash: 'hash-do-segredo-do-A',
       },
     });
 

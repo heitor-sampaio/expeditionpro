@@ -30,9 +30,9 @@ const SEED = `
     VALUES ('${GRP}', '${T}', '${EVENT}', '${ITIN}', 'Saída RLS', 'open', 'public', 'itinerary');
   INSERT INTO bookings (id, tenant_id, group_id, responsible_customer_id, status, source)
     VALUES ('${BOOKING}', '${T}', '${GRP}', '${RESP}', 'pending', 'manual');
-  INSERT INTO payment_integrations (id, tenant_id, provider, environment, access_token, webhook_token)
-    VALUES (gen_random_uuid(), '${T}', 'asaas', 'sandbox', 'cifrado-a', 'wh-a'),
-           (gen_random_uuid(), '${T2}', 'asaas', 'sandbox', 'cifrado-b', 'wh-b');
+  INSERT INTO payment_integrations (id, tenant_id, provider, environment, access_token, webhook_token_hash)
+    VALUES (gen_random_uuid(), '${T}', 'asaas', 'sandbox', 'cifrado-a', 'hash-a'),
+           (gen_random_uuid(), '${T2}', 'asaas', 'sandbox', 'cifrado-b', 'hash-b');
   INSERT INTO payment_charges (id, tenant_id, booking_id, provider, environment, external_id, amount_cents, billing_type, due_date, status)
     VALUES (gen_random_uuid(), '${T}', '${BOOKING}', 'asaas', 'sandbox', 'pay_1', 120000, 'PIX', '2026-05-20', 'pending');
 `;
@@ -90,7 +90,7 @@ describe('PG-01: integração de pagamento e cobranças são da equipe', () => {
     try {
       await expect(
         client.query(
-          `INSERT INTO payment_integrations (id, tenant_id, provider, environment, access_token, webhook_token)
+          `INSERT INTO payment_integrations (id, tenant_id, provider, environment, access_token, webhook_token_hash)
            VALUES (gen_random_uuid(), '${T}', 'asaas', 'sandbox', 'outro', 'wh-c')`,
         ),
       ).rejects.toThrow();

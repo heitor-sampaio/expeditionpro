@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type { FeeSettings } from '@expedition/domain';
 import type {
   NewPaymentIntegration,
@@ -31,7 +30,7 @@ export function fakePaymentIntegrationRepository(): PaymentIntegrationRepository
         webhookTokenHash:
           integration.webhookToken === undefined
             ? (previous?.webhookTokenHash ?? '')
-            : sha256(integration.webhookToken),
+            : fakeHash(integration.webhookToken),
         accountName: integration.accountName,
         feeSettings: previous?.feeSettings ?? {},
         active: true,
@@ -62,7 +61,7 @@ export function fakePaymentIntegrationRepository(): PaymentIntegrationRepository
       return Promise.resolve([...rows]);
     },
     findByWebhookToken(_tenantId: string, token: string) {
-      return Promise.resolve(rows.find((r) => r.webhookTokenHash === sha256(token)) ?? null);
+      return Promise.resolve(rows.find((r) => r.webhookTokenHash === fakeHash(token)) ?? null);
     },
     remove(_tenantId: string, provider: string, environment: PaymentEnvironment) {
       const index = indexOf(provider, environment);
@@ -72,7 +71,15 @@ export function fakePaymentIntegrationRepository(): PaymentIntegrationRepository
   };
 }
 
-/** O mesmo hash do Prisma — o fake diverge do real é como bug passa despercebido. */
-function sha256(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
+/**
+ * Hash de mentira, e de propósito: `sha256` real exigiria `node:crypto`, e esta camada é
+ * pura — não conhece Node nem Prisma. O contrato que o fake precisa honrar é só este: o
+ * mesmo segredo acha a linha, um segredo diferente não acha, e **o valor em claro não
+ * aparece no que fica guardado**. A definição de verdade vive na infraestrutura, e o teste
+ * de integração é quem a prova.
+ */
+function fakeHash(token: string): string {
+  let acc = 0;
+  for (const ch of token) acc = (acc * 31 + ch.codePointAt(0)!) % 0xffffffff;
+  return `fake-sha256-${acc.toString(16)}`;
 }
