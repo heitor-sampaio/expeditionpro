@@ -24,3 +24,8 @@ allowBuilds:
 # auditoria é alto de propósito: não se baixa a régua, sobe-se a dependência.
 overrides:
   deepmerge-ts: '^8.0.2'
+  # SEC-15: mysql2 <3.22 rebaixa o plugin de autenticação e vaza credencial em texto
+  # claro (GHSA-3f6p-5ww8-9rcr). Chega aqui pelo CLI do Prisma, que traz driver de todo
+  # banco suportado. **Este projeto é Postgres** — o mysql2 nunca é carregado. O risco
+  # real é zero, mas o gate é alto de propósito e a saída é subir, não afrouxar.
+  mysql2: '^3.22.0'
