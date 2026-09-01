@@ -8,14 +8,16 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "sirv dist --single --host 0.0.0.0 --port ${PORT:-4173}"
   },
   "dependencies": {
     "@expedition/domain": "workspace:*",
     "@supabase/supabase-js": "^2.112.3",
     "heic2any": "^0.0.4",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "sirv-cli": "^3.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",

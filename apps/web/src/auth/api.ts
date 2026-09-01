@@ -1,3 +1,4 @@
+import { API_BASE, apiUrl } from './apiUrl.js';
 import { supabase } from './supabaseClient.js';
 
 /**
@@ -37,12 +38,12 @@ function withAuth(init: RequestInit, token: string | null): RequestInit {
 
 export async function api(path: string, init: RequestInit = {}): Promise<Response> {
   const token = await getAccessToken();
-  const res = await fetch(path, withAuth(init, token));
+  const res = await fetch(apiUrl(API_BASE, path), withAuth(init, token));
   if (res.status !== 401) return res;
 
   const fresh = await refreshAccessToken();
   if (fresh) {
-    const retry = await fetch(path, withAuth(init, fresh));
+    const retry = await fetch(apiUrl(API_BASE, path), withAuth(init, fresh));
     if (retry.status !== 401) return retry;
   }
   // sessão irrecuperável: desloga; o `onAuthStateChange` leva ao login
