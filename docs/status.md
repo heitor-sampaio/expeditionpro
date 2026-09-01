@@ -40,10 +40,25 @@ Critério de pronto da Fase 0 (§7): tenancy, auth, RLS, Prisma extension, schem
 - [x] **Ledger do Prisma alinhado**: a init foi carimbada em `_prisma_migrations` no Supabase com o checksum correto (sha256 do `migration.sql`). `pnpm db:deploy` futuro vê a init como aplicada e só roda migrations novas. Fluxo em [`docs/migrations.md`](migrations.md).
 - [ ] Rodar a suíte `vitest` de integração/RLS num Postgres **local** (a suíte é destrutiva — nunca contra o Supabase). Sem Docker nesta máquina, **o CI é hoje o único lugar onde esses 62 testes rodam** — passaram a rodar de verdade a partir do primeiro push, em 2026-09-01.
 - [x] Seed do catálogo aplicado no Supabase (`pnpm db:seed` via pooler)
-- [ ] Provisionar Railway em `us-east` (SEC-16) — Supabase já está
+- [x] **Railway em `us-east` (SEC-16)** — dois serviços no projeto `ExpeditionPRO`, ambos de `main`: `api` (Fastify, `api-production-e30a.up.railway.app`) e `web` (front estático servido por `sirv`, `web-production-859bb.up.railway.app`). Configuração de build/start vive **no serviço**, não no repositório: o builder é Railpack e `railway.json` é Config as Code deprecado — o arquivo existiu e nunca foi lido. Tudo em [`docs/deploy-railway.md`](deploy-railway.md).
 - [x] Policies de RLS por audiência `role = customer` (mais restritas que as da equipe) — ver "Autenticação real"
 - [x] `api_keys` e o modelo de integração (§3.9) — entregue na Fase 4 (hash SHA-256, escopos, verify + gestão IN-21)
 - [x] **Auth do Supabase → `RequestContext` na borda** — verificação do JWT entregue e provada (issuance/magic-link é follow-up). Ver "Autenticação real".
+
+### Três armadilhas do primeiro deploy, todas silenciosas
+
+1. **O corepack do builder não carrega o pnpm 11.** `pnpm install` morria com
+   `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING` — erro que não menciona versão nenhuma e manda
+   procurar no lugar errado. O CI não sofre porque instala o pnpm direto, sem corepack.
+   Resolvido com `RAILPACK_INSTALL_CMD` subindo o corepack antes de usá-lo.
+2. **Caminho relativo da API vira 200.** Com o front em serviço separado, `fetch('/v1/...')`
+   acerta o servidor de arquivos, que devolve o `index.html` com **200**. O status diz
+   sucesso, o corpo é HTML, e o erro só aparece no `res.json()`. Fechado por `apiUrl`
+   (SEC-16) — os 55 arquivos que falam com a API passam todos pelo `api()`, então é um
+   ponto só. A CSP precisou do mesmo endereço em `connect-src`.
+3. **`NODE_ENV=production` no serviço do front quebraria o build**, porque faz o
+   `pnpm install` pular as `devDependencies` — e o `vite` é uma delas. Por isso o
+   `sirv-cli` está em `dependencies`: ele é dependência de execução do serviço publicado.
 
 ## Fase 1 — em progresso
 
