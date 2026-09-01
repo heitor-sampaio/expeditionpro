@@ -115,6 +115,10 @@ export interface CommunityRepository {
   ): Promise<{ liked: boolean; likeCount: number }>;
   addComment(input: NewComment): Promise<CommentRecord>;
   listComments(tenantId: string, postId: string): Promise<CommentRecord[]>;
+  /** CO-10: o comentário pelo id, para conferir o dono antes de apagar. */
+  findComment(tenantId: string, commentId: string): Promise<CommentRecord | null>;
+  /** CO-10: exclusão lógica — a conversa fica na tabela para denúncia e moderação. */
+  deleteComment(tenantId: string, commentId: string): Promise<void>;
   addReport(input: NewReport): Promise<void>;
   /** Moderação (CO-08): oculta/remove um post com motivo. */
   setPostStatus(tenantId: string, postId: string, status: string, reason: string): Promise<void>;

@@ -157,20 +157,28 @@ export function prismaCommunityRepository(base: PrismaClient): CommunityReposito
       };
     },
 
+    async findComment(tenantId, commentId): Promise<CommentRecord | null> {
+      const row = await tenantClient(base, tenantId).postComment.findFirst({
+        where: { id: commentId, deletedAt: null },
+        include: { author: { select: { fullName: true } }, tenant: { select: { name: true } } },
+      });
+      return row ? toCommentRecord(row) : null;
+    },
+
+    async deleteComment(tenantId, commentId): Promise<void> {
+      await tenantClient(base, tenantId).postComment.updateMany({
+        where: { id: commentId },
+        data: { deletedAt: new Date() },
+      });
+    },
+
     async listComments(tenantId, postId): Promise<CommentRecord[]> {
       const rows = await tenantClient(base, tenantId).postComment.findMany({
-        where: { postId, status: 'published' },
+        where: { postId, status: 'published', deletedAt: null },
         orderBy: { createdAt: 'asc' },
         include: { author: { select: { fullName: true } }, tenant: { select: { name: true } } },
       });
-      return rows.map((row) => ({
-        id: row.id,
-        postId: row.postId,
-        authorCustomerId: row.authorCustomerId,
-        authorName: row.author?.fullName ?? row.tenant.name,
-        body: row.body,
-        createdAt: row.createdAt,
-      }));
+      return rows.map(toCommentRecord);
     },
 
     async addReport(input: NewReport): Promise<void> {
@@ -267,4 +275,24 @@ interface PostWithRels {
   author: { fullName: string } | null;
   tenant: { name: string };
   _count: { likes: number; comments: number };
+}
+
+/** Linha de comentário → registro do port. Autor nulo é a marca, e aí o nome é o do tenant. */
+function toCommentRecord(row: {
+  id: string;
+  postId: string;
+  authorCustomerId: string | null;
+  body: string;
+  createdAt: Date;
+  author: { fullName: string } | null;
+  tenant: { name: string };
+}): CommentRecord {
+  return {
+    id: row.id,
+    postId: row.postId,
+    authorCustomerId: row.authorCustomerId,
+    authorName: row.author?.fullName ?? row.tenant.name,
+    body: row.body,
+    createdAt: row.createdAt,
+  };
 }

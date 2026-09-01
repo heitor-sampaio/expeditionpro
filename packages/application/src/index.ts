@@ -486,6 +486,7 @@ export {
 } from './reports/getDashboard.js';
 export { createPost, type CreatePostCommand } from './community/createPost.js';
 export { deleteOwnPost } from './community/deleteOwnPost.js';
+export { deleteOwnComment, type DeleteOwnCommentDeps } from './community/deleteOwnComment.js';
 export { getCommunityFeed, type GetCommunityFeedCommand } from './community/getCommunityFeed.js';
 export { togglePostLike } from './community/togglePostLike.js';
 export { commentOnPost, type CommentOnPostCommand } from './community/commentOnPost.js';

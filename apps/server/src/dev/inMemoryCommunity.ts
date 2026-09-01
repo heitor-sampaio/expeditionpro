@@ -51,6 +51,7 @@ export function inMemoryCommunity(
     authorCustomerId: string | null;
     body: string;
     createdAt: Date;
+    deletedAt: Date | null;
   }[] = [];
   let seq = 0;
   const nameOf = (id: string) => names[id] ?? id;
@@ -142,6 +143,7 @@ export function inMemoryCommunity(
         authorCustomerId: input.authorCustomerId,
         body: input.body,
         createdAt: new Date(Date.now() + seq),
+        deletedAt: null as Date | null,
       };
       comments.push(row);
       return Promise.resolve({
@@ -153,9 +155,31 @@ export function inMemoryCommunity(
         createdAt: row.createdAt,
       } satisfies CommentRecord);
     },
+    findComment(tenantId: string, commentId: string) {
+      const c = comments.find(
+        (x) => x.tenantId === tenantId && x.id === commentId && x.deletedAt === null,
+      );
+      return Promise.resolve(
+        c
+          ? ({
+              id: c.id,
+              postId: c.postId,
+              authorCustomerId: c.authorCustomerId,
+              authorName: c.authorCustomerId === null ? brandName : nameOf(c.authorCustomerId),
+              body: c.body,
+              createdAt: c.createdAt,
+            } satisfies CommentRecord)
+          : null,
+      );
+    },
+    deleteComment(tenantId: string, commentId: string) {
+      const c = comments.find((x) => x.tenantId === tenantId && x.id === commentId);
+      if (c) c.deletedAt = new Date();
+      return Promise.resolve();
+    },
     listComments(tenantId, postId) {
       const rows = comments
-        .filter((c) => c.tenantId === tenantId && c.postId === postId)
+        .filter((c) => c.tenantId === tenantId && c.postId === postId && c.deletedAt === null)
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
         .map((c) => ({
           id: c.id,

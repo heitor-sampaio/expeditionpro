@@ -37,6 +37,7 @@ interface CommentRow {
   authorCustomerId: string | null;
   body: string;
   createdAt: Date;
+  deletedAt: Date | null;
 }
 interface ReportRow extends NewReport {
   id: string;
@@ -75,7 +76,7 @@ export function fakeCommunityRepository(
     createdAt: row.createdAt,
     media: [...row.media].sort((a, b) => a.position - b.position),
     likeCount: likes.filter((l) => l.postId === row.id).length,
-    commentCount: comments.filter((c) => c.postId === row.id).length,
+    commentCount: comments.filter((c) => c.postId === row.id && c.deletedAt === null).length,
     likedByViewer:
       viewer !== null && likes.some((l) => l.postId === row.id && l.customerId === viewer),
     featured: row.featuredAt !== null,
@@ -158,6 +159,7 @@ export function fakeCommunityRepository(
         authorCustomerId: input.authorCustomerId,
         body: input.body,
         createdAt: new Date(seq * 1000),
+        deletedAt: null,
       };
       comments.push(row);
       return Promise.resolve({
@@ -170,9 +172,33 @@ export function fakeCommunityRepository(
       } satisfies CommentRecord);
     },
 
+    findComment(tenantId: string, commentId: string) {
+      const c = comments.find(
+        (x) => x.tenantId === tenantId && x.id === commentId && x.deletedAt === null,
+      );
+      return Promise.resolve(
+        c
+          ? ({
+              id: c.id,
+              postId: c.postId,
+              authorCustomerId: c.authorCustomerId,
+              authorName: c.authorCustomerId === null ? brandName : nameOf(c.authorCustomerId),
+              body: c.body,
+              createdAt: c.createdAt,
+            } satisfies CommentRecord)
+          : null,
+      );
+    },
+
+    deleteComment(tenantId: string, commentId: string) {
+      const c = comments.find((x) => x.tenantId === tenantId && x.id === commentId);
+      if (c) c.deletedAt = new Date();
+      return Promise.resolve();
+    },
+
     listComments(tenantId: string, postId: string) {
       const rows = comments
-        .filter((c) => c.tenantId === tenantId && c.postId === postId)
+        .filter((c) => c.tenantId === tenantId && c.postId === postId && c.deletedAt === null)
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
         .map((c) => ({
           id: c.id,

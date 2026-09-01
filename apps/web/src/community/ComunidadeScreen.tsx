@@ -389,6 +389,8 @@ function Comments({
 }): React.JSX.Element {
   const [comments, setComments] = useState<FeedComment[] | null>(null);
   const [text, setText] = useState('');
+  /** Id do comentário aguardando confirmação — mesmo padrão de modal do post (CO-09). */
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -418,6 +420,18 @@ function Comments({
         <div key={c.id} className="post-comment">
           <span className="post-comment-author">{c.authorName}</span>
           <span className="post-comment-body">{c.body}</span>
+          {c.mine && (
+            <>
+              <div className="state-grow" />
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setConfirmDelete(c.id)}
+              >
+                Apagar
+              </button>
+            </>
+          )}
         </div>
       ))}
       <div className="inline-form">
@@ -441,6 +455,37 @@ function Comments({
           <SendIcon />
         </button>
       </div>
+
+      {confirmDelete !== null && (
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="Apagar comentário">
+          <div className="modal">
+            <h2 className="modal-title">Apagar comentário?</h2>
+            <p className="modal-sub">Ele sai da conversa e não dá para desfazer.</p>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirmDelete(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  const id = confirmDelete;
+                  setConfirmDelete(null);
+                  void community.deleteComment(postId, id).then((ok) => {
+                    if (ok) setComments((rows) => rows?.filter((c) => c.id !== id) ?? null);
+                  });
+                }}
+              >
+                Apagar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

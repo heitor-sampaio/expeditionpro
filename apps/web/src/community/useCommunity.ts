@@ -32,6 +32,8 @@ export interface FeedComment {
   authorName: string;
   body: string;
   createdAt: string;
+  /** CO-10: o servidor decide; a tela só oferece "Apagar" quando é verdade. */
+  mine: boolean;
 }
 
 export type FeedState =
@@ -179,6 +181,23 @@ export function useCommunity() {
     return res.ok;
   }, []);
 
+  const deleteComment = useCallback(async (postId: string, commentId: string): Promise<boolean> => {
+    const res = await api(`/v1/community/comments/${commentId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setState((st) =>
+        st.status === 'ready'
+          ? {
+              status: 'ready',
+              posts: st.posts.map((p) =>
+                p.id === postId ? { ...p, commentCount: Math.max(0, p.commentCount - 1) } : p,
+              ),
+            }
+          : st,
+      );
+    }
+    return res.ok;
+  }, []);
+
   const deletePost = useCallback(async (postId: string): Promise<boolean> => {
     const res = await api(`/v1/community/posts/${postId}`, { method: 'DELETE' });
     if (res.ok) {
@@ -200,6 +219,7 @@ export function useCommunity() {
     loadMore,
     toggleLike,
     comment,
+    deleteComment,
     loadComments,
     createPost,
     report,

@@ -2666,6 +2666,8 @@
 }
 .post-comment {
   display: flex;
+  /* O botão "Apagar" (CO-10) entra nesta linha; sem isto ele estica na altura da linha. */
+  align-items: center;
   gap: 8px;
   font-family: var(--f-sans);
   font-size: 14px;

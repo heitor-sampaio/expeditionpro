@@ -11,7 +11,8 @@ import { getModerationQueue } from './getModerationQueue.js';
 import { resolveReport } from './resolveReport.js';
 import { setPostHighlight } from './setPostHighlight.js';
 import { deleteOwnPost } from './deleteOwnPost.js';
-import { ForbiddenError } from '../errors.js';
+import { deleteOwnComment } from './deleteOwnComment.js';
+import { ForbiddenError, NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 
 const team: RequestContext = {
@@ -302,5 +303,49 @@ describe('CO-11: curadoria/destaque', () => {
     await expect(
       setPostHighlight(d, customer('rui'), { postId: a.id, featured: true }),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe('CO-10: o autor apaga o próprio comentário', () => {
+  async function postComComentarios() {
+    const d = deps();
+    const post = await createPost(d, customer('ana'), {
+      body: 'post com conversa',
+      itineraryId: null,
+      groupId: null,
+      layout: 'mosaic',
+      media,
+    });
+    const daAna = await commentOnPost(d, customer('ana'), { postId: post.id, body: 'meu' });
+    const doRui = await commentOnPost(d, customer('rui'), { postId: post.id, body: 'do outro' });
+    return { d, post, daAna, doRui };
+  }
+
+  it('some da lista do post e não derruba os outros', async () => {
+    const { d, post, daAna, doRui } = await postComComentarios();
+
+    await deleteOwnComment(d, customer('ana'), daAna.id);
+
+    const restantes = await d.community.listComments('tenant-a', post.id);
+    expect(restantes.map((c) => c.id)).toEqual([doRui.id]);
+  });
+
+  it('o comentário de outro cliente é recusado', async () => {
+    const { d, doRui } = await postComComentarios();
+    await expect(deleteOwnComment(d, customer('ana'), doRui.id)).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+  });
+
+  it('a equipe não apaga por aqui — moderação é outro caminho', async () => {
+    const { d, daAna } = await postComComentarios();
+    await expect(deleteOwnComment(d, team, daAna.id)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('comentário inexistente responde 404', async () => {
+    const { d } = await postComComentarios();
+    await expect(
+      deleteOwnComment(d, customer('ana'), '00000000-0000-4000-8000-000000000000'),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

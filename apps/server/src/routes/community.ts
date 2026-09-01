@@ -1,6 +1,7 @@
 import {
   commentOnPost,
   createPost,
+  deleteOwnComment,
   deleteOwnPost,
   getCommunityFeed,
   getModerationQueue,
@@ -87,6 +88,16 @@ export function registerCommunityRoutes(app: FastifyInstance, deps: ServerDeps):
     },
   );
 
+  typed.delete(
+    '/v1/community/comments/:commentId',
+    { schema: { params: z.object({ commentId: z.string().min(1) }) } },
+    async (request, reply) => {
+      const ctx = await deps.resolveContext(request);
+      await deleteOwnComment({ community: deps.community }, ctx, request.params.commentId);
+      return reply.status(204).send();
+    },
+  );
+
   typed.post(
     '/v1/community/posts/:postId/like',
     { schema: { params: z.object({ postId: z.string().min(1) }) } },
@@ -106,7 +117,8 @@ export function registerCommunityRoutes(app: FastifyInstance, deps: ServerDeps):
       const ctx = await deps.resolveContext(request);
       // Leitura direta do repo (equipe e cliente leem os comentários publicados).
       const rows = await deps.community.listComments(ctx.tenantId, request.params.postId);
-      return reply.send(rows.map(commentDto));
+      const viewer = viewerCustomerId(ctx);
+      return reply.send(rows.map((row) => commentDto(row, viewer)));
     },
   );
 
@@ -124,7 +136,8 @@ export function registerCommunityRoutes(app: FastifyInstance, deps: ServerDeps):
         postId: request.params.postId,
         body: request.body.body,
       });
-      return reply.status(201).send(commentDto(comment));
+      const viewer = viewerCustomerId(ctx);
+      return reply.status(201).send(commentDto(comment, viewer));
     },
   );
 
@@ -241,12 +254,17 @@ function viewerCustomerId(ctx: { actor: { kind: string; customerId?: string } })
   return ctx.actor.kind === 'customer' ? (ctx.actor.customerId ?? null) : null;
 }
 
-function commentDto(comment: CommentRecord) {
+/**
+ * O `mine` sai daqui, como no post: a tela precisa saber se pode oferecer "Apagar", e
+ * mandar o `authorCustomerId` só para isso exporia o id de quem comentou em todo post.
+ */
+function commentDto(comment: CommentRecord, viewerId: string | null) {
   return {
     id: comment.id,
     authorName: comment.authorName,
     body: comment.body,
     createdAt: comment.createdAt.toISOString(),
+    mine: viewerId !== null && comment.authorCustomerId === viewerId,
   };
 }
 
