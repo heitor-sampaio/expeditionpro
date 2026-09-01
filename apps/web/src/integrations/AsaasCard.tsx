@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { API_BASE } from '../auth/apiUrl.js';
+import { asaasWebhookUrl } from './webhookUrl.js';
 import {
   usePaymentIntegrations,
   type PaymentEnvironment,
@@ -238,18 +240,9 @@ function EnvironmentBlock({
   );
 }
 
-/**
- * A URL que o ASAAS deve chamar. Precisa ser **pública**: o front fala com a API por
- * caminho relativo (o Vite faz proxy em dev), então o endereço externo não dá para
- * deduzir daqui — vem de `VITE_PUBLIC_API_URL`. Em desenvolvimento, é a URL do túnel
- * (cloudflared, ngrok) apontando para a API local.
- */
 function webhookUrl(): string {
-  const base = import.meta.env.VITE_PUBLIC_API_URL;
-  return base ? `${base}/v1/webhooks/asaas/drk` : WEBHOOK_PATH;
+  return asaasWebhookUrl(import.meta.env['VITE_PUBLIC_API_URL'], API_BASE);
 }
-
-const WEBHOOK_PATH = '/v1/webhooks/asaas/drk';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR');
