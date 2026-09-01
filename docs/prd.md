@@ -561,7 +561,7 @@ media_consents(id, tenant_id, customer_id, scope: community|marketing,
 | ID | Requisito |
 |---|---|
 | RO-01 | Cadastro: nome, descrição rica, dificuldade, galeria de fotos (Supabase Storage, path por tenant). |
-| RO-07 | **Para o cliente, a galeria é catálogo**: quem tem conta vê as fotos de qualquer roteiro **ativo** do tenant, mesmo sem nunca ter viajado — foto de roteiro publicado é material de venda. A abertura vale só para a foto: `itineraries` e `itinerary_prices` seguem escopados à própria saída (§3.7). |
+| RO-07 | **Para o cliente, a galeria é catálogo**: quem tem conta vê a ficha e as fotos de qualquer roteiro **ativo e `kind: catalog`** do tenant, mesmo sem nunca ter viajado — a galeria vive dentro da apresentação do roteiro, e foto sem nome não é apresentação. **Roteiro `custom` fica fora** (§3.5.1): saída fechada não entra em vitrine. Some-se a isso o roteiro de qualquer saída da própria família, mesmo `custom` ou arquivado, para o histórico do PC-09 não sumir. **Não abre** `itinerary_prices`, `schedule_events` nem `groups`: preço de catálogo é decisão comercial, e o cliente lê só o preço da própria saída (§3.7). |
 | RO-02 | Configuração das faixas etárias e dos valores das 5 categorias, por roteiro, herdando o padrão da empresa. |
 | RO-03 | Preços versionados por `valid_from`. |
 | RO-04 | `kind: catalog \| custom` — roteiro personalizado fica fora da vitrine e dos filtros públicos. |
