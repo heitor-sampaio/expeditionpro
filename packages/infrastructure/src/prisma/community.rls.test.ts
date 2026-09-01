@@ -35,7 +35,7 @@ const SEED = `
     (gen_random_uuid(), '${PUB}', '${TA}/pub.webp', 0),
     (gen_random_uuid(), '${REM}', '${TA}/rem.webp', 0);
 
-  INSERT INTO post_likes (tenant_id, post_id, customer_id) VALUES ('${TA}', '${PUB}', '${READER}');
+  INSERT INTO post_likes (tenant_id, post_id, liker_id) VALUES ('${TA}', '${PUB}', '${READER}');
   INSERT INTO post_comments (id, tenant_id, post_id, author_customer_id, body) VALUES
     (gen_random_uuid(), '${TA}', '${PUB}', '${READER}', 'top!');
   INSERT INTO post_reports (id, tenant_id, post_id, reporter_customer_id, reason) VALUES

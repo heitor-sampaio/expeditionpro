@@ -26,7 +26,7 @@ const SEED = `
   INSERT INTO tenants (id, name, slug) VALUES ('${T}', 'Drakkar', 'drk'), ('${T2}', 'Outra', 'outra');
   INSERT INTO customers (id, tenant_id, responsible_id, full_name, cpf, birth_date)
     VALUES ('${RESP}', '${T}', NULL, 'Resp Um', '11111111111', '1985-01-01');
-  INSERT INTO itineraries (id, tenant_id, name) VALUES ('${ITIN}', '${T}', 'Coxilha Rica');
+  INSERT INTO itineraries (id, tenant_id, name, slug) VALUES ('${ITIN}', '${T}', 'Coxilha Rica', 'coxilha-rica');
   INSERT INTO schedule_events (id, tenant_id, itinerary_id, start_date, end_date, status)
     VALUES ('${EVENT}', '${T}', '${ITIN}', '2026-06-01', '2026-06-05', 'scheduled');
   INSERT INTO groups (id, tenant_id, schedule_event_id, itinerary_id, name, status, visibility, pricing_mode)

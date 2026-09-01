@@ -23,7 +23,7 @@ const SEED = `
   INSERT INTO tenants (id, name, slug) VALUES ('${T}', 'Drakkar', 'drk'), ('${T2}', 'Outra', 'outra');
   INSERT INTO customers (id, tenant_id, responsible_id, full_name, cpf, birth_date)
     VALUES ('${RESP}', '${T}', NULL, 'Resp Um', '11111111111', '1985-01-01');
-  INSERT INTO itineraries (id, tenant_id, name) VALUES ('${ITIN}', '${T}', 'Coxilha Rica');
+  INSERT INTO itineraries (id, tenant_id, name, slug) VALUES ('${ITIN}', '${T}', 'Coxilha Rica', 'coxilha-rica');
   INSERT INTO schedule_events (id, tenant_id, itinerary_id, start_date, end_date, status)
     VALUES ('${EVENT}', '${T}', '${ITIN}', '2026-06-01', '2026-06-05', 'scheduled');
   INSERT INTO groups (id, tenant_id, schedule_event_id, itinerary_id, name, status, visibility, pricing_mode)
@@ -33,8 +33,8 @@ const SEED = `
   INSERT INTO payment_integrations (id, tenant_id, provider, environment, access_token, webhook_token)
     VALUES (gen_random_uuid(), '${T}', 'asaas', 'sandbox', 'cifrado-a', 'wh-a'),
            (gen_random_uuid(), '${T2}', 'asaas', 'sandbox', 'cifrado-b', 'wh-b');
-  INSERT INTO payment_charges (id, tenant_id, booking_id, provider, external_id, amount_cents, billing_type, due_date, status)
-    VALUES (gen_random_uuid(), '${T}', '${BOOKING}', 'asaas', 'pay_1', 120000, 'PIX', '2026-05-20', 'pending');
+  INSERT INTO payment_charges (id, tenant_id, booking_id, provider, environment, external_id, amount_cents, billing_type, due_date, status)
+    VALUES (gen_random_uuid(), '${T}', '${BOOKING}', 'asaas', 'sandbox', 'pay_1', 120000, 'PIX', '2026-05-20', 'pending');
 `;
 
 async function count(session: TenantSession, table: string): Promise<number> {
@@ -105,8 +105,8 @@ describe('PG-01: integração de pagamento e cobranças são da equipe', () => {
     try {
       await expect(
         client.query(
-          `INSERT INTO payment_charges (id, tenant_id, booking_id, provider, external_id, amount_cents, billing_type, due_date, status)
-           VALUES (gen_random_uuid(), '${T}', '${BOOKING}', 'asaas', 'pay_1', 1, 'PIX', '2026-05-20', 'pending')`,
+          `INSERT INTO payment_charges (id, tenant_id, booking_id, provider, environment, external_id, amount_cents, billing_type, due_date, status)
+           VALUES (gen_random_uuid(), '${T}', '${BOOKING}', 'asaas', 'sandbox', 'pay_1', 1, 'PIX', '2026-05-20', 'pending')`,
         ),
       ).rejects.toThrow();
     } finally {
