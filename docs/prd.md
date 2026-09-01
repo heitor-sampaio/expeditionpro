@@ -561,6 +561,7 @@ media_consents(id, tenant_id, customer_id, scope: community|marketing,
 | ID | Requisito |
 |---|---|
 | RO-01 | Cadastro: nome, descrição rica, dificuldade, galeria de fotos (Supabase Storage, path por tenant). |
+| RO-07 | **Para o cliente, a galeria é catálogo**: quem tem conta vê as fotos de qualquer roteiro **ativo** do tenant, mesmo sem nunca ter viajado — foto de roteiro publicado é material de venda. A abertura vale só para a foto: `itineraries` e `itinerary_prices` seguem escopados à própria saída (§3.7). |
 | RO-02 | Configuração das faixas etárias e dos valores das 5 categorias, por roteiro, herdando o padrão da empresa. |
 | RO-03 | Preços versionados por `valid_from`. |
 | RO-04 | `kind: catalog \| custom` — roteiro personalizado fica fora da vitrine e dos filtros públicos. |

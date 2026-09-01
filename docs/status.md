@@ -504,6 +504,23 @@ Quatro itens de backend do "Médio" que tinham ficado para trás, todos TDD, **s
 - **Portal**: `listEnrollmentRequests` + `GET /v1/portal/enrollment-requests` e aviso no Início — **"seu pedido está em análise"**. Sem isso o cliente pediria e não veria nada, já que a inscrição só existe depois da alocação. Busca no servidor (`intake_events` é tabela de operação; a RLS não abre nada dela para o cliente) e escopo de família pelo head
 - **Efeito colateral a saber**: a inscrição do portal deixou de ser imediata. O cliente não ocupa vaga nem gera cashback até a equipe aprovar — na prática pouco muda, porque vaga só é ocupada por inscrição confirmada e confirmação exige pagamento
 
+### A armadilha da subconsulta em policy — RO-01 ✅ (2026-09-01)
+
+A primeira execução dos testes de RLS pegou uma policy que **não fazia o que estava escrita nela**. A galeria de fotos dizia "foto de roteiro ativo do tenant":
+
+```sql
+AND EXISTS (SELECT 1 FROM itineraries i
+            WHERE i.id = itinerary_photos.itinerary_id AND i.status = 'active')
+```
+
+Só que **a subconsulta também passa pela RLS**. A policy de `itineraries` escopa o cliente aos roteiros que ele contratou, então o `EXISTS` dava falso e a galeria vinha vazia para quem ainda não viajou. E o modo de falhar é o pior possível: RLS **não levanta erro**, só devolve menos linhas — a tela fica vazia e nada indica por quê.
+
+- **É a mesma classe de erro do `data` do Prisma** que perdeu a chave PIX: o código diz uma coisa, o sistema faz outra, e nenhum mecanismo grita. Os dois só apareceram quando algo executou de verdade contra Postgres
+- **Correção**: `app.active_itinerary_ids()`, `SECURITY DEFINER` com `search_path` fixo, no molde de `app.current_family_ids()` que já existia. **Toda checagem de policy que atravessa outra tabela precisa desse tratamento** — senão herda o escopo da tabela atravessada, em silêncio
+- **Decisão do dono**: a galeria é catálogo, não contexto da viagem. Foto de roteiro publicado é material de venda — não é margem, não é fornecedor, não é dado de outra família
+- **A cerca**: teste novo crava que abrir a foto **não** abriu o roteiro — `itineraries` e `itinerary_prices` seguem invisíveis para o cliente. Sem ele, uma mudança futura na função poderia alargar o acesso sem nada ficar vermelho
+- Migration `gallery_is_catalog` aplicada no drk — **37 migrations**, `check:rls` com 38 tabelas
+
 ### O buraco do Prisma, o primeiro push e o CI ✅ (2026-09-01)
 
 A chave PIX (FO-07) salvou `NULL` em produção com **1.181 testes verdes**. O repositório Prisma **lia** a coluna e nunca a **escrevia**: o `data` é lista branca escrita à mão, e campo esquecido ali não é erro de compilação nem de execução — o `PATCH` respondeu `200`, o formulário fechou, o banco ficou vazio.
