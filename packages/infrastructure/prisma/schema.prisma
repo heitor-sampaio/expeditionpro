@@ -636,7 +636,9 @@ model PaymentIntegration {
   provider      String    @default("asaas")
   environment   String // sandbox | production
   accessToken   String    @map("access_token")
-  webhookToken  String    @map("webhook_token")
+  // SEC-01: só o sha256. O segredo aparece uma vez, na conexão, e nunca mais — era o
+  // único segredo do sistema guardado em claro.
+  webhookTokenHash String @map("webhook_token_hash")
   accountName   String?   @map("account_name")
   // PG-04: taxas negociadas por forma de pagamento (percentual, fixa, antecipação).
   feeSettings   Json?     @map("fee_settings")

@@ -182,7 +182,7 @@ describe('PG-07: conciliar a cobrança com o que caiu na conta', () => {
       provider: 'asaas',
       environment: 'sandbox',
       accessToken: 'aact_valida',
-      webhookToken: 'whk',
+      webhookTokenHash: 'hash-do-whk',
       accountName: 'Drakkar',
       connectedBy: 'u1',
       connectedAt: new Date('2026-08-28T10:00:00.000Z'),

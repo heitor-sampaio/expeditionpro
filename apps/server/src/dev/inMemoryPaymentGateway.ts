@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type {
   ChargeSettlement,
   NewPaymentCharge,
@@ -34,7 +35,12 @@ export function inMemoryPaymentIntegrations(): PaymentIntegrationRepository {
         provider: integration.provider,
         environment: integration.environment,
         accessToken: integration.accessToken,
-        webhookToken: integration.webhookToken,
+        webhookTokenHash:
+          integration.webhookToken === undefined
+            ? index >= 0
+              ? rows[index]!.webhookTokenHash
+              : ''
+            : sha256(integration.webhookToken),
         accountName: integration.accountName,
         feeSettings: index >= 0 ? rows[index]!.feeSettings : {},
         active: true,
@@ -66,7 +72,7 @@ export function inMemoryPaymentIntegrations(): PaymentIntegrationRepository {
     },
     findByWebhookToken(tenantId: string, token: string) {
       return Promise.resolve(
-        rows.find((r) => r.tenantId === tenantId && r.webhookToken === token) ?? null,
+        rows.find((r) => r.tenantId === tenantId && r.webhookTokenHash === sha256(token)) ?? null,
       );
     },
     remove(tenantId: string, provider: string, environment: PaymentEnvironment) {
@@ -176,4 +182,9 @@ export function inMemoryPaymentCharges(): PaymentChargeRepository {
       return patch(chargeId, { status });
     },
   };
+}
+
+/** Mesmo hash do Prisma e do fake — uma definição só. */
+function sha256(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
 }

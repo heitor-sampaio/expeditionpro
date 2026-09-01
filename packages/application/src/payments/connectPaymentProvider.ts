@@ -54,7 +54,8 @@ export interface ConnectedIntegration {
  * qualquer segredo compartilhado.
  */
 export interface ConnectedIntegrationWithSecret extends ConnectedIntegration {
-  readonly webhookToken: string;
+  /** Em claro **só na primeira conexão**; `null` ao reconectar, quando segue o mesmo. */
+  readonly webhookToken: string | null;
 }
 
 export async function connectPaymentProvider(
@@ -82,13 +83,23 @@ export async function connectPaymentProvider(
 
   const existing = await deps.integrations.find(ctx.tenantId, ASAAS, command.environment);
   const connectedAt = deps.clock();
+
+  /*
+   * SEC-01 — o segredo do webhook é gerado **uma vez** e o banco guarda só o `sha256`.
+   * Reconectar mantém o segredo existente: mudar exigiria reconfigurar o webhook no ASAAS,
+   * e a confirmação de pagamento pararia de chegar em silêncio até alguém notar.
+   *
+   * Como o valor em claro não existe mais depois da primeira conexão, a reconexão devolve
+   * `null` — que a tela lê como "o token segue o mesmo", não como "não há token".
+   */
+  const novoSegredo = existing ? null : (deps.newSecret ?? defaultSecret)();
+
   const record = await deps.integrations.upsert({
     tenantId: ctx.tenantId,
     provider: ASAAS,
     environment: command.environment,
     accessToken,
-    // Reconectar mantém o segredo: mudar exigiria reconfigurar o webhook no ASAAS.
-    webhookToken: existing?.webhookToken ?? (deps.newSecret ?? defaultSecret)(),
+    ...(novoSegredo === null ? {} : { webhookToken: novoSegredo }),
     accountName: account.name,
     connectedBy: actorUserId(ctx.actor),
     connectedAt,
@@ -103,7 +114,7 @@ export async function connectPaymentProvider(
     diff: { provider: ASAAS, environment: command.environment },
   });
 
-  return { ...toView(record), webhookToken: record.webhookToken };
+  return { ...toView(record), webhookToken: novoSegredo };
 }
 
 /** O que a tela pode ver de uma conexão: nunca o token, só o suficiente para conferir. */

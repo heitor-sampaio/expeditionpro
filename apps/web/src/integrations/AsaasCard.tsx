@@ -212,7 +212,8 @@ function EnvironmentBlock({
             Token de autenticação: <code className="mono">{webhookToken}</code>
           </p>
           <p className="field-help">
-            Este token aparece uma única vez. Guarde agora — para gerar outro é preciso reconectar.
+            Este token aparece uma única vez — o sistema guarda só um resumo dele, nunca o valor.
+            Guarde agora.
           </p>
         </div>
       )}
@@ -220,7 +221,10 @@ function EnvironmentBlock({
       {connected && !webhookToken && (
         <p className="field-help">
           No painel do ASAAS, o webhook aponta para <code>{webhookUrl()}</code>. O token de
-          autenticação foi mostrado ao conectar; se ele se perdeu, reconecte para gerar outro.
+          autenticação foi mostrado ao conectar e não pode ser lido de novo. Reconectar com outra
+          chave <strong>mantém o mesmo token</strong>, para o webhook não parar. Se o token se
+          perdeu, desconecte e conecte de novo: aí nasce um novo, e ele precisa ser atualizado no
+          ASAAS.
         </p>
       )}
 

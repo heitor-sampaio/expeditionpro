@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { FeeSettings } from '@expedition/domain';
 import type {
   NewPaymentIntegration,
@@ -27,7 +28,10 @@ export function fakePaymentIntegrationRepository(): PaymentIntegrationRepository
         provider: integration.provider,
         environment: integration.environment,
         accessToken: integration.accessToken,
-        webhookToken: integration.webhookToken,
+        webhookTokenHash:
+          integration.webhookToken === undefined
+            ? (previous?.webhookTokenHash ?? '')
+            : sha256(integration.webhookToken),
         accountName: integration.accountName,
         feeSettings: previous?.feeSettings ?? {},
         active: true,
@@ -58,7 +62,7 @@ export function fakePaymentIntegrationRepository(): PaymentIntegrationRepository
       return Promise.resolve([...rows]);
     },
     findByWebhookToken(_tenantId: string, token: string) {
-      return Promise.resolve(rows.find((r) => r.webhookToken === token) ?? null);
+      return Promise.resolve(rows.find((r) => r.webhookTokenHash === sha256(token)) ?? null);
     },
     remove(_tenantId: string, provider: string, environment: PaymentEnvironment) {
       const index = indexOf(provider, environment);
@@ -66,4 +70,9 @@ export function fakePaymentIntegrationRepository(): PaymentIntegrationRepository
       return Promise.resolve();
     },
   };
+}
+
+/** O mesmo hash do Prisma — o fake diverge do real é como bug passa despercebido. */
+function sha256(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
 }

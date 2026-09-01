@@ -154,10 +154,13 @@ describe('PG-01: conectar a conta do ASAAS', () => {
   it('o segredo do webhook volta na conexão — é a única vez que ele aparece', async () => {
     const s = await seed();
     const connected = await conectado(s);
-    expect(connected.webhookToken).toBe(s.integrations.rows[0]!.webhookToken);
+
+    // SEC-01: o banco guarda só o hash. O valor em claro existe uma vez, aqui.
+    expect(connected.webhookToken).toBeTruthy();
+    expect(JSON.stringify(s.integrations.rows[0])).not.toContain(connected.webhookToken!);
 
     const list = await listPaymentIntegrations({ integrations: s.integrations }, owner);
-    expect(JSON.stringify(list)).not.toContain(connected.webhookToken);
+    expect(JSON.stringify(list)).not.toContain(connected.webhookToken!);
   });
 
   it('cada conexão nasce com um segredo próprio de webhook', async () => {
@@ -168,8 +171,8 @@ describe('PG-01: conectar a conta do ASAAS', () => {
       accessToken: 'aact_producao',
     });
     const [a, b] = s.integrations.rows;
-    expect(a!.webhookToken).toBeTruthy();
-    expect(a!.webhookToken).not.toBe(b!.webhookToken);
+    expect(a!.webhookTokenHash).toBeTruthy();
+    expect(a!.webhookTokenHash).not.toBe(b!.webhookTokenHash);
   });
 
   it('conectar e desconectar exigem owner ou admin — dinheiro do tenant', async () => {
@@ -347,14 +350,14 @@ describe('PG-02: emitir cobrança de uma inscrição', () => {
 describe('PG-03: o webhook do ASAAS lança o recebimento', () => {
   async function comCobranca() {
     const s = await seed();
-    await conectado(s);
+    const conexao = await conectado(s);
     const charge = await createBookingCharge(chargeDeps(s), owner, {
       bookingId: s.booking.id,
       environment: 'sandbox',
       billingType: 'PIX',
       dueDate: '2026-09-05',
     });
-    return { s, charge, token: s.integrations.rows[0]!.webhookToken };
+    return { s, charge, token: conexao.webhookToken! };
   }
 
   const evento = (paymentId: string, value: number) => ({
@@ -457,12 +460,14 @@ describe('PG-04/PG-05: a cobrança sai pelo bruto, para sobrar o líquido', () =
 
   async function comTaxas() {
     const s = await seed();
-    await conectado(s);
+    const conexao = await conectado(s);
     await updatePaymentFees({ integrations: s.integrations, audit: s.audit }, owner, {
       environment: 'sandbox',
       feeSettings: TAXAS,
     });
-    return s;
+    // O segredo em claro só existe no retorno da conexão (SEC-01) — quem for simular a
+    // chamada do provedor precisa guardá-lo aqui, como quem cola o token no ASAAS faria.
+    return { ...s, segredoWebhook: conexao.webhookToken! };
   }
 
   it('a taxa da transação é a que o provedor informou, não uma tabela nossa', async () => {
@@ -541,7 +546,7 @@ describe('PG-04/PG-05: a cobrança sai pelo bruto, para sobrar o líquido', () =
       amountCents: 389000,
     });
     await settleChargeFromWebhook(webhookDeps(s), sistema, {
-      token: s.integrations.rows[0]!.webhookToken,
+      token: s.segredoWebhook,
       body: {
         event: 'PAYMENT_RECEIVED',
         payment: {
@@ -593,7 +598,7 @@ describe('PG-04/PG-05: a cobrança sai pelo bruto, para sobrar o líquido', () =
 describe('PG-03: cobrança parcelada — o provedor manda um evento por parcela', () => {
   async function comParcelamento() {
     const s = await seed();
-    await conectado(s);
+    const conexao = await conectado(s);
     const charge = await createBookingCharge(chargeDeps(s), owner, {
       bookingId: s.booking.id,
       environment: 'sandbox',
@@ -602,7 +607,7 @@ describe('PG-03: cobrança parcelada — o provedor manda um evento por parcela'
       amountCents: 120000,
       installments: 6,
     });
-    return { s, charge, token: s.integrations.rows[0]!.webhookToken };
+    return { s, charge, token: conexao.webhookToken! };
   }
 
   const parcela = (paymentId: string, installmentId: string, value: number) => ({
@@ -687,7 +692,7 @@ describe('PG-03: cobrança parcelada — o provedor manda um evento por parcela'
 describe('PG-08: um lançamento por cobrança, pelo valor da inscrição', () => {
   async function comCobranca(billingType: 'CREDIT_CARD' | 'BOLETO', installments = 1) {
     const s = await seed();
-    await conectado(s);
+    const conexao = await conectado(s);
     const charge = await createBookingCharge(chargeDeps(s), owner, {
       bookingId: s.booking.id,
       environment: 'sandbox',
@@ -696,7 +701,7 @@ describe('PG-08: um lançamento por cobrança, pelo valor da inscrição', () =>
       amountCents: 120000,
       ...(installments > 1 ? { installments } : {}),
     });
-    return { s, charge, token: s.integrations.rows[0]!.webhookToken };
+    return { s, charge, token: conexao.webhookToken! };
   }
 
   const pagamento = (

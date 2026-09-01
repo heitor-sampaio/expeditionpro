@@ -14,8 +14,12 @@ export interface PaymentIntegrationRecord {
   readonly provider: string;
   readonly environment: PaymentEnvironment;
   readonly accessToken: string;
-  /** Segredo que o provedor devolve em todo webhook — é o que autentica a chamada. */
-  readonly webhookToken: string;
+  /**
+   * SEC-01 — só o `sha256` do segredo. O valor em claro sai **uma vez**, na conexão, e o
+   * banco nunca mais o tem: era o único segredo do sistema guardado cru, e é justamente o
+   * que separa a internet de "marcar inscrição como paga".
+   */
+  readonly webhookTokenHash: string;
   readonly accountName: string | null;
   /** PG-04: taxas negociadas por forma de pagamento. Vazio = nenhuma taxa aplicada. */
   readonly feeSettings: FeeSettings;
@@ -29,7 +33,8 @@ export interface NewPaymentIntegration {
   readonly provider: string;
   readonly environment: PaymentEnvironment;
   readonly accessToken: string;
-  readonly webhookToken: string;
+  /** Em claro. Ausente numa reconexão: o repositório mantém o hash que já existe. */
+  readonly webhookToken?: string | undefined;
   readonly accountName: string | null;
   readonly connectedBy: string | null;
   readonly connectedAt: Date;

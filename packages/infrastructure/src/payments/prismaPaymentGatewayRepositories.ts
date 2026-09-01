@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { randomBytes } from 'node:crypto';
 import type {
   ChargeSettlement,
@@ -38,7 +39,7 @@ export function prismaPaymentIntegrationRepository(
     provider: row.provider,
     environment: row.environment as PaymentEnvironment,
     accessToken: cipher.decrypt(row.accessToken),
-    webhookToken: row.webhookToken,
+    webhookTokenHash: row.webhookTokenHash,
     accountName: row.accountName,
     feeSettings: (row.feeSettings as FeeSettings | null) ?? {},
     active: row.active,
@@ -49,9 +50,17 @@ export function prismaPaymentIntegrationRepository(
   return {
     async upsert(integration: NewPaymentIntegration): Promise<PaymentIntegrationRecord> {
       const client = tenantClient(base, integration.tenantId);
+      /*
+       * SEC-01 — o hash do webhook só entra no `data` quando há segredo novo. Numa
+       * reconexão o caso de uso não manda segredo, e omitir aqui é o que **preserva** o
+       * hash existente: mudar o segredo obrigaria a reconfigurar o webhook no ASAAS, e a
+       * confirmação de pagamento pararia de chegar em silêncio.
+       */
       const data = {
         accessToken: cipher.encrypt(integration.accessToken),
-        webhookToken: integration.webhookToken,
+        ...(integration.webhookToken === undefined
+          ? {}
+          : { webhookTokenHash: sha256(integration.webhookToken) }),
         accountName: integration.accountName,
         active: true,
         connectedBy: integration.connectedBy,
@@ -62,6 +71,12 @@ export function prismaPaymentIntegrationRepository(
         where: { provider: integration.provider, environment: integration.environment },
         select: { id: true },
       });
+      if (!existing && integration.webhookToken === undefined) {
+        // Conexão nova sem segredo seria linha sem hash — e o webhook não teria como se
+        // provar. O caso de uso só omite o segredo quando a linha já existe.
+        throw new Error('upsert: conexão nova exige webhookToken');
+      }
+
       const row = existing
         ? await client.paymentIntegration.update({ where: { id: existing.id }, data })
         : await client.paymentIntegration.create({
@@ -70,6 +85,7 @@ export function prismaPaymentIntegrationRepository(
               provider: integration.provider,
               environment: integration.environment,
               ...data,
+              webhookTokenHash: sha256(integration.webhookToken!),
             },
           });
       return toRecord(row);
@@ -116,8 +132,12 @@ export function prismaPaymentIntegrationRepository(
       tenantId: string,
       token: string,
     ): Promise<PaymentIntegrationRecord | null> {
+      /*
+       * Busca por hash, como a API key de intake: o segredo apresentado é hasheado e o
+       * lookup vai por índice. Não há comparação byte a byte de segredo em memória.
+       */
       const row = await tenantClient(base, tenantId).paymentIntegration.findFirst({
-        where: { webhookToken: token, active: true },
+        where: { webhookTokenHash: sha256(token), active: true },
       });
       return row ? toRecord(row) : null;
     },
@@ -301,4 +321,9 @@ function localDateToDate(date: LocalDate): Date {
 
 function dateToLocalDate(date: Date): LocalDate {
   return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
+}
+
+/** Mesmo hash que a API key de intake usa — uma definição só no projeto. */
+function sha256(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
 }
