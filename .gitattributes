@@ -1,0 +1,8 @@
+# Quebra de linha estável em todo checkout — o checksum das migrations do Prisma
+# é do conteúdo do arquivo; CRLF/LF divergente faria o Prisma achar que a migration
+# foi modificada após aplicada.
+* text=auto eol=lf
+*.sql text eol=lf
+*.ts text eol=lf
+*.prisma text eol=lf
+pnpm-lock.yaml text eol=lf

@@ -1,0 +1,25 @@
+{
+  "name": "@expedition/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Interface HTTP no Railway: webhook de intake, endpoints públicos, API do back-office.",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@expedition/application": "workspace:*",
+    "@expedition/domain": "workspace:*",
+    "@expedition/infrastructure": "workspace:*",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/helmet": "^13.1.1",
+    "@fastify/rate-limit": "^11.2.0",
+    "fastify": "^5.12.1",
+    "fastify-type-provider-zod": "^7.0.0",
+    "jose": "^6.2.10",
+    "zod": "^4.4.3"
+  }
+}

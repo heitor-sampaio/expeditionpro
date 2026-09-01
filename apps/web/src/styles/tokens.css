@@ -1,0 +1,106 @@
+/* Tokens do design system — fonte da verdade na skill `design-system`.
+   Nenhum hex ou tamanho fora daqui. Overrides por data-mode / data-density no root. */
+:root {
+  /* accent do tenant — único bloco que muda por tenant */
+  --o: #fc4c02;
+  --o-h: #e04302;
+  --o-soft: #fff0e9;
+
+  /* tinta */
+  --ink: #242428;
+  --ink-2: #55555f;
+  --ink-3: #8a8a96;
+
+  /* superfícies */
+  --bg: #f5f5f7;
+  --card: #ffffff;
+  --card-2: #fafafb;
+  --line: #e4e4ea;
+  --line-2: #d3d3dc;
+  --relief: #e2e2ea;
+
+  /* semântica financeira */
+  --go: #00875a;
+  --go-soft: #e4f4ee;
+  --no: #c4341e;
+  --no-soft: #fbeae7;
+
+  /* marca de terceiro: o verde é do WhatsApp, não do design system. Fica isolado
+     num token próprio para nunca ser confundido com --go (pago/confirmado) e para
+     não virar hex solto dentro de componente. Igual entre os dois modos. */
+  --wa: #25d366;
+  --wa-h: #1da851;
+  --wa-ink: #04231a;
+
+  /* densidade — compacta é o padrão */
+  --row: 52px;
+  --pad-y: 12px;
+  --ctl: 40px;
+  --tap: 36px;
+
+  /* famílias */
+  --f-sans: Archivo, Helvetica, Arial, sans-serif;
+  --f-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* raios */
+  --r-nav: 8px;
+  --r-card: 10px;
+  --r-card-lg: 14px;
+  --r-pill: 999px;
+}
+
+[data-mode='dark'] {
+  --o-soft: #2e1509;
+
+  --ink: #f2f2f5;
+  --ink-2: #b0b0bd;
+  --ink-3: #7c7c8a;
+
+  --bg: #0e0e11;
+  --card: #18181c;
+  --card-2: #1e1e23;
+  --line: #2a2a31;
+  --line-2: #3a3a44;
+  --relief: #23232b;
+
+  --go: #3fc294;
+  --go-soft: #0f2b22;
+  --no: #e8705c;
+  --no-soft: #2e1512;
+}
+
+[data-density='comfy'] {
+  --row: 64px;
+  --pad-y: 16px;
+  --ctl: 44px;
+  --tap: 44px;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+:focus-visible {
+  outline: 2px solid var(--o);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

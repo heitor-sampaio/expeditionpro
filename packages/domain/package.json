@@ -1,0 +1,19 @@
+{
+  "name": "@expedition/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Regras de negócio puras. Zero I/O, zero Prisma, zero React. O coração financeiro.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}

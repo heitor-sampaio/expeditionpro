@@ -1,0 +1,45 @@
+# dependências
+node_modules/
+.pnpm-store/
+
+# build
+dist/
+build/
+*.tsbuildinfo
+
+# ambiente — segredo nunca entra no git (§11.7)
+.env
+.env.*
+!.env.example
+
+# prisma
+packages/infrastructure/prisma/*.db
+# cliente gerado — regenerado por `pnpm db:generate` (setup e CI)
+packages/infrastructure/src/generated/
+
+# material de referência com dado real de cliente (roomlist, planilha da seguradora).
+# Nunca vai para o repositório — §11.7 vale para arquivo solto, não só para .env
+examples/
+
+# testes / cobertura
+coverage/
+test-results/
+playwright-report/
+.vitest/
+
+# editores / SO
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# capacitor (gerados)
+apps/web/android/
+apps/web/ios/
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*

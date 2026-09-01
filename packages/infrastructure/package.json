@@ -1,0 +1,44 @@
+{
+  "name": "@expedition/infrastructure",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Adaptadores: Prisma, Supabase, Storage. Implementa os ports da aplicação.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:status": "prisma migrate status",
+    "db:baseline": "node scripts/baseline.mjs",
+    "db:baseline:dry": "node scripts/baseline.mjs --dry-run",
+    "db:supabase-setup": "prisma db execute --file prisma/supabase-setup.sql --schema prisma/schema.prisma",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@expedition/application": "workspace:*",
+    "@expedition/domain": "workspace:*",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "pdf-lib": "^1.17.1",
+    "prisma": "^7.9.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.0"
+  }
+}

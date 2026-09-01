@@ -1,0 +1,26 @@
+{
+  "name": "@expedition/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Front React (Vite) empacotado com Capacitor. Consome @expedition/domain para cálculo ao vivo (PC-16).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@expedition/domain": "workspace:*",
+    "@supabase/supabase-js": "^2.112.3",
+    "heic2any": "^0.0.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "vite": "^8.2.2"
+  }
+}

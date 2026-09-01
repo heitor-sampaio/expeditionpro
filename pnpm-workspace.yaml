@@ -1,0 +1,19 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+
+# Build scripts aprovados explicitamente (pnpm 11 bloqueia por padrão).
+# esbuild: vitest/tsx. unrs-resolver: eslint-plugin-import-x. prisma: engine + client.
+onlyBuiltDependencies:
+  - esbuild
+  - unrs-resolver
+  - prisma
+  - '@prisma/client'
+  - '@prisma/engines'
+
+allowBuilds:
+  '@prisma/engines': true
+  '@prisma/client': true
+  esbuild: true
+  prisma: true
+  unrs-resolver: true

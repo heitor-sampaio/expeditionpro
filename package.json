@@ -1,0 +1,45 @@
+{
+  "name": "expedition-pro",
+  "version": "0.0.0",
+  "private": true,
+  "description": "SaaS multi-tenant de gestão de expedições 4x4",
+  "type": "module",
+  "packageManager": "pnpm@11.23.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/*\" build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run --project unit",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:rls": "vitest run --project rls",
+    "test:watch": "vitest --project unit",
+    "db:generate": "pnpm --filter @expedition/infrastructure db:generate",
+    "db:migrate": "pnpm --filter @expedition/infrastructure db:migrate",
+    "db:deploy": "pnpm --filter @expedition/infrastructure db:migrate:deploy",
+    "db:status": "pnpm --filter @expedition/infrastructure db:status",
+    "db:baseline": "pnpm --filter @expedition/infrastructure db:baseline",
+    "db:seed": "pnpm --filter @expedition/infrastructure db:seed",
+    "check:rls": "node scripts/check-rls-migrations.mjs",
+    "check:markers": "node scripts/check-markers.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.2.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "eslint": "^10.9.0",
+    "eslint-plugin-import-x": "^4.17.1",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.12",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.11"
+  }
+}

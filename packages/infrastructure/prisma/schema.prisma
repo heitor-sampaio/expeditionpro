@@ -1,0 +1,978 @@
+// ExpeditionPRO — schema multi-tenant.
+//
+// Regras inegociáveis (§2.2, nova-tabela):
+//   · tenant_id em toda tabela de negócio
+//   · todo unique é COMPOSTO, liderado por tenant_id
+//   · índices compostos liderados por tenant_id
+//   · RLS habilitada por migration (ver prisma/sql/rls.sql); tabela sem RLS falha no CI
+//
+// O role do Prisma tem BYPASSRLS — a RLS não protege por essa via. O filtro vem da
+// Prisma Client Extension (src/prisma/tenantClient.ts), que injeta tenant_id em todo
+// find/create/update/delete. As duas camadas juntas são a defesa (§10.3, SEC-02).
+//
+// Este é o subconjunto da Fase 0/1 (identidade, tenancy, clientes, catálogo). As
+// demais tabelas do §4 entram por fase, cada uma com seu ciclo TDD e teste de RLS.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+  runtime             = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+  // URLs de conexão vivem em prisma.config.ts (Prisma 7):
+  //   · DATABASE_URL — Supavisor transaction mode p/ a aplicação (?pgbouncer=true&connection_limit=1)
+  //   · DIRECT_URL   — porta 5432 direta p/ migrations (§2.3)
+}
+
+model Tenant {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  cnpj      String?
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  memberships     Membership[]
+  customers       Customer[]
+  vehicleBrands   VehicleBrand[]
+  vehicleModels   VehicleModel[]
+  vehicles        Vehicle[]
+  itineraries     Itinerary[]
+  itineraryPrices ItineraryPrice[]
+  itineraryPhotos ItineraryPhoto[]
+  supplierCategories SupplierCategory[]
+  scheduleEvents  ScheduleEvent[]
+  groups          Group[]
+  bookings         Booking[]
+  participants     BookingParticipant[]
+  bookingPayments  BookingPayment[]
+  suppliers        Supplier[]
+  supplierExpenses SupplierExpense[]
+  supplierPayments SupplierPayment[]
+  apiKeys          ApiKey[]
+  intakeEvents     IntakeEvent[]
+  paymentIntegrations PaymentIntegration[]
+  paymentCharges      PaymentCharge[]
+  formMappings     FormMapping[]
+  cashbackEntries  CashbackEntry[]
+  identityChangeRequests IdentityChangeRequest[]
+  auditLogs              AuditLog[]
+  legalDocuments         LegalDocument[]
+  legalDocumentVersions  LegalDocumentVersion[]
+  documentAcceptances    DocumentAcceptance[]
+  communicationConsents  CommunicationConsent[]
+  posts                  Post[]
+  postComments           PostComment[]
+  postLikes              PostLike[]
+  postReports            PostReport[]
+  mediaConsents          MediaConsent[]
+  coupons                Coupon[]
+  couponRedemptions      CouponRedemption[]
+
+  @@map("tenants")
+}
+
+model Membership {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  role      String // owner | admin | operator | viewer
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+  @@map("memberships")
+}
+
+model Customer {
+  id            String  @id @default(uuid()) @db.Uuid
+  tenantId      String  @map("tenant_id") @db.Uuid
+  // Auto-referência: responsável tem responsible_id = NULL; acompanhante aponta para
+  // o responsável. Hierarquia de exatamente dois níveis, garantida por trigger (CL-11).
+  responsibleId String? @map("responsible_id") @db.Uuid
+
+  fullName        String    @map("full_name")
+  cpf             String
+  birthDate       DateTime  @map("birth_date") @db.Date
+  email           String?
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  phone           String?
+  phoneVerifiedAt DateTime? @map("phone_verified_at")
+
+  addressStreet   String? @map("address_street")
+  addressNumber   String? @map("address_number")
+  addressDistrict String? @map("address_district")
+  addressCity     String? @map("address_city")
+  addressState    String? @map("address_state")
+  addressZip      String? @map("address_zip")
+
+  notes        String?
+  customFields Json    @default("{}") @map("custom_fields")
+
+  // Portal (§3.7): none | invited | active | disabled
+  authUserId   String?   @map("auth_user_id") @db.Uuid
+  portalStatus String    @default("none") @map("portal_status")
+  invitedAt    DateTime? @map("invited_at")
+  lastLoginAt  DateTime? @map("last_login_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  responsible  Customer?            @relation("family", fields: [responsibleId], references: [id], onDelete: Restrict)
+  dependents   Customer[]           @relation("family")
+  vehicles     Vehicle[]
+  bookings     Booking[]            @relation("bookingResponsible")
+  participants BookingParticipant[]
+  cashback     CashbackEntry[]
+  identityChangeRequests IdentityChangeRequest[]
+  documentAcceptances    DocumentAcceptance[]
+  communicationConsents  CommunicationConsent[]
+  posts                  Post[]
+  postComments           PostComment[]
+  postReports            PostReport[]
+  mediaConsents          MediaConsent[]
+  coupons                Coupon[]
+  couponRedemptions      CouponRedemption[]
+
+  @@unique([tenantId, cpf])
+  @@index([tenantId])
+  @@index([tenantId, responsibleId])
+  @@map("customers")
+}
+
+model VehicleBrand {
+  id       String  @id @default(uuid()) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  name     String
+  isActive Boolean @default(true) @map("is_active")
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  models   VehicleModel[]
+  vehicles Vehicle[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("vehicle_brands")
+}
+
+model VehicleModel {
+  id       String  @id @default(uuid()) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  brandId  String  @map("brand_id") @db.Uuid
+  name     String
+  isActive Boolean @default(true) @map("is_active")
+
+  tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  brand    VehicleBrand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  vehicles Vehicle[]
+
+  @@unique([tenantId, brandId, name])
+  @@index([tenantId])
+  @@index([tenantId, brandId])
+  @@map("vehicle_models")
+}
+
+model Itinerary {
+  id               String  @id @default(uuid()) @db.Uuid
+  tenantId         String  @map("tenant_id") @db.Uuid
+  name             String
+  slug             String
+  description      String?
+  difficulty       String?
+  status           String  @default("draft") // draft | active | archived
+  kind             String  @default("catalog") // catalog | custom (§3.5.1)
+  childYoungMaxAge Int     @default(5) @map("child_young_max_age")
+  childMidMaxAge   Int     @default(10) @map("child_mid_max_age")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  prices         ItineraryPrice[]
+  photos         ItineraryPhoto[]
+  scheduleEvents ScheduleEvent[]
+  groups         Group[]
+  formMappings   FormMapping[]
+  coupons        Coupon[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@map("itineraries")
+}
+
+// Galeria de fotos do roteiro (RO-01). Storage privado por tenant; guarda só o path.
+// No máximo uma capa por roteiro (índice parcial único); a ordem é o `position`.
+model ItineraryPhoto {
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  itineraryId String  @map("itinerary_id") @db.Uuid
+  storagePath String  @map("storage_path")
+  alt         String?
+  position    Int
+  isCover     Boolean @default(false) @map("is_cover")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  itinerary Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, itineraryId])
+  @@map("itinerary_photos")
+}
+
+model Vehicle {
+  id         String  @id @default(uuid()) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  customerId String  @map("customer_id") @db.Uuid
+  // Catálogo (brand_id/model_id) OU texto livre "Outro" (brand_other/model_other),
+  // que entra na fila de catalogação (§3.3 / CL-05).
+  brandId            String?  @map("brand_id") @db.Uuid
+  modelId            String?  @map("model_id") @db.Uuid
+  brandOther         String?  @map("brand_other")
+  modelOther         String?  @map("model_other")
+  needsCatalogReview Boolean  @default(false) @map("needs_catalog_review")
+  plate              String
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  brand    VehicleBrand? @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  model    VehicleModel? @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  bookings Booking[]
+
+  @@unique([tenantId, plate])
+  @@index([tenantId])
+  @@index([tenantId, customerId])
+  @@map("vehicles")
+}
+
+// Preços do roteiro, versionados por valid_from (§3.4 / RO-03). BigInt em centavos.
+model ItineraryPrice {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  itineraryId     String   @map("itinerary_id") @db.Uuid
+  validFrom       DateTime @map("valid_from") @db.Date
+  coupleCents     BigInt   @map("couple_cents")
+  soloCents       BigInt   @map("solo_cents")
+  extraAdultCents BigInt   @map("extra_adult_cents")
+  childMidCents   BigInt   @map("child_mid_cents")
+  childYoungCents BigInt   @map("child_young_cents")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  itinerary Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, itineraryId, validFrom])
+  @@index([tenantId, itineraryId])
+  @@map("itinerary_prices")
+}
+
+// Evento de agenda (§3.5). Ciclo de vida acoplado ao grupo.
+model ScheduleEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  itineraryId String    @map("itinerary_id") @db.Uuid
+  startDate   DateTime  @map("start_date") @db.Date
+  endDate     DateTime  @map("end_date") @db.Date
+  title       String?
+  notes       String?
+  status      String    @default("scheduled")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  itinerary Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Restrict)
+  group     Group?
+
+  @@index([tenantId])
+  @@index([tenantId, startDate])
+  @@map("schedule_events")
+}
+
+// Grupo — a saída, onde as inscrições vivem (§3.5).
+model Group {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  scheduleEventId  String?   @unique @map("schedule_event_id") @db.Uuid
+  itineraryId      String    @map("itinerary_id") @db.Uuid
+  name             String
+  status           String    @default("draft") // draft|open|closed|in_progress|done|cancelled
+  capacityVehicles Int?      @map("capacity_vehicles") // NULL = sem limite
+  visibility       String    @default("public") // public|private
+  pricingMode      String    @default("itinerary") @map("pricing_mode") // itinerary|manual
+  cashbackOverride Json?     @map("cashback_override")
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  scheduleEvent ScheduleEvent? @relation(fields: [scheduleEventId], references: [id], onDelete: Cascade)
+  itinerary     Itinerary      @relation(fields: [itineraryId], references: [id], onDelete: Restrict)
+  bookings      Booking[]
+  expenses      SupplierExpense[]
+  coupons       Coupon[]
+
+  @@index([tenantId])
+  @@map("groups")
+}
+
+// Inscrição — uma família dentro de um grupo (§3.5 / GR).
+model Booking {
+  id                    String    @id @default(uuid()) @db.Uuid
+  tenantId              String    @map("tenant_id") @db.Uuid
+  groupId               String    @map("group_id") @db.Uuid
+  responsibleCustomerId String    @map("responsible_customer_id") @db.Uuid
+  vehicleId             String?   @map("vehicle_id") @db.Uuid
+  status                String    @default("pending") // pending|confirmed|rejected|cancelled
+  confirmedBy           String?   @map("confirmed_by") @db.Uuid
+  confirmedAt           DateTime? @map("confirmed_at")
+  confirmedNote         String?   @map("confirmed_note")
+  rejectedReason        String?   @map("rejected_reason")
+  cancelledBy           String?   @map("cancelled_by") @db.Uuid
+  cancelledAt           DateTime? @map("cancelled_at")
+  cancelledReason       String?   @map("cancelled_reason")
+  cashbackRuleSnapshot  Json?     @map("cashback_rule_snapshot")
+  customFields          Json      @default("{}") @map("custom_fields")
+  notes                 String?
+  invoiceChecked        Boolean   @default(false) @map("invoice_checked")
+  invoiceCheckedBy      String?   @map("invoice_checked_by") @db.Uuid
+  invoiceCheckedAt      DateTime? @map("invoice_checked_at")
+  invoiceNumber         String?   @map("invoice_number")
+  invoiceIssuedAt       DateTime? @map("invoice_issued_at")
+  // GR-14: presenca na saida. Quem marcou fica para a trilha; desfazer limpa os dois.
+  checkedInAt           DateTime? @map("checked_in_at")
+  checkedInBy           String?   @map("checked_in_by") @db.Uuid
+  source                String    @default("manual") // manual|webhook|portal
+  createdAt             DateTime  @default(now()) @map("created_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  group        Group                @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  responsible  Customer             @relation("bookingResponsible", fields: [responsibleCustomerId], references: [id], onDelete: Restrict)
+  vehicle      Vehicle?             @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  participants BookingParticipant[]
+  payments     BookingPayment[]
+  charges      PaymentCharge[]
+  couponRedemptions CouponRedemption[]
+
+  @@unique([groupId, responsibleCustomerId])
+  @@index([tenantId])
+  @@index([tenantId, groupId])
+  @@map("bookings")
+}
+
+// Participante da inscrição — snapshot de categoria e preço congelados (§3.4).
+model BookingParticipant {
+  id             String  @id @default(uuid()) @db.Uuid
+  tenantId       String  @map("tenant_id") @db.Uuid
+  bookingId      String  @map("booking_id") @db.Uuid
+  customerId     String  @map("customer_id") @db.Uuid
+  priceCategory  String  @map("price_category") // COUPLE|SOLO|EXTRA_ADULT|CHILD_MID|CHILD_YOUNG
+  unitPriceCents BigInt  @map("unit_price_cents")
+  priceSource    String  @default("auto") @map("price_source") // auto|override
+  priceNote      String? @map("price_note")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking  Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@unique([bookingId, customerId])
+  @@index([tenantId, bookingId])
+  @@map("booking_participants")
+}
+
+// Recebimento de uma inscrição (§3.6, GR-05). Histórico imutável: o recebido é a
+// SOMA desta tabela, nunca coluna. deleted_at porque toca dinheiro (IN-11/IN-16).
+model BookingPayment {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  bookingId   String    @map("booking_id") @db.Uuid
+  paidAt      DateTime  @map("paid_at") @db.Date
+  amountCents BigInt    @map("amount_cents")
+  // §3.6: payment (entrada) | refund (devolvido em dinheiro) | cashback (virou crédito).
+  // Devolução e conversão entram NEGATIVAS, então todo SUM de "recebido" já sai líquido.
+  kind        String    @default("payment")
+  method      String // pix|boleto|card|cash
+  // PG-08: o que o cliente pagou, quando difere do que quita (taxa repassada).
+  customerPaidCents BigInt? @map("customer_paid_cents")
+  chargeId          String? @map("charge_id") @db.Uuid
+  reference   String?
+  notes       String?
+  createdBy   String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  charges PaymentCharge[]
+  charge  PaymentCharge? @relation("chargePayments", fields: [chargeId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, bookingId])
+  @@map("booking_payments")
+}
+
+// Cupom de desconto (§5.15, CP-01..CP-04). Escopo, validade e limites são todos
+// opcionais: nulo significa "sem restrição". deleted_at porque toca dinheiro.
+model Coupon {
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  code        String
+  description String?
+  mode        String // percent | fixed
+  // Percentual inteiro (ex.: 10) ou centavos, conforme `mode`.
+  value       BigInt
+  active      Boolean @default(true)
+
+  validFrom  DateTime? @map("valid_from") @db.Date
+  validUntil DateTime? @map("valid_until") @db.Date
+
+  maxUses            Int? @map("max_uses")
+  maxUsesPerCustomer Int? @map("max_uses_per_customer")
+
+  // CP-02 (escopo) e CP-03 (nominal). Nulos = vale para qualquer inscrição do tenant.
+  itineraryId String? @map("itinerary_id") @db.Uuid
+  groupId     String? @map("group_id") @db.Uuid
+  customerId  String? @map("customer_id") @db.Uuid
+
+  createdBy String?   @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  itinerary   Itinerary?         @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  group       Group?             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  customer    Customer?          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  redemptions CouponRedemption[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, active])
+  @@map("coupons")
+}
+
+// Resgate: o cupom aplicado a uma inscrição (CP-05..CP-08, CP-10). É aqui que o
+// desconto vive — o snapshot do participante nunca é tocado. O uso do cupom é a
+// CONTAGEM dos resgates ativos, nunca uma coluna incrementada; cancelar preenche
+// `released_at` e devolve o uso. Modo e valor ficam congelados para o passado não
+// mudar quando o cupom for editado.
+model CouponRedemption {
+  id            String @id @default(uuid()) @db.Uuid
+  tenantId      String @map("tenant_id") @db.Uuid
+  couponId      String @map("coupon_id") @db.Uuid
+  bookingId     String @map("booking_id") @db.Uuid
+  customerId    String @map("customer_id") @db.Uuid
+  code          String
+  mode          String
+  value         BigInt
+  discountCents BigInt @map("discount_cents")
+
+  redeemedBy String?   @map("redeemed_by") @db.Uuid
+  redeemedAt DateTime  @default(now()) @map("redeemed_at")
+  releasedBy String?   @map("released_by") @db.Uuid
+  releasedAt DateTime? @map("released_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  coupon   Coupon   @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  booking  Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, couponId])
+  @@index([tenantId, bookingId])
+  @@map("coupon_redemptions")
+}
+
+// Fornecedor: parceiro que presta serviço na saída (FO-01). doc único por tenant.
+model Supplier {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  name       String
+  doc        String? // só dígitos (CPF/CNPJ)
+  docType    String?   @map("doc_type") // cpf|cnpj
+  phone      String?
+  email      String?
+  notes      String?
+  pixKey     String?   @map("pix_key") // normalizada: dígitos, E.164 ou caixa baixa (FO-07)
+  pixKeyType String?   @map("pix_key_type") // cpf|cnpj|email|phone|random
+  categoryId String?   @map("category_id") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category SupplierCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  expenses SupplierExpense[]
+
+  @@unique([tenantId, doc])
+  @@index([tenantId])
+  @@index([tenantId, categoryId])
+  @@map("suppliers")
+}
+
+// Categoria de fornecedor (FO-04), gerenciável por tenant. Dimensão do relatório de gastos
+// por categoria. Só a equipe lê/escreve — fornecedor não é dado de cliente.
+model SupplierCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  suppliers Supplier[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("supplier_categories")
+}
+
+// Gasto contratado com um fornecedor num grupo (§3.6, GR-08). total_cents é o contratado;
+// o pago é a SOMA de supplier_payments, nunca coluna.
+model SupplierExpense {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  groupId     String    @map("group_id") @db.Uuid
+  supplierId  String    @map("supplier_id") @db.Uuid
+  description String
+  totalCents  BigInt    @map("total_cents")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  group    Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  supplier Supplier          @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  payments SupplierPayment[]
+
+  @@index([tenantId, groupId])
+  @@map("supplier_expenses")
+}
+
+// Pagamento a fornecedor (§3.6, GR-09). Histórico imutável; deleted_at porque toca dinheiro.
+model SupplierPayment {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  supplierExpenseId String    @map("supplier_expense_id") @db.Uuid
+  paidAt            DateTime  @map("paid_at") @db.Date
+  amountCents       BigInt    @map("amount_cents")
+  method            String // pix|boleto|card|cash
+  reference         String?
+  notes             String?
+  createdBy         String?   @map("created_by") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  tenant  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  expense SupplierExpense @relation(fields: [supplierExpenseId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, supplierExpenseId])
+  @@map("supplier_payments")
+}
+
+// Credencial de máquina (§3.9). Guardada só como hash SHA-256; o prefixo é visível.
+model ApiKey {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  name       String
+  prefix     String // ex.: epk_live_drk_
+  keyHash    String    @map("key_hash") // sha256 hex do token completo
+  scopes     String[]
+  lastUsedAt DateTime? @map("last_used_at")
+  useCount   Int       @default(0) @map("use_count")
+  expiresAt  DateTime? @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  revokedBy  String?   @map("revoked_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([keyHash])
+  @@index([tenantId])
+  @@map("api_keys")
+}
+
+// Inscrição recebida pelo webhook (§5.7). Corpo cru imutável em `payload`; a saída do
+// perfil em `normalized`. Vira booking só na alocação pelo admin.
+model IntakeEvent {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  source           String // wp_flat_v1 | canonical_v1
+  externalId       String?   @map("external_id") // {form_id}:{entry_id}
+  payload          Json // corpo cru, como chegou
+  normalized       Json? // saída do perfil de mapeamento
+  formId           String?   @map("form_id")
+  itineraryId      String?   @map("itinerary_id") @db.Uuid
+  preferredDate    DateTime? @map("preferred_date") @db.Date
+  submittedAt      DateTime? @map("submitted_at")
+  receivedAt       DateTime  @default(now()) @map("received_at")
+  status           String    @default("received") // received|needs_allocation|allocated|discarded|error
+  error            String?
+  discardedReason  String?   @map("discarded_reason")
+  allocatedGroupId String?   @map("allocated_group_id") @db.Uuid
+  bookingId        String?   @map("booking_id") @db.Uuid
+  allocatedBy      String?   @map("allocated_by") @db.Uuid
+  allocatedAt      DateTime? @map("allocated_at")
+  isTest           Boolean   @default(false) @map("is_test")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, source, externalId])
+  @@index([tenantId, status])
+  @@map("intake_events")
+}
+
+// PG-01: conexão do tenant com o gateway (ASAAS). Uma por ambiente — sandbox e
+// produção convivem. O token é cifrado pela aplicação e nunca sai numa resposta.
+model PaymentIntegration {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  provider      String    @default("asaas")
+  environment   String // sandbox | production
+  accessToken   String    @map("access_token")
+  webhookToken  String    @map("webhook_token")
+  accountName   String?   @map("account_name")
+  // PG-04: taxas negociadas por forma de pagamento (percentual, fixa, antecipação).
+  feeSettings   Json?     @map("fee_settings")
+  active        Boolean   @default(true)
+  connectedBy   String?   @map("connected_by") @db.Uuid
+  connectedAt   DateTime  @default(now()) @map("connected_at")
+  lastCheckedAt DateTime? @map("last_checked_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, provider, environment])
+  @@index([tenantId])
+  @@map("payment_integrations")
+}
+
+// PG-02: cobrança emitida para uma inscrição. `bookingPaymentId` preenchido significa
+// que o recebimento já entrou no ledger — é o que torna o reenvio do webhook inofensivo.
+model PaymentCharge {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  bookingId        String    @map("booking_id") @db.Uuid
+  provider         String    @default("asaas")
+  environment      String
+  externalId       String    @map("external_id")
+  // PG-03: id do parcelamento. O provedor manda um webhook por parcela; é por aqui que
+  // qualquer uma delas encontra esta cobrança.
+  installmentExternalId String? @map("installment_external_id")
+  amountCents      BigInt    @map("amount_cents")
+  // PG-04: o que deve sobrar depois das taxas; `amountCents` é o que o cliente paga.
+  netAmountCents   BigInt?   @map("net_amount_cents")
+  installments     Int       @default(1)
+  billingType      String    @map("billing_type")
+  dueDate          DateTime  @map("due_date") @db.Date
+  status           String    @default("pending")
+  invoiceUrl       String?   @map("invoice_url")
+  bookingPaymentId String?   @map("booking_payment_id") @db.Uuid
+  paidAt           DateTime? @map("paid_at")
+  // PG-07: o realizado, lido do provedor na conciliação.
+  settledGrossCents    BigInt?   @map("settled_gross_cents")
+  settledNetCents      BigInt?   @map("settled_net_cents")
+  anticipationFeeCents BigInt?   @map("anticipation_fee_cents")
+  paidInstallments     Int?      @map("paid_installments")
+  creditedInstallments Int?      @map("credited_installments")
+  awaitingCreditCents  BigInt?   @map("awaiting_credit_cents")
+  nextCreditDate       DateTime? @map("next_credit_date") @db.Date
+  reconciledAt         DateTime? @map("reconciled_at")
+  createdBy        String?   @map("created_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  tenant  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  payment BookingPayment? @relation(fields: [bookingPaymentId], references: [id], onDelete: SetNull)
+  payments BookingPayment[] @relation("chargePayments")
+
+  @@unique([tenantId, provider, externalId])
+  @@index([tenantId, bookingId])
+  @@index([tenantId, status])
+  @@index([tenantId, installmentExternalId])
+  @@map("payment_charges")
+}
+
+// IN-20: mapa form_id → roteiro por origem (Configurações → Integrações). O webhook
+// resolve o roteiro na chegada, e a fila filtra os grupos do roteiro certo. É config do
+// tenant: só a equipe lê/escreve (sem policy de cliente).
+model FormMapping {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  source      String // wp_flat_v1 | canonical_v1
+  formId      String   @map("form_id")
+  itineraryId String   @map("itinerary_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  itinerary Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, source, formId])
+  @@index([tenantId])
+  @@map("form_mappings")
+}
+
+// Ledger de cashback (§5.8). Append-only e imutável: o saldo é SUM(amount_cents),
+// nunca coluna. accrual positivo, redemption/expiry negativos.
+model CashbackEntry {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  customerId    String    @map("customer_id") @db.Uuid
+  bookingId     String?   @map("booking_id") @db.Uuid
+  type          String // accrual|redemption|expiry|adjustment
+  amountCents   BigInt    @map("amount_cents")
+  availableFrom DateTime? @map("available_from") @db.Date
+  expiresAt     DateTime? @map("expires_at") @db.Date
+  notes         String?
+  createdBy     String?   @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, customerId])
+  @@index([tenantId, bookingId])
+  @@map("cashback_entries")
+}
+
+model IdentityChangeRequest {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  customerId   String    @map("customer_id") @db.Uuid
+  requestedBy  String?   @map("requested_by") @db.Uuid
+  status       String    @default("pending") // pending | approved | rejected
+  // Novos valores propostos; NULL = campo não muda. Ao menos um é preenchido.
+  // Identidade (PC-07 pelo portal) e contato (IN-04 pela divergência na alocação).
+  fullName     String?   @map("full_name")
+  cpf          String?
+  birthDate    DateTime? @map("birth_date") @db.Date
+  email        String?
+  phone        String?
+  reason       String?
+  decidedBy    String?   @map("decided_by") @db.Uuid
+  decidedAt    DateTime? @map("decided_at")
+  decisionNote String?   @map("decision_note")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([tenantId, customerId])
+  @@map("identity_change_requests")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  // Usuário por trás da ação quando existe; integração/sistema ficam nulos (§3.2.1).
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  entity      String
+  // Polimórfico: id de qualquer entidade auditada. TEXT porque nem todo id é UUID.
+  entityId    String   @map("entity_id")
+  action      String
+  diff        Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, entity, entityId])
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
+
+model LegalDocument {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  kind      String // 'term' — Termo de Adesão (§5.13)
+  name      String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  versions LegalDocumentVersion[]
+
+  @@unique([tenantId, kind])
+  @@index([tenantId])
+  @@map("legal_documents")
+}
+
+model LegalDocumentVersion {
+  id                   String    @id @default(uuid()) @db.Uuid
+  tenantId             String    @map("tenant_id") @db.Uuid
+  documentId           String    @map("document_id") @db.Uuid
+  versionNumber        Int       @map("version_number")
+  contentJson          Json      @default("{}") @map("content_json")
+  contentHtml          String    @map("content_html")
+  changeSummary        String?   @map("change_summary")
+  requiresReacceptance Boolean   @default(false) @map("requires_reacceptance")
+  // publishedAt NULL = rascunho editável; preenchido = versão congelada e imutável.
+  publishedAt          DateTime? @map("published_at")
+  publishedBy          String?   @map("published_by") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  document    LegalDocument        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  acceptances DocumentAcceptance[]
+
+  @@unique([documentId, versionNumber])
+  @@index([tenantId, documentId])
+  @@map("legal_document_versions")
+}
+
+model DocumentAcceptance {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  documentVersionId String   @map("document_version_id") @db.Uuid
+  customerId        String   @map("customer_id") @db.Uuid
+  bookingId         String?  @map("booking_id") @db.Uuid
+  acceptedAt        DateTime @map("accepted_at")
+  channel           String // site | portal | admin
+  ip                String?
+  userAgent         String?  @map("user_agent")
+  pdfPath           String?  @map("pdf_path")
+  // DOC-08: snapshot dos valores das variáveis no ato — reconstrói o contrato sob demanda.
+  variables         Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  version  LegalDocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Restrict)
+  customer Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([documentVersionId, customerId])
+  @@index([tenantId, customerId])
+  @@map("document_acceptances")
+}
+
+model CommunicationConsent {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  customerId String    @map("customer_id") @db.Uuid
+  channel    String // email | push
+  grantedAt  DateTime  @map("granted_at")
+  // NULL = consentimento ativo. Carimbado no opt-out; a linha nunca é apagada (LGPD).
+  revokedAt  DateTime? @map("revoked_at")
+  source     String // portal | site | admin
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, customerId, channel])
+  @@map("communication_consents")
+}
+
+model MediaConsent {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  customerId String    @map("customer_id") @db.Uuid
+  scope      String // community | marketing
+  grantedAt  DateTime  @map("granted_at")
+  revokedAt  DateTime? @map("revoked_at")
+  source     String
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, customerId, scope])
+  @@map("media_consents")
+}
+
+model Post {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  // Nulo = post oficial da marca (publicado pela equipe); preenchido = post do cliente.
+  authorCustomerId String?   @map("author_customer_id") @db.Uuid
+  body             String
+  itineraryId      String?   @map("itinerary_id") @db.Uuid
+  groupId          String?   @map("group_id") @db.Uuid
+  layout           String    @default("mosaic") // carousel | mosaic (>1 foto)
+  status           String    @default("published") // published | flagged | removed
+  removedReason    String?   @map("removed_reason")
+  // CO-11: destaque/curadoria — preenchido quando a equipe marca o post como destaque.
+  featuredAt       DateTime? @map("featured_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  author   Customer?     @relation(fields: [authorCustomerId], references: [id], onDelete: Cascade)
+  media    PostMedia[]
+  likes    PostLike[]
+  comments PostComment[]
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, itineraryId])
+  @@map("posts")
+}
+
+model PostMedia {
+  id          String @id @default(uuid()) @db.Uuid
+  postId      String @map("post_id") @db.Uuid
+  storagePath String @map("storage_path")
+  kind        String @default("image") // image | video (vídeo fica p/ depois)
+  position    Int
+  alt         String?
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@map("post_media")
+}
+
+model PostLike {
+  tenantId  String   @map("tenant_id") @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  // Quem curtiu: id do cliente OU do usuário da equipe (curtida da marca). Sem FK — o
+  // like é efêmero e o "curtidor" pode não ser um customer.
+  likerId   String   @map("liker_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([postId, likerId])
+  @@index([tenantId, postId])
+  @@map("post_likes")
+}
+
+model PostComment {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  postId           String    @map("post_id") @db.Uuid
+  // Nulo = comentário oficial da marca (equipe).
+  authorCustomerId String?   @map("author_customer_id") @db.Uuid
+  body             String
+  status           String    @default("published") // published | removed
+  createdAt        DateTime  @default(now()) @map("created_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  post   Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author Customer? @relation(fields: [authorCustomerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, postId, createdAt])
+  @@map("post_comments")
+}
+
+model PostReport {
+  id                 String    @id @default(uuid()) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  postId             String?   @map("post_id") @db.Uuid
+  commentId          String?   @map("comment_id") @db.Uuid
+  reporterCustomerId String    @map("reporter_customer_id") @db.Uuid
+  reason             String
+  status             String    @default("open") // open | resolved | dismissed
+  resolvedBy         String?   @map("resolved_by") @db.Uuid
+  resolvedAt         DateTime? @map("resolved_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reporter Customer @relation(fields: [reporterCustomerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("post_reports")
+}
