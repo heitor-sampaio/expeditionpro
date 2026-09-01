@@ -64,12 +64,34 @@ describe('SEC-01 · RO-01: isolamento da galeria de fotos', () => {
     }
   });
 
-  it('cliente lê só as fotos de roteiros ativos do seu tenant', async () => {
+  it('RO-01: a galeria é catálogo — cliente sem inscrição lê fotos de roteiro ativo', async () => {
+    /*
+     * `CUST_A` não tem inscrição nenhuma. A galeria mesmo assim aparece: foto de roteiro
+     * publicado é material de venda. Este é o caso que a policy antiga prometia e não
+     * entregava — o `EXISTS` sobre `itineraries` era filtrado de novo pela RLS daquela
+     * tabela, que escopa o cliente aos roteiros contratados.
+     */
     const s = await TenantSession.openCustomer(TA, CUST_A);
     try {
       expect(await count(s, '')).toBe(2); // as duas do roteiro ativo
       const arq = await s.rows(`SELECT 1 FROM itinerary_photos WHERE itinerary_id = '${ARQ}'`);
       expect(arq).toHaveLength(0);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it('SEC-01: abrir a galeria não abriu o roteiro — `itineraries` segue fechada', async () => {
+    /*
+     * A ampliação vale só para a foto. Se `itineraries` vazasse junto, o cliente passaria
+     * a enumerar o catálogo inteiro e, por tabela, a estrutura de produto do tenant.
+     * Este teste é a cerca: sem ele, uma mudança futura na função SECURITY DEFINER
+     * poderia alargar o acesso sem nada ficar vermelho.
+     */
+    const s = await TenantSession.openCustomer(TA, CUST_A);
+    try {
+      expect(await s.rows(`SELECT 1 FROM itineraries WHERE id = '${ATIVO}'`)).toHaveLength(0);
+      expect(await s.rows(`SELECT 1 FROM itinerary_prices`)).toHaveLength(0);
     } finally {
       await s.close();
     }
