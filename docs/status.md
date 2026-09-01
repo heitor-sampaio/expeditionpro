@@ -38,7 +38,7 @@ Critério de pronto da Fase 0 (§7): tenancy, auth, RLS, Prisma extension, schem
 ## Pendências antes de fechar a Fase 0
 
 - [x] **Ledger do Prisma alinhado**: a init foi carimbada em `_prisma_migrations` no Supabase com o checksum correto (sha256 do `migration.sql`). `pnpm db:deploy` futuro vê a init como aplicada e só roda migrations novas. Fluxo em [`docs/migrations.md`](migrations.md).
-- [ ] Rodar a suíte `vitest` de integração/RLS num Postgres **local** (a suíte é destrutiva — nunca contra o Supabase). No CI já roda contra o serviço Postgres.
+- [ ] Rodar a suíte `vitest` de integração/RLS num Postgres **local** (a suíte é destrutiva — nunca contra o Supabase). Sem Docker nesta máquina, **o CI é hoje o único lugar onde esses 62 testes rodam** — passaram a rodar de verdade a partir do primeiro push, em 2026-09-01.
 - [x] Seed do catálogo aplicado no Supabase (`pnpm db:seed` via pooler)
 - [ ] Provisionar Railway em `us-east` (SEC-16) — Supabase já está
 - [x] Policies de RLS por audiência `role = customer` (mais restritas que as da equipe) — ver "Autenticação real"
@@ -503,6 +503,28 @@ Quatro itens de backend do "Médio" que tinham ficado para trás, todos TDD, **s
 - **Tela "Inscrições" com dois blocos**: **Não processadas** (a fila, cartões com decisão própria) e **Últimas inscrições** (tabela — linhas homogêneas que se comparam), com a origem legível (app / site / equipe) e ao vivo
 - **Portal**: `listEnrollmentRequests` + `GET /v1/portal/enrollment-requests` e aviso no Início — **"seu pedido está em análise"**. Sem isso o cliente pediria e não veria nada, já que a inscrição só existe depois da alocação. Busca no servidor (`intake_events` é tabela de operação; a RLS não abre nada dela para o cliente) e escopo de família pelo head
 - **Efeito colateral a saber**: a inscrição do portal deixou de ser imediata. O cliente não ocupa vaga nem gera cashback até a equipe aprovar — na prática pouco muda, porque vaga só é ocupada por inscrição confirmada e confirmação exige pagamento
+
+### O buraco do Prisma, o primeiro push e o CI ✅ (2026-09-01)
+
+A chave PIX (FO-07) salvou `NULL` em produção com **1.181 testes verdes**. O repositório Prisma **lia** a coluna e nunca a **escrevia**: o `data` é lista branca escrita à mão, e campo esquecido ali não é erro de compilação nem de execução — o `PATCH` respondeu `200`, o formulário fechou, o banco ficou vazio.
+
+**Por que nada pegou.** Os testes de rota rodam sobre repositórios de memória, e o repositório Prisma de fornecedor não tinha teste algum. A suíte provava caso de uso e rota, e não dizia nada sobre o campo chegar ao Postgres.
+
+**Auditoria.** Varri os **69 pontos de escrita** dos 18 repositórios Prisma, comparando campos do port com chaves gravadas. Sete apontamentos, todos falsos positivos conferidos um a um (campo em `where`, `Address` achatado em colunas, participantes gravados em transação à parte). **A chave PIX era o único campo realmente ausente.**
+
+**Guarda de compilação.** `satisfies Record<keyof Port, unknown>` nos cinco pontos de escrita do arquivo de fornecedores: obriga a citar toda chave do port **sem alterar o tipo do literal**, então o Prisma segue conferindo cada valor. Provado removendo `pixKey` de propósito — `error TS1360`. Não foi aplicado nos outros 17 repositórios de propósito: onde há achatamento ou escrita aninhada, o guarda daria erro falso e a ferramenta certa é o teste de ida e volta.
+
+**O que o primeiro push revelou.** O projeto não tinha **nenhum commit** e o CI — que já estava escrito, com serviço `postgres:17` — **nunca havia executado**. Os 62 testes de integração e RLS não estavam apenas sem rodar nesta máquina: nunca rodaram em lugar nenhum. A primeira execução expôs sete seeds defasados, corrigidos em seguida:
+
+- `itineraries.slug` virou obrigatória depois de quatro seeds terem sido escritos
+- `post_likes.customer_id` foi renomeada para `liker_id`
+- `payment_charges.environment` é obrigatória — sem ela, o teste do unique de cobrança duplicada era recusado por `NOT NULL` e **passava pelo motivo errado**
+
+Escrevi dois verificadores para achar tudo de uma vez em vez de descobrir de push em push: um compara os `INSERT` dos seeds com as colunas obrigatórias do schema, outro procura colunas citadas que não existem mais.
+
+**Dado pessoal fora do repositório.** O repositório é público. O CPF e o telefone reais do dono apareciam em **49 arquivos** como fixture, inclusive no `prd.md` e no `status.md`. Trocados por `900.000.100-57` e `48999998877` em 196 ocorrências **antes do primeiro commit** — o histórico nasceu limpo. `examples/` (roomlist e planilha da seguradora, com nomes reais) entrou no `.gitignore`.
+
+**Teste de integração de fornecedor**: cria, **relê do banco** e confere campo a campo; a chave sobrevive à edição; chave em branco limpa chave e tipo juntos; categoria renomeada alcança o histórico. Ida e volta pega o que teste de payload não pega.
 
 ### Chave PIX do fornecedor — FO-07 ✅ (2026-08-31)
 

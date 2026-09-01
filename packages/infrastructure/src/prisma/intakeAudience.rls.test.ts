@@ -104,13 +104,33 @@ describe('§5.8: o cliente lê o próprio pedido de inscrição (e só ele)', ()
   });
 
   it('§5.8: o cliente não escreve na fila — quem pede é o servidor', async () => {
+    /*
+     * A RLS **não levanta erro** num UPDATE: a `USING` da policy filtra as linhas
+     * candidatas, então a escrita não alcança nenhuma e o comando volta vazio. Erro só
+     * aparece quando uma `WITH CHECK` recusa a linha que está sendo gravada.
+     *
+     * Por isso a prova é dupla: zero linhas afetadas E o registro intacto para a equipe.
+     * Asserção que só espera exceção passaria a falsa sensação de que a tabela é
+     * inalcançável quando na verdade nem o mecanismo certo está sendo exercitado.
+     */
     const s = await TenantSession.openCustomer(T, RESP1);
     try {
-      await expect(
-        s.rows(`UPDATE intake_events SET status = 'allocated' WHERE id = '${MEU}' RETURNING id`),
-      ).rejects.toThrow();
+      const afetadas = await s.rows(
+        `UPDATE intake_events SET status = 'allocated' WHERE id = '${MEU}' RETURNING id`,
+      );
+      expect(afetadas).toEqual([]);
     } finally {
       await s.close();
+    }
+
+    const equipe = await TenantSession.open(T);
+    try {
+      const [linha] = await equipe.rows<{ status: string }>(
+        `SELECT status FROM intake_events WHERE id = '${MEU}'`,
+      );
+      expect(linha?.status).toBe('needs_allocation');
+    } finally {
+      await equipe.close();
     }
   });
 });
