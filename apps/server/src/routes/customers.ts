@@ -248,6 +248,7 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: ServerDeps): 
         {
           customers: deps.customers,
           authAdmin: deps.authAdmin,
+          audit: deps.audit,
           clock: deps.clock ?? (() => new Date()),
         },
         ctx,

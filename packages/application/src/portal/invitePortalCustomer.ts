@@ -1,3 +1,5 @@
+import { actorUserId } from '../audit/auditLogRepository.js';
+import type { AuditLogRepository } from '../audit/auditLogRepository.js';
 import { fullYearsBetween, type LocalDate } from '@expedition/domain';
 import { BusinessRuleError, ForbiddenError, NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
@@ -15,6 +17,7 @@ const MIN_AGE = 18;
 
 export interface InvitePortalCustomerDeps {
   readonly customers: CustomerRepository;
+  readonly audit: AuditLogRepository;
   readonly authAdmin: AuthAdminGateway;
   readonly clock: () => Date;
 }
@@ -50,6 +53,16 @@ export async function invitePortalCustomer(
     customerId: customer.id,
   });
   await deps.customers.linkAuthUser(ctx.tenantId, customer.id, invited.userId, 'invited');
+  // A09 — dá ao cliente acesso ao portal com os dados da própria família.
+  await deps.audit.record({
+    tenantId: ctx.tenantId,
+    actorUserId: actorUserId(ctx.actor),
+    entity: 'customer',
+    entityId: command.customerId,
+    action: 'portal_customer.invite',
+    diff: { authUserId: invited.userId },
+  });
+
   return invited;
 }
 

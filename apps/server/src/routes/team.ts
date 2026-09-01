@@ -33,10 +33,14 @@ export function registerTeamRoutes(app: FastifyInstance, deps: ServerDeps): void
         return reply.status(503).send({ error: 'auth_admin_unavailable' });
       }
       const ctx = await deps.resolveContext(request);
-      const invited: InvitedUser = await inviteTeamMember({ authAdmin: deps.authAdmin }, ctx, {
-        email: request.body.email,
-        role: request.body.role,
-      });
+      const invited: InvitedUser = await inviteTeamMember(
+        { authAdmin: deps.authAdmin, audit: deps.audit },
+        ctx,
+        {
+          email: request.body.email,
+          role: request.body.role,
+        },
+      );
       return reply.status(201).send({ userId: invited.userId, actionLink: invited.actionLink });
     },
   );
@@ -65,6 +69,7 @@ export function registerTeamRoutes(app: FastifyInstance, deps: ServerDeps): void
         {
           customers: deps.customers,
           identityRequests: deps.identityRequests,
+          audit: deps.audit,
           clock: deps.clock ?? (() => new Date()),
         },
         ctx,

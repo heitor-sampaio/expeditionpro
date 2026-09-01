@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fakeAuditLogRepository } from '../audit/auditLogRepository.fake.js';
 import { parseCpf, parseLocalDate } from '@expedition/domain';
 import { fakeCustomerRepository } from '../customers/customerRepository.fake.js';
 import { fakeAuthAdminGateway } from '../team/authAdminGateway.fake.js';
@@ -37,9 +38,13 @@ describe('PC-01/PC-02: convite do cliente ao portal', () => {
     const authAdmin = fakeAuthAdminGateway();
     const customer = await makeCustomer(customers);
 
-    const result = await invitePortalCustomer({ customers, authAdmin, clock: CLOCK }, owner, {
-      customerId: customer.id,
-    });
+    const result = await invitePortalCustomer(
+      { customers, authAdmin, audit: fakeAuditLogRepository(), clock: CLOCK },
+      owner,
+      {
+        customerId: customer.id,
+      },
+    );
 
     expect(result.actionLink).toBeTruthy();
     expect(authAdmin.portalInvites).toHaveLength(1);
@@ -53,9 +58,13 @@ describe('PC-01/PC-02: convite do cliente ao portal', () => {
     const authAdmin = fakeAuthAdminGateway();
     const customer = await makeCustomer(customers, { email: null });
     await expect(
-      invitePortalCustomer({ customers, authAdmin, clock: CLOCK }, owner, {
-        customerId: customer.id,
-      }),
+      invitePortalCustomer(
+        { customers, authAdmin, audit: fakeAuditLogRepository(), clock: CLOCK },
+        owner,
+        {
+          customerId: customer.id,
+        },
+      ),
     ).rejects.toBeInstanceOf(BusinessRuleError);
   });
 
@@ -64,9 +73,13 @@ describe('PC-01/PC-02: convite do cliente ao portal', () => {
     const authAdmin = fakeAuthAdminGateway();
     const customer = await makeCustomer(customers, { birthDate: '2013-01-01' });
     await expect(
-      invitePortalCustomer({ customers, authAdmin, clock: CLOCK }, owner, {
-        customerId: customer.id,
-      }),
+      invitePortalCustomer(
+        { customers, authAdmin, audit: fakeAuditLogRepository(), clock: CLOCK },
+        owner,
+        {
+          customerId: customer.id,
+        },
+      ),
     ).rejects.toBeInstanceOf(BusinessRuleError);
   });
 
@@ -76,7 +89,7 @@ describe('PC-01/PC-02: convite do cliente ao portal', () => {
     const customer = await makeCustomer(customers);
     await expect(
       invitePortalCustomer(
-        { customers, authAdmin, clock: CLOCK },
+        { customers, authAdmin, audit: fakeAuditLogRepository(), clock: CLOCK },
         { tenantId: TENANT, actor: { kind: 'team', userId: 'u2', role: 'operator' } },
         { customerId: customer.id },
       ),
@@ -87,9 +100,13 @@ describe('PC-01/PC-02: convite do cliente ao portal', () => {
     const customers = fakeCustomerRepository();
     const authAdmin = fakeAuthAdminGateway();
     await expect(
-      invitePortalCustomer({ customers, authAdmin, clock: CLOCK }, owner, {
-        customerId: 'nao-existe',
-      }),
+      invitePortalCustomer(
+        { customers, authAdmin, audit: fakeAuditLogRepository(), clock: CLOCK },
+        owner,
+        {
+          customerId: 'nao-existe',
+        },
+      ),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

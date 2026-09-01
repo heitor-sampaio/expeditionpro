@@ -1,3 +1,5 @@
+import { actorUserId } from '../audit/auditLogRepository.js';
+import type { AuditLogRepository } from '../audit/auditLogRepository.js';
 import { parseCpf } from '@expedition/domain';
 import { BusinessRuleError, ForbiddenError, NotFoundError } from '../errors.js';
 import { DuplicateCpfError } from '../customers/errors.js';
@@ -17,6 +19,7 @@ import type {
 
 export interface DecideIdentityChangeDeps {
   readonly customers: CustomerRepository;
+  readonly audit: AuditLogRepository;
   readonly identityRequests: IdentityChangeRepository;
   readonly clock: () => Date;
 }
@@ -65,10 +68,33 @@ export async function decideIdentityChange(
     }
   }
 
-  return deps.identityRequests.decide(ctx.tenantId, command.requestId, {
+  const decided = await deps.identityRequests.decide(ctx.tenantId, command.requestId, {
     status: command.approve ? 'approved' : 'rejected',
     decidedBy: actor.userId,
     decidedAt: deps.clock(),
     decisionNote: command.note?.trim() || null,
   });
+
+  /*
+   * A09 — `updateCustomer` já gravava quando a equipe corrige identidade pelo back-office,
+   * mas **este** é o caminho por onde a mudança acontece quando o pedido vem do cliente
+   * (PC-07). Aprovar e recusar são igualmente auditáveis: negar também é decisão, e é a que
+   * o cliente vai questionar.
+   */
+  await deps.audit.record({
+    tenantId: ctx.tenantId,
+    actorUserId: actorUserId(actor),
+    entity: 'identity_change_request',
+    entityId: request.id,
+    action: 'identity_change.decide',
+    diff: {
+      decision: command.approve ? 'approved' : 'rejected',
+      customerId: request.customerId,
+      fullName: request.fullName,
+      cpf: request.cpf,
+      birthDate: request.birthDate,
+    },
+  });
+
+  return decided;
 }

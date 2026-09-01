@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fakeAuditLogRepository } from '../audit/auditLogRepository.fake.js';
 import { maskCpf, parseCpf, parseLocalDate } from '@expedition/domain';
 import { fakeCustomerRepository } from '../customers/customerRepository.fake.js';
 import { fakeIdentityChangeRepository } from './identityChangeRepository.fake.js';
@@ -133,7 +134,7 @@ describe('PC-07: fila de aprovação de identidade', () => {
       { customerId: resp1.id, fullName: 'Ana Prado', birthDate: '2012-06-06' },
     );
     const decided = await decideIdentityChange(
-      { customers, identityRequests, clock: CLOCK },
+      { customers, identityRequests, audit: fakeAuditLogRepository(), clock: CLOCK },
       teamCtx('owner'),
       { requestId: req.id, approve: true },
     );
@@ -163,10 +164,14 @@ describe('PC-07: fila de aprovação de identidade', () => {
       reason: 'Divergência na inscrição 4641:101 (IN-04)',
     });
 
-    await decideIdentityChange({ customers, identityRequests, clock: CLOCK }, teamCtx('admin'), {
-      requestId: req.id,
-      approve: true,
-    });
+    await decideIdentityChange(
+      { customers, identityRequests, audit: fakeAuditLogRepository(), clock: CLOCK },
+      teamCtx('admin'),
+      {
+        requestId: req.id,
+        approve: true,
+      },
+    );
 
     const after = await customers.findById(TENANT, resp1.id);
     expect(after?.email).toBe('novo@exemplo.com');
@@ -184,7 +189,7 @@ describe('PC-07: fila de aprovação de identidade', () => {
       { customerId: resp1.id, fullName: 'Nome Falso' },
     );
     const decided = await decideIdentityChange(
-      { customers, identityRequests, clock: CLOCK },
+      { customers, identityRequests, audit: fakeAuditLogRepository(), clock: CLOCK },
       teamCtx('admin'),
       { requestId: req.id, approve: false, note: 'não confere' },
     );
@@ -201,10 +206,14 @@ describe('PC-07: fila de aprovação de identidade', () => {
       { customerId: resp1.id, fullName: 'X' },
     );
     await expect(
-      decideIdentityChange({ customers, identityRequests, clock: CLOCK }, teamCtx('operator'), {
-        requestId: req.id,
-        approve: true,
-      }),
+      decideIdentityChange(
+        { customers, identityRequests, audit: fakeAuditLogRepository(), clock: CLOCK },
+        teamCtx('operator'),
+        {
+          requestId: req.id,
+          approve: true,
+        },
+      ),
     ).rejects.toBeInstanceOf(ForbiddenError);
     // a equipe não usa a fila para si via o pedido do portal? o pedido é da equipe OU do cliente:
     expect(maskCpf(resp1.cpf)).toContain('***');
@@ -217,15 +226,23 @@ describe('PC-07: fila de aprovação de identidade', () => {
       customerCtx(resp1.id),
       { customerId: resp1.id, fullName: 'X' },
     );
-    await decideIdentityChange({ customers, identityRequests, clock: CLOCK }, teamCtx('owner'), {
-      requestId: req.id,
-      approve: true,
-    });
-    await expect(
-      decideIdentityChange({ customers, identityRequests, clock: CLOCK }, teamCtx('owner'), {
+    await decideIdentityChange(
+      { customers, identityRequests, audit: fakeAuditLogRepository(), clock: CLOCK },
+      teamCtx('owner'),
+      {
         requestId: req.id,
-        approve: false,
-      }),
+        approve: true,
+      },
+    );
+    await expect(
+      decideIdentityChange(
+        { customers, identityRequests, audit: fakeAuditLogRepository(), clock: CLOCK },
+        teamCtx('owner'),
+        {
+          requestId: req.id,
+          approve: false,
+        },
+      ),
     ).rejects.toBeInstanceOf(BusinessRuleError);
   });
 });
