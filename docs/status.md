@@ -548,9 +548,9 @@ Agenda de back-office guardada · `redact` no log (`?q=<CPF>` ia em claro) · `i
 #### Deixado em aberto, com motivo
 
 - **`FORCE ROW LEVEL SECURITY`** — a auditoria recomendou; **não apliquei**. As 39 tabelas pertencem a `postgres` e o app conecta como `postgres`: com FORCE, as consultas do próprio servidor passariam a ser filtradas pela RLS e, sem `request.jwt.claims`, **toda consulta voltaria vazia**. Exige criar um role de aplicação sem posse das tabelas — mudança de infra, casada com o Railway.
-- **`webhook_token` em texto claro** — decisão do dono pendente: cifrar (sem impacto no ASAAS, uma regravação) ou hashear (mais forte, mas o `connectPaymentProvider` reaproveita o token ao reconectar, então toda reconexão exigiria reconfigurar o webhook).
+- ~~**`webhook_token` em texto claro**~~ ✅ **fechado com hash** (2026-09-01). A comparação que eu tinha apresentado ao dono estava errada: hashear **não** obriga a reconfigurar o webhook no ASAAS, porque reconectar mantém a linha e não gera segredo novo. E o hash tem a vantagem decisiva de **migrar sem chave nenhuma** (`encode(sha256(...))` em SQL) — cifrar exigiria a `PAYMENT_TOKEN_KEY`, que vive no ambiente da aplicação e não no Postgres, e a linha existente ficaria em claro até alguém reconectar. O segredo configurado no ASAAS segue valendo; verificado no banco.
 - **Revogação por `memberships`** — a tabela existe e **nunca é lida**: autorização é 100% JWT, então demitir alguém não tem efeito até o token expirar. É feature, não correção: exige decidir cache e custo por requisição.
-- Trilha em cashback, moderação e criação de gasto/pagamento a fornecedor; assimetria de papel entre criar e apagar obrigação financeira.
+- Trilha em cashback e moderação. ~~Criação de gasto e pagamento a fornecedor~~ ✅ feito, junto de cancelamento, confirmação manual, exclusão de saída, decisão de identidade e convites. Falta a assimetria de papel entre criar e apagar obrigação financeira.
 
 #### Limite honesto
 
