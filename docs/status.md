@@ -516,7 +516,7 @@ Um token de cliente criava roteiro, editava qualquer um, trocava as fotos e lia 
 - **Fora da vitrine responde 404, não 403** — 403 confirmaria que a saída fechada existe, e ela é justamente a que ninguém de fora deve saber que existe
 - **Teste em duas camadas**: a aplicação prova a guarda, a rota prova que a rota passa por ela. **A segunda é a que pegaria este defeito** — guarda no caso de uso não vale nada se a rota ler o repositório direto
 
-### Guardas de papel: o levantamento que falta fechar ⏳ (2026-09-01)
+### Guardas de papel: o levantamento, fechado ✅ (2026-09-01)
 
 Foi a **segunda vez na mesma sessão** que apareceu caso de uso sem guarda (fornecedores, depois roteiros). Varrendo `packages/application`, **29 casos de uso não têm guarda explícita**. Boa parte é legítima — o cliente deve curtir post, salvar veículo, ver expedições abertas. Mas conferindo rota e caso de uso um a um, estes **não checam audiência em lugar nenhum**:
 
@@ -528,7 +528,11 @@ Foi a **segunda vez na mesma sessão** que apareceu caso de uso sem guarda (forn
 | `createScheduleEvent`, `updateScheduleEvent`, `deleteScheduleEvent` | criar e apagar saídas na agenda |
 | `updatePaymentFees`, `disconnectPaymentProvider` | configuração do gateway de pagamento |
 
-O padrão do defeito é sempre o mesmo: a guarda foi posta onde alguém lembrou. **A correção durável não é escrever mais 20 guardas e torcer** — é um `check:guards` no CI, no molde do `check:rls`, que reprove caso de uso tocando repositório de equipe sem guarda declarada.
+Todos fechados. O padrão do defeito era sempre o mesmo: **os três helpers de guarda estavam em três pastas diferentes** — `communications`, `community`, `itineraries` —, então quem escrevia caso de uso novo não achava nenhum e não punha guarda. Agora vivem em `audience.ts`, com a regra do produto escrita na doc do arquivo e provada em `audience.test.ts`.
+
+- **`denyCustomer`, não `requireTeam`**: `integration` (webhook do site) e `system` (job interno) seguem passando, porque agem por conta do tenant. A regra do dono é sobre o cliente
+- **`registerCompanion` e `saveVehicle` ficam sem guarda de propósito**: o portal chega neles por invólucros que escopam à própria família. Tentei guardá-los e a suíte quebrou na hora, com PC-06 e PC-08 — a guarda deles é na rota de back-office
+- **Ainda falta**: não existe apagar comentário na comunidade (o post tem, escopado ao autor). É funcionalidade faltando, não brecha
 
 ### A armadilha da subconsulta em policy — RO-01 ✅ (2026-09-01)
 

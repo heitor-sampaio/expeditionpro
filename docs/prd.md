@@ -264,6 +264,21 @@ Duas audiências no mesmo Supabase Auth, separadas por `app_metadata`:
 
 `customers.auth_user_id → auth.users.id` faz a ponte. Policies de RLS para `role = customer` são escritas separadamente e são muito mais restritas que as da equipe — cliente nunca lê `supplier_expenses`, `supplier_payments`, margem, nem dado de outra família.
 
+**O que o cliente pode, por extenso.** A lista é fechada — o que não está aqui, ele não faz:
+
+| Pode | Não pode |
+|---|---|
+| Ver a agenda — **só ver** | Procurar, criar, editar ou apagar outro cliente |
+| Ver as expedições ativas (roteiro `active` + `catalog`, RO-07) | Criar, editar ou apagar roteiro |
+| Se inscrever em uma ou mais expedições | Qualquer tipo de lançamento — recebimento, gasto, pagamento |
+| Postar, curtir e comentar na comunidade | Criar ou apagar saída na agenda |
+| Apagar o **próprio** post ou comentário; remover a **própria** curtida | Apagar publicação, comentário ou curtida de outro |
+| Editar os próprios dados de contato (e-mail, telefone, endereço) | Trocar nome, CPF ou nascimento sem aprovação (PC-07) |
+
+**A guarda vive no caso de uso, não na rota nem na RLS.** O servidor fala com o banco por um role com `BYPASSRLS`: a policy do Postgres não é avaliada nessa via, e a Prisma Client Extension injeta `tenantId` e mais nada. Os helpers estão em `packages/application/src/audience.ts` — `denyCustomer`, `requireTeam`, `requireSelfOrTeam`, `requireCustomer` — e a regra acima é testada em `audience.test.ts`.
+
+`denyCustomer` barra só o cliente: `integration` (webhook do site) e `system` (job interno) agem por conta do tenant e seguem passando. Onde o mesmo caso de uso serve as duas audiências com escopos diferentes — `registerCompanion`, `saveVehicle` —, a guarda fica na **rota de back-office**, porque o portal chega neles por invólucros que escopam à própria família (PC-06, PC-08).
+
 **Autenticação sem senha: magic link / OTP por e-mail.**
 
 O cliente informa o e-mail, recebe um link de acesso válido por 15 minutos e de uso único, e entra. Não existe senha inicial, o que elimina a janela em que uma credencial adivinhável — CPF, data de nascimento, telefone — daria acesso ao extrato financeiro da família.
