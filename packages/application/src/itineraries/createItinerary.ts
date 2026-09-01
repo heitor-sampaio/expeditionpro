@@ -1,3 +1,4 @@
+import { requireTeam } from './itineraryAudience.js';
 import { BusinessRuleError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { ItineraryRecord } from './itineraryRepository.js';
@@ -27,6 +28,7 @@ export async function createItinerary(
   ctx: RequestContext,
   command: CreateItineraryCommand,
 ): Promise<ItineraryRecord> {
+  requireTeam(ctx);
   const childYoungMaxAge = command.childYoungMaxAge ?? DEFAULT_YOUNG_MAX;
   const childMidMaxAge = command.childMidMaxAge ?? DEFAULT_MID_MAX;
   if (childYoungMaxAge >= childMidMaxAge) {

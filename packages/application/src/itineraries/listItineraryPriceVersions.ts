@@ -1,3 +1,4 @@
+import { requireTeam } from './itineraryAudience.js';
 import { NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { ItineraryDeps } from './priceInput.js';
@@ -17,6 +18,7 @@ export async function listItineraryPriceVersions(
   ctx: RequestContext,
   command: ListItineraryPriceVersionsCommand,
 ): Promise<PriceVersionRecord[]> {
+  requireTeam(ctx);
   const itinerary = await deps.itineraries.findById(ctx.tenantId, command.itineraryId);
   if (!itinerary) throw new NotFoundError('roteiro');
   return deps.itineraries.listPrices(ctx.tenantId, command.itineraryId);

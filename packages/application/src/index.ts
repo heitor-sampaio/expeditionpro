@@ -159,6 +159,12 @@ export {
   resolveItineraryPrices,
   type ResolveItineraryPricesCommand,
 } from './itineraries/resolveItineraryPrices.js';
+export { listItineraries } from './itineraries/listItineraries.js';
+export {
+  listItineraryPhotos,
+  type ListItineraryPhotosCommand,
+} from './itineraries/listItineraryPhotos.js';
+export { isShowcase } from './itineraries/itineraryAudience.js';
 export type { ItineraryDeps, PriceInput } from './itineraries/priceInput.js';
 export type {
   ItineraryRepository,

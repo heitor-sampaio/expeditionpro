@@ -31,6 +31,18 @@ const ctx: RequestContext = {
   actor: { kind: 'team', userId: 'u1', role: 'admin' },
 };
 
+const cliente: RequestContext = {
+  tenantId: 'tenant-a',
+  actor: { kind: 'customer', userId: 'u2', customerId: 'c1' },
+};
+
+/*
+ * Quem a rota diz ser. Mutável de propósito: a prova que interessa é que a **rota** passa
+ * pelo caso de uso guardado. Guarda na aplicação não vale nada se a rota ler o repositório
+ * direto — foi exatamente o defeito daqui, em `GET /v1/itineraries` e nas fotos.
+ */
+let atual: RequestContext = ctx;
+
 const PRICE = {
   validFrom: '2025-01-01',
   coupleCents: 200000,
@@ -69,7 +81,7 @@ describe('RO-01..03: rotas de roteiro', () => {
         paymentIntegrations: inMemoryPaymentIntegrations(),
         charges: inMemoryPaymentCharges(),
         paymentGateway: asaasGateway(),
-        resolveContext: () => Promise.resolve(ctx),
+        resolveContext: () => Promise.resolve(atual),
       },
     });
     await app.ready();
@@ -248,5 +260,59 @@ describe('RO-01..03: rotas de roteiro', () => {
     });
     expect(before.json().coupleCents).toBe(100000);
     expect(after.json().coupleCents).toBe(200000);
+  });
+  it('SEC-01: cliente não cria nem edita roteiro pela rota', async () => {
+    const alvo = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/itineraries',
+        payload: { name: 'Alvo da guarda', prices: PRICE },
+      })
+    ).json().id;
+
+    atual = cliente;
+    try {
+      const criar = await app.inject({
+        method: 'POST',
+        url: '/v1/itineraries',
+        payload: { name: 'Meu', prices: PRICE },
+      });
+      const editar = await app.inject({
+        method: 'PATCH',
+        url: `/v1/itineraries/${alvo}`,
+        payload: { name: 'Trocado' },
+      });
+      expect(criar.statusCode).toBe(403);
+      expect(editar.statusCode).toBe(403);
+    } finally {
+      atual = ctx;
+    }
+  });
+
+  it('SEC-01 · RO-07: a lista do cliente não traz o roteiro personalizado', async () => {
+    const fechada = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/itineraries',
+        payload: { name: 'Saída fechada', kind: 'custom', prices: PRICE },
+      })
+    ).json().id;
+
+    atual = cliente;
+    try {
+      const res = await app.inject({ method: 'GET', url: '/v1/itineraries' });
+      expect(res.statusCode).toBe(200);
+      const ids = res.json().map((i: { id: string }) => i.id);
+      expect(ids).not.toContain(fechada);
+
+      // e pedir direto responde 404, não 403: 403 confirmaria que a saída existe
+      const fotos = await app.inject({ method: 'GET', url: `/v1/itineraries/${fechada}/photos` });
+      expect(fotos.statusCode).toBe(404);
+    } finally {
+      atual = ctx;
+    }
+
+    const daEquipe = await app.inject({ method: 'GET', url: '/v1/itineraries' });
+    expect(daEquipe.json().map((i: { id: string }) => i.id)).toContain(fechada);
   });
 });

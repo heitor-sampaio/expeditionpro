@@ -1,3 +1,4 @@
+import { requireTeam } from './itineraryAudience.js';
 import { BusinessRuleError, NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { ItineraryDeps } from './priceInput.js';
@@ -27,6 +28,7 @@ export async function setItineraryPhotos(
   ctx: RequestContext,
   command: SetItineraryPhotosCommand,
 ): Promise<ItineraryPhotoRecord[]> {
+  requireTeam(ctx);
   const itinerary = await deps.itineraries.findById(ctx.tenantId, command.itineraryId);
   if (!itinerary) throw new NotFoundError('roteiro');
 

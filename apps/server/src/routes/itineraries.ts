@@ -1,6 +1,8 @@
 import {
   addItineraryPriceVersion,
   createItinerary,
+  listItineraries,
+  listItineraryPhotos,
   listItineraryPriceVersions,
   resolveItineraryPrices,
   setItineraryPhotos,
@@ -74,7 +76,7 @@ export function registerItineraryRoutes(app: FastifyInstance, deps: ServerDeps):
 
   typed.get('/v1/itineraries', async (request, reply) => {
     const ctx = await deps.resolveContext(request);
-    const rows = await deps.itineraries.list(ctx.tenantId);
+    const rows = await listItineraries({ itineraries: deps.itineraries }, ctx);
     return reply.send(rows.map(toDto));
   });
 
@@ -96,7 +98,9 @@ export function registerItineraryRoutes(app: FastifyInstance, deps: ServerDeps):
     { schema: { params: z.object({ id: z.string().min(1) }) } },
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
-      const rows = await deps.itineraries.listPhotos(ctx.tenantId, request.params.id);
+      const rows = await listItineraryPhotos({ itineraries: deps.itineraries }, ctx, {
+        itineraryId: request.params.id,
+      });
       return reply.send(rows.map(toPhotoDto));
     },
   );
