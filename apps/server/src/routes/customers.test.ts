@@ -38,6 +38,14 @@ const ctx: RequestContext = {
   actor: { kind: 'team', userId: 'u1', role: 'admin' },
 };
 
+const clienteCtx: RequestContext = {
+  tenantId: 'tenant-a',
+  actor: { kind: 'customer', userId: 'u2', customerId: 'c1' },
+};
+
+/* Quem a rota diz ser — mutável para trocar a audiência dentro do mesmo servidor. */
+let atual: RequestContext = ctx;
+
 async function serverWith(customers: CustomerRepository): Promise<FastifyInstance> {
   const app = await buildServer({
     logger: false,
@@ -64,7 +72,7 @@ async function serverWith(customers: CustomerRepository): Promise<FastifyInstanc
       paymentIntegrations: inMemoryPaymentIntegrations(),
       charges: inMemoryPaymentCharges(),
       paymentGateway: asaasGateway(),
-      resolveContext: () => Promise.resolve(ctx),
+      resolveContext: () => Promise.resolve(atual),
     },
   });
   await app.ready();
@@ -91,7 +99,7 @@ describe('CL-06: GET /v1/customers/:id/file (ficha do cliente)', () => {
         apiKeys: inMemoryApiKeys([]),
         intake: inMemoryIntake(),
         cashback,
-        resolveContext: () => Promise.resolve(ctx),
+        resolveContext: () => Promise.resolve(atual),
       },
     });
     await app.ready();
@@ -601,7 +609,7 @@ describe('PC-01/PC-02: POST /v1/customers/:id/portal-invite', () => {
         charges: inMemoryPaymentCharges(),
         paymentGateway: asaasGateway(),
         authAdmin,
-        resolveContext: () => Promise.resolve(ctx),
+        resolveContext: () => Promise.resolve(atual),
       },
     });
     await app.ready();
@@ -637,5 +645,46 @@ describe('PC-01/PC-02: POST /v1/customers/:id/portal-invite', () => {
     });
     expect(res.statusCode).toBe(503);
     await app.close();
+  });
+});
+
+/*
+ * SEC-01 — a rota de back-office pendura acompanhante e veículo em QUALQUER cliente, então
+ * é ela que barra o cliente. O caso de uso fica sem guarda de propósito: o portal chega
+ * nele por `registerFamilyCompanion`/`savePortalVehicle`, que escopam à própria família
+ * (PC-06, PC-08). Guarda no caso de uso compartilhado quebraria o caminho legítimo — a
+ * suíte pegou exatamente isso quando tentei.
+ */
+describe('SEC-01: rota de back-office de acompanhante barra o cliente', () => {
+  it('cliente recebe 403 ao pendurar acompanhante em outro responsável', async () => {
+    const app = await serverWith(fakeRepo());
+    const resp = (
+      await app.inject({ method: 'POST', url: '/v1/customers', payload: RESP_PAYLOAD })
+    ).json();
+
+    atual = clienteCtx;
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/v1/customers/${resp.id}/companions`,
+        payload: { fullName: 'Intrusa', cpf: '12345678909', birthDate: '2015-03-22' },
+      });
+      expect(res.statusCode).toBe(403);
+    } finally {
+      atual = ctx;
+      await app.close();
+    }
+  });
+
+  it('cliente recebe 403 ao buscar a base de clientes', async () => {
+    const app = await serverWith(fakeRepo());
+    atual = clienteCtx;
+    try {
+      const res = await app.inject({ method: 'GET', url: '/v1/customers' });
+      expect(res.statusCode).toBe(403);
+    } finally {
+      atual = ctx;
+      await app.close();
+    }
   });
 });

@@ -1,3 +1,4 @@
+import { denyCustomer } from '../audience.js';
 import {
   cashbackAppliesToSource,
   priceBooking,
@@ -60,6 +61,7 @@ export async function allocateBooking(
   ctx: RequestContext,
   command: AllocateBookingCommand,
 ): Promise<AllocatedBooking> {
+  denyCustomer(ctx);
   if (command.participantCustomerIds.length === 0) {
     throw new BusinessRuleError(
       'no_participants',

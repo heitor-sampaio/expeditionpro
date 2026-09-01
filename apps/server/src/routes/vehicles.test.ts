@@ -24,6 +24,14 @@ const ctx: RequestContext = {
   actor: { kind: 'team', userId: 'u1', role: 'admin' },
 };
 
+const clienteCtx: RequestContext = {
+  tenantId: 'tenant-a',
+  actor: { kind: 'customer', userId: 'u2', customerId: 'c1' },
+};
+
+/* Quem a rota diz ser — mutável para trocar a audiência dentro do mesmo servidor. */
+let atual: RequestContext = ctx;
+
 const BRANDS = [
   { id: 'brand-jeep', name: 'Jeep' },
   { id: 'brand-ford', name: 'Ford' },
@@ -56,7 +64,7 @@ async function server(): Promise<FastifyInstance> {
       intake: inMemoryIntake(),
       cashback: inMemoryCashback(),
       coupons: inMemoryCoupons(),
-      resolveContext: () => Promise.resolve(ctx),
+      resolveContext: () => Promise.resolve(atual),
     },
   });
   await app.ready();
@@ -133,5 +141,34 @@ describe('CL-05: PATCH /v1/vehicles/:id', () => {
     });
     expect(missing.statusCode).toBe(404);
     await app.close();
+  });
+});
+
+/*
+ * SEC-01 — a rota de back-office pendura acompanhante e veículo em QUALQUER cliente, então
+ * é ela que barra o cliente. O caso de uso fica sem guarda de propósito: o portal chega
+ * nele por `registerFamilyCompanion`/`savePortalVehicle`, que escopam à própria família
+ * (PC-06, PC-08). Guarda no caso de uso compartilhado quebraria o caminho legítimo — a
+ * suíte pegou exatamente isso quando tentei.
+ */
+describe('SEC-01: rota de back-office de veículo barra o cliente', () => {
+  it('cliente recebe 403 ao anexar veículo a outro cliente', async () => {
+    const app = await server();
+    const customer = (
+      await app.inject({ method: 'POST', url: '/v1/customers', payload: RESP_PAYLOAD })
+    ).json();
+
+    atual = clienteCtx;
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/v1/customers/${customer.id}/vehicles`,
+        payload: { plate: 'XYZ9K88', brandId: 'brand-jeep', modelId: 'model-wrangler' },
+      });
+      expect(res.statusCode).toBe(403);
+    } finally {
+      atual = ctx;
+      await app.close();
+    }
   });
 });

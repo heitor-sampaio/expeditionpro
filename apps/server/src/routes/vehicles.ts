@@ -1,4 +1,5 @@
 import {
+  denyCustomer,
   listCustomerVehicles,
   listVehicleBrands,
   listVehicleModels,
@@ -82,6 +83,13 @@ export function registerVehicleRoutes(app: FastifyInstance, deps: ServerDeps): v
     { schema: { params: z.object({ id: z.string().min(1) }), body: saveVehicleBody } },
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
+      /*
+       * SEC-01: a rota de back-office pendura em QUALQUER cliente, então barra o cliente
+       * aqui. O caso de uso fica sem guarda de propósito: o portal chega nele por
+       * `registerFamilyCompanion`/`savePortalVehicle`, que escopam à própria família.
+       * Guarda no caso de uso compartilhado quebraria o caminho legítimo do cliente.
+       */
+      denyCustomer(ctx);
       const vehicle = await saveVehicle(
         { customers: deps.customers, vehicles: deps.vehicles },
         ctx,

@@ -1,3 +1,4 @@
+import { denyCustomer } from '../audience.js';
 import {
   normalizeCep,
   normalizePersonName,
@@ -47,6 +48,7 @@ export async function registerCustomer(
   ctx: RequestContext,
   command: RegisterCustomerCommand,
 ): Promise<CustomerRecord> {
+  denyCustomer(ctx);
   const cpf = parseCpf(command.cpf);
   const birthDate = parseLocalDate(command.birthDate);
 

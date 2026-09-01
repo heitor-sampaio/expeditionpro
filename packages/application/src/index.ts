@@ -166,6 +166,8 @@ export {
 } from './itineraries/listItineraryPhotos.js';
 export { isShowcase } from './itineraries/itineraryAudience.js';
 export type { ItineraryDeps, PriceInput } from './itineraries/priceInput.js';
+
+export { requireTeam, requireSelfOrTeam, requireCustomer, denyCustomer } from './audience.js';
 export type {
   ItineraryRepository,
   ItineraryRecord,

@@ -1,3 +1,4 @@
+import { denyCustomer } from '../audience.js';
 import { BusinessRuleError, NotFoundError } from '../errors.js';
 import { actorUserId } from '../audit/auditLogRepository.js';
 import type { RequestContext } from '../context.js';
@@ -28,6 +29,7 @@ export async function promoteToResponsible(
   ctx: RequestContext,
   command: PromoteToResponsibleCommand,
 ): Promise<CustomerRecord> {
+  denyCustomer(ctx);
   const customer = await deps.customers.findById(ctx.tenantId, command.customerId);
   if (!customer) throw new NotFoundError('cliente');
 

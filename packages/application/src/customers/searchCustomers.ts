@@ -1,3 +1,4 @@
+import { denyCustomer } from '../audience.js';
 import type { RequestContext } from '../context.js';
 import type { CustomerRecord, CustomerRepository, CustomerSort } from './customerRepository.js';
 
@@ -29,6 +30,7 @@ export async function searchCustomers(
   ctx: RequestContext,
   params: ListCustomersParams,
 ): Promise<Family[]> {
+  denyCustomer(ctx);
   const query = params.query.trim();
 
   // Sem busca: lista todos os responsáveis já ordenados; a ordem é preservada nas famílias.

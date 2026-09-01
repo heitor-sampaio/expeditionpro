@@ -1,3 +1,4 @@
+import { denyCustomer } from '../audience.js';
 import { compareLocalDate, parseLocalDate } from '@expedition/domain';
 import { BusinessRuleError, NotFoundError } from '../errors.js';
 import { deriveGroupName } from './deriveGroupName.js';
@@ -32,6 +33,7 @@ export async function updateScheduleEvent(
   ctx: RequestContext,
   command: UpdateScheduleEventCommand,
 ): Promise<ScheduleEventWithGroup> {
+  denyCustomer(ctx);
   const current = await deps.schedule.findEventById(ctx.tenantId, command.eventId);
   if (!current) {
     throw new NotFoundError('evento');

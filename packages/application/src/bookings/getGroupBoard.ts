@@ -1,3 +1,4 @@
+import { denyCustomer } from '../audience.js';
 import {
   describeVehicle,
   formatPlate,
@@ -125,6 +126,7 @@ export async function getGroupBoard(
   ctx: RequestContext,
   command: GetGroupBoardCommand,
 ): Promise<GroupBoardView> {
+  denyCustomer(ctx);
   const groupContext = await deps.schedule.findGroupById(ctx.tenantId, command.groupId);
   if (!groupContext) {
     throw new NotFoundError('grupo');

@@ -1,3 +1,4 @@
+import { denyCustomer } from '../audience.js';
 import { zeroCents, type Cents } from '@expedition/domain';
 import { BusinessRuleError, NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
@@ -41,6 +42,7 @@ export async function allocateManualBooking(
   ctx: RequestContext,
   command: AllocateManualBookingCommand,
 ): Promise<AllocatedManualBooking> {
+  denyCustomer(ctx);
   if (command.participantCustomerIds.length === 0) {
     throw new BusinessRuleError(
       'no_participants',
