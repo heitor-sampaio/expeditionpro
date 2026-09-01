@@ -380,6 +380,7 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
           payments: deps.payments,
           bookings: deps.bookings,
           cashback: deps.cashback,
+          audit: deps.audit,
           clock: deps.clock ?? (() => new Date()),
         },
         ctx,
@@ -398,6 +399,7 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
         {
           payments: deps.payments,
           bookings: deps.bookings,
+          audit: deps.audit,
           integrations: deps.paymentIntegrations,
           gateway: deps.paymentGateway,
           clock: deps.clock ?? (() => new Date()),
@@ -507,7 +509,7 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
       const result = await deletePayment(
-        { payments: deps.payments, bookings: deps.bookings },
+        { payments: deps.payments, bookings: deps.bookings, audit: deps.audit },
         ctx,
         {
           paymentId: request.params.paymentId,

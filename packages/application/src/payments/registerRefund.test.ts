@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fakeAuditLogRepository } from '../audit/auditLogRepository.fake.js';
 import { cents, type PriceCategory } from '@expedition/domain';
 import { fakePaymentRepository } from './paymentRepository.fake.js';
 import { fakeBookingRepository } from '../bookings/bookingRepository.fake.js';
@@ -53,7 +54,7 @@ async function seed(receivedCents = 200000) {
   bookings.rows.push(booking);
 
   // o recebimento entra pelo caminho normal (e confirma a inscrição, IN-08)
-  await registerPayment({ payments, bookings, clock }, admin, {
+  await registerPayment({ payments, bookings, audit: fakeAuditLogRepository(), clock }, admin, {
     bookingId: 'bk-1',
     amountCents: receivedCents,
     method: 'pix',
@@ -72,14 +73,18 @@ describe('§3.6: devolução em dinheiro', () => {
   it('lança a contrapartida negativa e o recebido líquido cai', async () => {
     const { payments, bookings, cashback } = await seed();
 
-    const result = await registerRefund({ payments, bookings, cashback, clock }, admin, {
-      bookingId: 'bk-1',
-      amountCents: 50000,
-      destination: 'cash',
-      method: 'pix',
-      paidAt: '2026-08-27',
-      reason: 'Saída cancelada',
-    });
+    const result = await registerRefund(
+      { payments, bookings, cashback, audit: fakeAuditLogRepository(), clock },
+      admin,
+      {
+        bookingId: 'bk-1',
+        amountCents: 50000,
+        destination: 'cash',
+        method: 'pix',
+        paidAt: '2026-08-27',
+        reason: 'Saída cancelada',
+      },
+    );
 
     expect(result.netReceivedCents).toBe(150000);
     expect(await netReceived(payments)).toBe(150000);
@@ -92,14 +97,18 @@ describe('§3.6: devolução em dinheiro', () => {
   it('devolução integral cancela a inscrição no mesmo ato', async () => {
     const { payments, bookings, cashback } = await seed();
 
-    const result = await registerRefund({ payments, bookings, cashback, clock }, admin, {
-      bookingId: 'bk-1',
-      amountCents: 200000,
-      destination: 'cash',
-      method: 'pix',
-      paidAt: '2026-08-27',
-      reason: 'Saída cancelada',
-    });
+    const result = await registerRefund(
+      { payments, bookings, cashback, audit: fakeAuditLogRepository(), clock },
+      admin,
+      {
+        bookingId: 'bk-1',
+        amountCents: 200000,
+        destination: 'cash',
+        method: 'pix',
+        paidAt: '2026-08-27',
+        reason: 'Saída cancelada',
+      },
+    );
 
     expect(result.netReceivedCents).toBe(0);
     expect(result.bookingCancelled).toBe(true);
@@ -109,14 +118,18 @@ describe('§3.6: devolução em dinheiro', () => {
 
   it('devolução parcial não cancela a inscrição', async () => {
     const { payments, bookings, cashback } = await seed();
-    const result = await registerRefund({ payments, bookings, cashback, clock }, admin, {
-      bookingId: 'bk-1',
-      amountCents: 1,
-      destination: 'cash',
-      method: 'pix',
-      paidAt: '2026-08-27',
-      reason: 'Ajuste',
-    });
+    const result = await registerRefund(
+      { payments, bookings, cashback, audit: fakeAuditLogRepository(), clock },
+      admin,
+      {
+        bookingId: 'bk-1',
+        amountCents: 1,
+        destination: 'cash',
+        method: 'pix',
+        paidAt: '2026-08-27',
+        reason: 'Ajuste',
+      },
+    );
     expect(result.bookingCancelled).toBe(false);
     // segue ativa (a confirmação cruzada é do repositório real; aqui basta não cancelar)
     expect((await bookings.findById('tenant-a', 'bk-1'))!.status).not.toBe('cancelled');
@@ -127,13 +140,17 @@ describe('§3.6: conversão em cashback', () => {
   it('sai do recebido e vira crédito do responsável — sem virar despesa', async () => {
     const { payments, bookings, cashback } = await seed();
 
-    await registerRefund({ payments, bookings, cashback, clock }, admin, {
-      bookingId: 'bk-1',
-      amountCents: 200000,
-      destination: 'cashback',
-      paidAt: '2026-08-27',
-      reason: 'Cliente preferiu crédito',
-    });
+    await registerRefund(
+      { payments, bookings, cashback, audit: fakeAuditLogRepository(), clock },
+      admin,
+      {
+        bookingId: 'bk-1',
+        amountCents: 200000,
+        destination: 'cashback',
+        paidAt: '2026-08-27',
+        reason: 'Cliente preferiu crédito',
+      },
+    );
 
     expect(await netReceived(payments)).toBe(0);
     const rows = await payments.listByBooking('tenant-a', 'bk-1');
@@ -150,13 +167,17 @@ describe('§3.6: conversão em cashback', () => {
 
   it('conversão integral também cancela a inscrição', async () => {
     const { payments, bookings, cashback } = await seed();
-    const result = await registerRefund({ payments, bookings, cashback, clock }, admin, {
-      bookingId: 'bk-1',
-      amountCents: 200000,
-      destination: 'cashback',
-      paidAt: '2026-08-27',
-      reason: 'Crédito',
-    });
+    const result = await registerRefund(
+      { payments, bookings, cashback, audit: fakeAuditLogRepository(), clock },
+      admin,
+      {
+        bookingId: 'bk-1',
+        amountCents: 200000,
+        destination: 'cashback',
+        paidAt: '2026-08-27',
+        reason: 'Crédito',
+      },
+    );
     expect(result.bookingCancelled).toBe(true);
   });
 });
@@ -165,14 +186,18 @@ describe('§3.6: guardas da devolução', () => {
   it('não devolve mais do que entrou', async () => {
     const { payments, bookings, cashback } = await seed();
     await expect(
-      registerRefund({ payments, bookings, cashback, clock }, admin, {
-        bookingId: 'bk-1',
-        amountCents: 200001,
-        destination: 'cash',
-        method: 'pix',
-        paidAt: '2026-08-27',
-        reason: 'Demais',
-      }),
+      registerRefund(
+        { payments, bookings, cashback, audit: fakeAuditLogRepository(), clock },
+        admin,
+        {
+          bookingId: 'bk-1',
+          amountCents: 200001,
+          destination: 'cash',
+          method: 'pix',
+          paidAt: '2026-08-27',
+          reason: 'Demais',
+        },
+      ),
     ).rejects.toMatchObject({ code: 'refund_exceeds_received' });
   });
 
@@ -186,39 +211,55 @@ describe('§3.6: guardas da devolução', () => {
       reason: 'Ok',
     };
     await expect(
-      registerRefund({ payments, bookings, cashback, clock }, admin, { ...base, amountCents: 0 }),
+      registerRefund(
+        { payments, bookings, cashback, audit: fakeAuditLogRepository(), clock },
+        admin,
+        { ...base, amountCents: 0 },
+      ),
     ).rejects.toBeInstanceOf(BusinessRuleError);
     await expect(
-      registerRefund({ payments, bookings, cashback, clock }, admin, {
-        ...base,
-        amountCents: 1000,
-        reason: '   ',
-      }),
+      registerRefund(
+        { payments, bookings, cashback, audit: fakeAuditLogRepository(), clock },
+        admin,
+        {
+          ...base,
+          amountCents: 1000,
+          reason: '   ',
+        },
+      ),
     ).rejects.toMatchObject({ code: 'required_field' });
   });
 
   it('exige owner/admin e inscrição existente', async () => {
     const { payments, bookings, cashback } = await seed();
     await expect(
-      registerRefund({ payments, bookings, cashback, clock }, operator, {
-        bookingId: 'bk-1',
-        amountCents: 1000,
-        destination: 'cash',
-        method: 'pix',
-        paidAt: '2026-08-27',
-        reason: 'Ok',
-      }),
+      registerRefund(
+        { payments, bookings, cashback, audit: fakeAuditLogRepository(), clock },
+        operator,
+        {
+          bookingId: 'bk-1',
+          amountCents: 1000,
+          destination: 'cash',
+          method: 'pix',
+          paidAt: '2026-08-27',
+          reason: 'Ok',
+        },
+      ),
     ).rejects.toBeInstanceOf(ForbiddenError);
 
     await expect(
-      registerRefund({ payments, bookings, cashback, clock }, admin, {
-        bookingId: 'nao-existe',
-        amountCents: 1000,
-        destination: 'cash',
-        method: 'pix',
-        paidAt: '2026-08-27',
-        reason: 'Ok',
-      }),
+      registerRefund(
+        { payments, bookings, cashback, audit: fakeAuditLogRepository(), clock },
+        admin,
+        {
+          bookingId: 'nao-existe',
+          amountCents: 1000,
+          destination: 'cash',
+          method: 'pix',
+          paidAt: '2026-08-27',
+          reason: 'Ok',
+        },
+      ),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
@@ -235,14 +276,18 @@ describe('§3.6: guardas da devolução', () => {
     });
 
     await expect(
-      registerRefund({ payments, bookings, cashback, clock }, admin, {
-        bookingId: 'bk-2',
-        amountCents: 1000,
-        destination: 'cash',
-        method: 'pix',
-        paidAt: '2026-08-27',
-        reason: 'Ok',
-      }),
+      registerRefund(
+        { payments, bookings, cashback, audit: fakeAuditLogRepository(), clock },
+        admin,
+        {
+          bookingId: 'bk-2',
+          amountCents: 1000,
+          destination: 'cash',
+          method: 'pix',
+          paidAt: '2026-08-27',
+          reason: 'Ok',
+        },
+      ),
     ).rejects.toMatchObject({ code: 'refund_exceeds_received' });
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fakeAuditLogRepository } from '../audit/auditLogRepository.fake.js';
 import { cents, parseLocalDate } from '@expedition/domain';
 import { fakeBookingRepository } from './bookingRepository.fake.js';
 import { fakeCouponRepository } from '../coupons/couponRepository.fake.js';
@@ -170,7 +171,11 @@ describe('IN-11: excluir o único pagamento não reverte o status', () => {
 
   it('exclui o único pagamento: status permanece confirmed e sinaliza requiresDecision', async () => {
     const { bookings, payments, payment } = await seedConfirmedWithPayment();
-    const result = await deletePayment({ payments, bookings }, admin, { paymentId: payment.id });
+    const result = await deletePayment(
+      { payments, bookings, audit: fakeAuditLogRepository() },
+      admin,
+      { paymentId: payment.id },
+    );
 
     expect(result.remainingPayments).toBe(0);
     expect(result.bookingStatus).toBe('confirmed'); // NÃO reverteu
@@ -193,7 +198,11 @@ describe('IN-11: excluir o único pagamento não reverte o status', () => {
       },
       null,
     );
-    const result = await deletePayment({ payments, bookings }, admin, { paymentId: payment.id });
+    const result = await deletePayment(
+      { payments, bookings, audit: fakeAuditLogRepository() },
+      admin,
+      { paymentId: payment.id },
+    );
     expect(result.remainingPayments).toBe(1);
     expect(result.requiresDecision).toBe(false);
   });
@@ -212,7 +221,9 @@ describe('IN-11: excluir o único pagamento não reverte o status', () => {
   it('recebimento inexistente é recusado', async () => {
     const { bookings, payments } = await seedConfirmedWithPayment();
     await expect(
-      deletePayment({ payments, bookings }, admin, { paymentId: 'nao-existe' }),
+      deletePayment({ payments, bookings, audit: fakeAuditLogRepository() }, admin, {
+        paymentId: 'nao-existe',
+      }),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

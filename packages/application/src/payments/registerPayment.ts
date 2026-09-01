@@ -1,3 +1,5 @@
+import { actorUserId } from '../audit/auditLogRepository.js';
+import type { AuditLogRepository } from '../audit/auditLogRepository.js';
 import { cents, effectiveFee, netOfFee, parseLocalDate } from '@expedition/domain';
 import { BusinessRuleError, ForbiddenError, NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
@@ -24,6 +26,7 @@ import { ASAAS } from './connectPaymentProvider.js';
 
 export interface RegisterPaymentDeps {
   readonly payments: PaymentRepository;
+  readonly audit: AuditLogRepository;
   readonly bookings: BookingRepository;
   readonly clock: () => Date;
   /** PG-09: para saber a taxa do provedor. Ausente = lançamento entra integral. */
@@ -89,6 +92,25 @@ export async function registerPayment(
     },
     confirmation,
   );
+
+  /*
+   * A09 — entrada de dinheiro deixa rastro. Cupom, desconto e check-in já gravavam; o
+   * recebimento do cliente, não. Sem o valor na trilha, um lançamento que some depois não
+   * permite reconstruir o saldo, que é o motivo de a trilha existir.
+   */
+  await deps.audit.record({
+    tenantId: ctx.tenantId,
+    actorUserId: actorUserId(ctx.actor),
+    entity: 'booking_payment',
+    entityId: payment.id,
+    action: 'booking_payment.register',
+    diff: {
+      bookingId: command.bookingId,
+      amountCents: Number(payment.amountCents),
+      method: command.method,
+      paidAt: command.paidAt,
+    },
+  });
 
   return { payment, confirmedNow: confirmsNow };
 }

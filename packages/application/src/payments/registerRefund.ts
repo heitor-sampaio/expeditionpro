@@ -1,3 +1,5 @@
+import { actorUserId } from '../audit/auditLogRepository.js';
+import type { AuditLogRepository } from '../audit/auditLogRepository.js';
 import { cents, parseLocalDate, sumCents, zeroCents } from '@expedition/domain';
 import { BusinessRuleError, ForbiddenError, NotFoundError, RequiredFieldError } from '../errors.js';
 import type { RequestContext } from '../context.js';
@@ -34,6 +36,7 @@ export interface RegisterRefundCommand {
 
 export interface RegisterRefundDeps {
   readonly payments: PaymentRepository;
+  readonly audit: AuditLogRepository;
   readonly bookings: BookingRepository;
   readonly cashback: CashbackRepository;
   readonly clock: () => Date;
@@ -113,6 +116,21 @@ export async function registerRefund(
       reason: `Devolução integral: ${reason}`,
     });
   }
+
+  // A09 — estorno é saída de caixa: mesma exigência de rastro que a entrada.
+  await deps.audit.record({
+    tenantId: ctx.tenantId,
+    actorUserId: actorUserId(ctx.actor),
+    entity: 'booking_payment',
+    entityId: command.bookingId,
+    action: 'booking_payment.refund',
+    diff: {
+      bookingId: command.bookingId,
+      amountCents: command.amountCents,
+      destination: command.destination,
+      reason: command.reason,
+    },
+  });
 
   return { refundId: refund.id, netReceivedCents: net, bookingCancelled: cancelled };
 }

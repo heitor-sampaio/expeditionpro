@@ -1,3 +1,5 @@
+import { actorUserId } from '../audit/auditLogRepository.js';
+import type { AuditLogRepository } from '../audit/auditLogRepository.js';
 import { ForbiddenError, NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { BookingRepository } from '../bookings/bookingRepository.js';
@@ -12,6 +14,7 @@ import type { PaymentRepository } from './paymentRepository.js';
 
 export interface DeletePaymentDeps {
   readonly payments: PaymentRepository;
+  readonly audit: AuditLogRepository;
   readonly bookings: BookingRepository;
 }
 
@@ -42,6 +45,24 @@ export async function deletePayment(
   }
 
   await deps.payments.softDelete(ctx.tenantId, command.paymentId);
+
+  /*
+   * A09 — a operação com maior potencial de fraude interna do sistema: apaga dinheiro
+   * recebido, exige owner/admin, e até agora não deixava vestígio de quem apagou nem de
+   * quanto era. O valor no `diff` é o que permite reconstruir o saldo depois.
+   */
+  await deps.audit.record({
+    tenantId: ctx.tenantId,
+    actorUserId: actorUserId(ctx.actor),
+    entity: 'booking_payment',
+    entityId: payment.id,
+    action: 'booking_payment.delete',
+    diff: {
+      bookingId: payment.bookingId,
+      amountCents: Number(payment.amountCents),
+      method: payment.method,
+    },
+  });
 
   const remainingPayments = await deps.payments.countActiveByBooking(
     ctx.tenantId,

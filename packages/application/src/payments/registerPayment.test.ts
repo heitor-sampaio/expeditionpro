@@ -68,12 +68,13 @@ async function seed({ conectado = true } = {}) {
     });
   }
 
-  return { bookings, payments, integrations, gateway, booking };
+  return { bookings, payments, integrations, gateway, audit, booking };
 }
 
 const deps = (s: Awaited<ReturnType<typeof seed>>) => ({
   payments: s.payments,
   bookings: s.bookings,
+  audit: s.audit,
   integrations: s.integrations,
   gateway: s.gateway,
   clock: () => AGORA,
