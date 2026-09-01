@@ -17,3 +17,10 @@ allowBuilds:
   esbuild: true
   prisma: true
   unrs-resolver: true
+
+# SEC-15: deepmerge-ts <8 tem exaustão de pilha (GHSA-ggr8-5vv4-36mx). Chega aqui só
+# pelo CLI do Prisma (@prisma/config), que ainda pede a 7.1.5 — não há correção rio acima
+# no Prisma 7. É dependência de build, não do caminho de requisição, mas o gate de
+# auditoria é alto de propósito: não se baixa a régua, sobe-se a dependência.
+overrides:
+  deepmerge-ts: '^8.0.2'
