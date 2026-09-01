@@ -56,12 +56,16 @@ async function setup() {
     },
   );
   const supplier = await createSupplier({ suppliers }, ctx, { name: 'Pousada' });
-  const expense = await addSupplierExpense({ suppliers, schedule }, ctx, {
-    groupId: group.id,
-    supplierId: supplier.id,
-    description: 'Hospedagem',
-    totalCents: 200000,
-  });
+  const expense = await addSupplierExpense(
+    { suppliers, schedule, audit: fakeAuditLogRepository() },
+    ctx,
+    {
+      groupId: group.id,
+      supplierId: supplier.id,
+      description: 'Hospedagem',
+      totalCents: 200000,
+    },
+  );
   return { suppliers, schedule, audit, group, expense, deps: { suppliers, audit } };
 }
 
@@ -71,7 +75,11 @@ describe('GR-18: excluir gasto', () => {
 
     await deleteSupplierExpense(s.deps, ctx, { expenseId: s.expense.id });
 
-    const rows = await listGroupExpenses({ suppliers: s.suppliers }, ctx, { groupId: s.group.id });
+    const rows = await listGroupExpenses(
+      { suppliers: s.suppliers, audit: fakeAuditLogRepository() },
+      ctx,
+      { groupId: s.group.id },
+    );
     expect(rows).toEqual([]);
   });
 
@@ -95,12 +103,16 @@ describe('GR-18: excluir gasto', () => {
 
   it('gasto com pagamento lançado é recusado', async () => {
     const s = await setup();
-    await registerSupplierPayment({ suppliers: s.suppliers }, ctx, {
-      expenseId: s.expense.id,
-      amountCents: 50000,
-      method: 'pix',
-      paidAt: '2026-03-11',
-    });
+    await registerSupplierPayment(
+      { suppliers: s.suppliers, audit: fakeAuditLogRepository() },
+      ctx,
+      {
+        expenseId: s.expense.id,
+        amountCents: 50000,
+        method: 'pix',
+        paidAt: '2026-03-11',
+      },
+    );
 
     const erro = await deleteSupplierExpense(s.deps, ctx, { expenseId: s.expense.id }).catch(
       (e: unknown) => e as BusinessRuleError,

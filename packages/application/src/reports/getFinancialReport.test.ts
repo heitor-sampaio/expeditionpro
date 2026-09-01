@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fakeAuditLogRepository } from '../audit/auditLogRepository.fake.js';
 import { cents, parseLocalDate, type PriceCategory } from '@expedition/domain';
 import { fakeScheduleRepository } from '../schedule/scheduleRepository.fake.js';
 import { fakeBookingRepository } from '../bookings/bookingRepository.fake.js';
@@ -100,13 +101,21 @@ describe('Relatório de fechamento por saída (consolidado GR-10)', () => {
       },
       null,
     );
-    const sup = await createSupplier({ suppliers: d.suppliers }, ctx, { name: 'Fornecedor' });
-    await addSupplierExpense({ suppliers: d.suppliers, schedule: d.schedule }, ctx, {
-      groupId: g1.id,
-      supplierId: sup.id,
-      description: 'van',
-      totalCents: 250000,
-    });
+    const sup = await createSupplier(
+      { suppliers: d.suppliers, audit: fakeAuditLogRepository() },
+      ctx,
+      { name: 'Fornecedor' },
+    );
+    await addSupplierExpense(
+      { suppliers: d.suppliers, schedule: d.schedule, audit: fakeAuditLogRepository() },
+      ctx,
+      {
+        groupId: g1.id,
+        supplierId: sup.id,
+        description: 'van',
+        totalCents: 250000,
+      },
+    );
 
     // g2: receita confirmada 600000, sem gastos
     pushBooking(d.bookings, g2.id, 'g2-c', 'confirmed', 600000);

@@ -214,12 +214,16 @@ describe('GR-08: gasto de fornecedor no grupo', () => {
     const group = await seedGroup(schedule);
     const sup = await createSupplier({ suppliers }, ctx, { name: 'Guia local' });
 
-    const exp = await addSupplierExpense({ suppliers, schedule }, ctx, {
-      groupId: group.id,
-      supplierId: sup.id,
-      description: 'Guia 4 dias',
-      totalCents: 300000,
-    });
+    const exp = await addSupplierExpense(
+      { suppliers, schedule, audit: fakeAuditLogRepository() },
+      ctx,
+      {
+        groupId: group.id,
+        supplierId: sup.id,
+        description: 'Guia 4 dias',
+        totalCents: 300000,
+      },
+    );
     expect(exp.totalCents).toBe(300000);
     expect(exp.supplierId).toBe(sup.id);
   });
@@ -229,7 +233,7 @@ describe('GR-08: gasto de fornecedor no grupo', () => {
     const schedule = fakeScheduleRepository();
     const sup = await createSupplier({ suppliers }, ctx, { name: 'X' });
     await expect(
-      addSupplierExpense({ suppliers, schedule }, ctx, {
+      addSupplierExpense({ suppliers, schedule, audit: fakeAuditLogRepository() }, ctx, {
         groupId: 'nao-existe',
         supplierId: sup.id,
         description: 'x',
@@ -243,7 +247,7 @@ describe('GR-08: gasto de fornecedor no grupo', () => {
     const schedule = fakeScheduleRepository();
     const group = await seedGroup(schedule);
     await expect(
-      addSupplierExpense({ suppliers, schedule }, ctx, {
+      addSupplierExpense({ suppliers, schedule, audit: fakeAuditLogRepository() }, ctx, {
         groupId: group.id,
         supplierId: 'fantasma',
         description: 'x',
@@ -258,7 +262,7 @@ describe('GR-08: gasto de fornecedor no grupo', () => {
     const group = await seedGroup(schedule);
     const sup = await createSupplier({ suppliers }, ctx, { name: 'X' });
     await expect(
-      addSupplierExpense({ suppliers, schedule }, ctx, {
+      addSupplierExpense({ suppliers, schedule, audit: fakeAuditLogRepository() }, ctx, {
         groupId: group.id,
         supplierId: sup.id,
         description: 'x',
@@ -274,13 +278,17 @@ describe('GR-09: pagamento a fornecedor', () => {
     const schedule = fakeScheduleRepository();
     const group = await seedGroup(schedule);
     const sup = await createSupplier({ suppliers }, ctx, { name: 'X' });
-    const exp = await addSupplierExpense({ suppliers, schedule }, ctx, {
-      groupId: group.id,
-      supplierId: sup.id,
-      description: 'x',
-      totalCents: 300000,
-    });
-    const pay = await registerSupplierPayment({ suppliers }, ctx, {
+    const exp = await addSupplierExpense(
+      { suppliers, schedule, audit: fakeAuditLogRepository() },
+      ctx,
+      {
+        groupId: group.id,
+        supplierId: sup.id,
+        description: 'x',
+        totalCents: 300000,
+      },
+    );
+    const pay = await registerSupplierPayment({ suppliers, audit: fakeAuditLogRepository() }, ctx, {
       expenseId: exp.id,
       amountCents: 100000,
       method: 'pix',
@@ -354,13 +362,17 @@ describe('GR-10: resultado do grupo (receita − gastos, margem)', () => {
     );
 
     const sup = await createSupplier({ suppliers }, ctx, { name: 'Fornecedor' });
-    const exp = await addSupplierExpense({ suppliers, schedule }, ctx, {
-      groupId: group.id,
-      supplierId: sup.id,
-      description: 'serviço',
-      totalCents: 600000,
-    });
-    await registerSupplierPayment({ suppliers }, ctx, {
+    const exp = await addSupplierExpense(
+      { suppliers, schedule, audit: fakeAuditLogRepository() },
+      ctx,
+      {
+        groupId: group.id,
+        supplierId: sup.id,
+        description: 'serviço',
+        totalCents: 600000,
+      },
+    );
+    await registerSupplierPayment({ suppliers, audit: fakeAuditLogRepository() }, ctx, {
       expenseId: exp.id,
       amountCents: 250000,
       method: 'pix',
@@ -500,7 +512,9 @@ describe('SEC-01: fornecedor e gasto são da equipe', () => {
     const group = await seedGroup(schedule);
 
     await expect(
-      listGroupExpenses({ suppliers, schedule }, cliente, { groupId: group.id }),
+      listGroupExpenses({ suppliers, schedule, audit: fakeAuditLogRepository() }, cliente, {
+        groupId: group.id,
+      }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -511,7 +525,7 @@ describe('SEC-01: fornecedor e gasto são da equipe', () => {
     const forn = await createSupplier({ suppliers }, ctx, { name: 'Pousada' });
 
     await expect(
-      addSupplierExpense({ suppliers, schedule }, cliente, {
+      addSupplierExpense({ suppliers, schedule, audit: fakeAuditLogRepository() }, cliente, {
         groupId: group.id,
         supplierId: forn.id,
         description: 'Hospedagem',

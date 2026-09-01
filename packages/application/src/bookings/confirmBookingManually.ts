@@ -1,3 +1,5 @@
+import { actorUserId } from '../audit/auditLogRepository.js';
+import type { AuditLogRepository } from '../audit/auditLogRepository.js';
 import { BusinessRuleError, ForbiddenError, NotFoundError, RequiredFieldError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { BookingRecord, BookingRepository } from './bookingRepository.js';
@@ -10,6 +12,7 @@ import type { BookingRecord, BookingRepository } from './bookingRepository.js';
 
 export interface ConfirmBookingManuallyDeps {
   readonly bookings: BookingRepository;
+  readonly audit: AuditLogRepository;
   readonly clock: () => Date;
 }
 
@@ -40,9 +43,25 @@ export async function confirmBookingManually(
     throw new BusinessRuleError('not_pending', 'Só uma inscrição pendente pode ser confirmada');
   }
 
-  return deps.bookings.confirmManually(ctx.tenantId, command.bookingId, {
+  const confirmed = await deps.bookings.confirmManually(ctx.tenantId, command.bookingId, {
     confirmedBy: actor.userId,
     confirmedAt: deps.clock(),
     note,
   });
+
+  /*
+   * A09 — confirmar sem pagamento é a **exceção** ao "confirmação vem do dinheiro" (§3.4).
+   * Exceção sem registro vira regra: em seis meses ninguém sabe dizer quantas inscrições
+   * entraram como confirmadas sem um centavo, nem por quê.
+   */
+  await deps.audit.record({
+    tenantId: ctx.tenantId,
+    actorUserId: actorUserId(actor),
+    entity: 'booking',
+    entityId: command.bookingId,
+    action: 'booking.confirm_manual',
+    diff: { note },
+  });
+
+  return confirmed;
 }

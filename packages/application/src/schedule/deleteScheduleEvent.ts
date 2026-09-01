@@ -1,3 +1,5 @@
+import { actorUserId } from '../audit/auditLogRepository.js';
+import type { AuditLogRepository } from '../audit/auditLogRepository.js';
 import { requireWriter } from '../audience.js';
 import { BusinessRuleError, NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
@@ -22,6 +24,7 @@ export interface DeleteScheduleEventDeps {
   readonly schedule: ScheduleRepositoryLike;
   readonly bookings: BookingRepository;
   readonly suppliers: SupplierRepository;
+  readonly audit: AuditLogRepository;
   readonly payments: PaymentRepository;
   readonly intake: IntakeRepository;
 }
@@ -72,6 +75,22 @@ export async function deleteScheduleEvent(
   }
 
   await deps.schedule.deleteEvent(ctx.tenantId, command.eventId);
+
+  /*
+   * A09 — apagar saída tira o evento do calendário e descarta os pedidos pendentes dela.
+   * Sem trilha, uma saída que some do calendário não tem a quem perguntar: guarda o que
+   * havia ali, para a pergunta ter resposta.
+   */
+  await deps.audit.record({
+    tenantId: ctx.tenantId,
+    actorUserId: actorUserId(ctx.actor),
+    entity: 'schedule_event',
+    entityId: command.eventId,
+    action: 'schedule_event.delete',
+    // O grupo e quantos pedidos pendentes foram descartados junto — é o que se pergunta
+    // quando alguém nota que a saída sumiu do calendário.
+    diff: { groupId: event.group.id, discardedRequests: pending.length },
+  });
 }
 
 /** Cancelada ou recusada: saiu do grupo e não impede a exclusão. */

@@ -446,10 +446,14 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
     },
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
-      const booking = await confirmBookingManually({ bookings: deps.bookings, clock }, ctx, {
-        bookingId: request.params.bookingId,
-        note: request.body.note,
-      });
+      const booking = await confirmBookingManually(
+        { bookings: deps.bookings, audit: deps.audit, clock },
+        ctx,
+        {
+          bookingId: request.params.bookingId,
+          note: request.body.note,
+        },
+      );
       return reply.send(statusDto(booking));
     },
   );
@@ -465,7 +469,7 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
       const booking = await cancelBooking(
-        { bookings: deps.bookings, coupons: deps.coupons, clock },
+        { bookings: deps.bookings, coupons: deps.coupons, audit: deps.audit, clock },
         ctx,
         { bookingId: request.params.bookingId, reason: request.body.reason },
       );

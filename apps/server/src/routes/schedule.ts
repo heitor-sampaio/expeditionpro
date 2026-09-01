@@ -81,6 +81,7 @@ export function registerScheduleRoutes(app: FastifyInstance, deps: ServerDeps): 
         {
           schedule: deps.schedule,
           bookings: deps.bookings,
+          audit: deps.audit,
           suppliers: deps.suppliers,
           payments: deps.payments,
           intake: deps.intake,

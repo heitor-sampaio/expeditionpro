@@ -1,3 +1,5 @@
+import { actorUserId } from '../audit/auditLogRepository.js';
+import type { AuditLogRepository } from '../audit/auditLogRepository.js';
 import { requireWriter } from '../audience.js';
 import { cents, parseLocalDate } from '@expedition/domain';
 import { BusinessRuleError, NotFoundError } from '../errors.js';
@@ -12,6 +14,7 @@ import type { SupplierPaymentRecord, SupplierRepository } from './supplierReposi
 
 export interface RegisterSupplierPaymentDeps {
   readonly suppliers: SupplierRepository;
+  readonly audit: AuditLogRepository;
 }
 
 export interface RegisterSupplierPaymentCommand {
@@ -38,7 +41,7 @@ export async function registerSupplierPayment(
     throw new NotFoundError('gasto');
   }
 
-  return deps.suppliers.addPayment({
+  const payment = await deps.suppliers.addPayment({
     tenantId: ctx.tenantId,
     supplierExpenseId: command.expenseId,
     paidAt: parseLocalDate(command.paidAt),
@@ -48,6 +51,22 @@ export async function registerSupplierPayment(
     notes: blankToNull(command.notes),
     createdBy: ctx.actor.userId,
   });
+
+  // A09 — mesma assimetria do gasto: `deleteSupplierPayment` (GR-19) gravava, pagar não.
+  await deps.audit.record({
+    tenantId: ctx.tenantId,
+    actorUserId: actorUserId(ctx.actor),
+    entity: 'supplier_payment',
+    entityId: payment.id,
+    action: 'supplier_payment.register',
+    diff: {
+      supplierExpenseId: command.expenseId,
+      amountCents: command.amountCents,
+      method: command.method,
+    },
+  });
+
+  return payment;
 }
 
 function blankToNull(value: string | undefined): string | null {

@@ -144,9 +144,13 @@ describe('AG-04: edição do evento propaga ao grupo', () => {
 describe('AG-05: exclusão bloqueada quando o grupo tem inscrições', () => {
   it('exclui o evento (e o grupo cai por cascade) quando não há inscrições', async () => {
     const { schedule, bookings, suppliers, payments, intake, event } = await setup();
-    await deleteScheduleEvent({ schedule, bookings, suppliers, payments, intake }, ctx, {
-      eventId: event.id,
-    });
+    await deleteScheduleEvent(
+      { schedule, bookings, suppliers, payments, intake, audit: fakeAuditLogRepository() },
+      ctx,
+      {
+        eventId: event.id,
+      },
+    );
     expect(await schedule.findEventById(ctx.tenantId, event.id)).toBeNull();
   });
 
@@ -154,9 +158,13 @@ describe('AG-05: exclusão bloqueada quando o grupo tem inscrições', () => {
     const { schedule, bookings, suppliers, payments, intake, event, group } = await setup();
     pushBooking(bookings, group.id);
     await expect(
-      deleteScheduleEvent({ schedule, bookings, suppliers, payments, intake }, ctx, {
-        eventId: event.id,
-      }),
+      deleteScheduleEvent(
+        { schedule, bookings, suppliers, payments, intake, audit: fakeAuditLogRepository() },
+        ctx,
+        {
+          eventId: event.id,
+        },
+      ),
     ).rejects.toMatchObject({ code: 'group_has_bookings' });
     // não apagou
     expect(await schedule.findEventById(ctx.tenantId, event.id)).not.toBeNull();
@@ -165,9 +173,13 @@ describe('AG-05: exclusão bloqueada quando o grupo tem inscrições', () => {
   it('evento inexistente é recusado', async () => {
     const { schedule, bookings, suppliers, payments, intake } = await setup();
     await expect(
-      deleteScheduleEvent({ schedule, bookings, suppliers, payments, intake }, ctx, {
-        eventId: 'nao-existe',
-      }),
+      deleteScheduleEvent(
+        { schedule, bookings, suppliers, payments, intake, audit: fakeAuditLogRepository() },
+        ctx,
+        {
+          eventId: 'nao-existe',
+        },
+      ),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
@@ -199,9 +211,13 @@ describe('AG-05: gasto contratado não bloqueia; gasto pago bloqueia', () => {
       totalCents: cents(80000),
     });
 
-    await deleteScheduleEvent({ schedule, bookings, suppliers, payments, intake }, ctx, {
-      eventId: event.id,
-    });
+    await deleteScheduleEvent(
+      { schedule, bookings, suppliers, payments, intake, audit: fakeAuditLogRepository() },
+      ctx,
+      {
+        eventId: event.id,
+      },
+    );
     expect(await schedule.findEventById(ctx.tenantId, event.id)).toBeNull();
   });
 
@@ -236,9 +252,13 @@ describe('AG-05: gasto contratado não bloqueia; gasto pago bloqueia', () => {
     });
 
     await expect(
-      deleteScheduleEvent({ schedule, bookings, suppliers, payments, intake }, ctx, {
-        eventId: event.id,
-      }),
+      deleteScheduleEvent(
+        { schedule, bookings, suppliers, payments, intake, audit: fakeAuditLogRepository() },
+        ctx,
+        {
+          eventId: event.id,
+        },
+      ),
     ).rejects.toMatchObject({ code: 'group_has_money' });
   });
 });
@@ -309,9 +329,13 @@ describe('AG-05: o que impede excluir a saída', () => {
     const { schedule, bookings, suppliers, payments, intake, event, group } = await setup();
     pushBooking(bookings, group.id, 'cancelled');
 
-    await deleteScheduleEvent({ schedule, bookings, suppliers, payments, intake }, ctx, {
-      eventId: event.id,
-    });
+    await deleteScheduleEvent(
+      { schedule, bookings, suppliers, payments, intake, audit: fakeAuditLogRepository() },
+      ctx,
+      {
+        eventId: event.id,
+      },
+    );
     expect(await schedule.findEventById(ctx.tenantId, event.id)).toBeNull();
   });
 
@@ -333,9 +357,13 @@ describe('AG-05: o que impede excluir a saída', () => {
     );
 
     await expect(
-      deleteScheduleEvent({ schedule, bookings, suppliers, payments, intake }, ctx, {
-        eventId: event.id,
-      }),
+      deleteScheduleEvent(
+        { schedule, bookings, suppliers, payments, intake, audit: fakeAuditLogRepository() },
+        ctx,
+        {
+          eventId: event.id,
+        },
+      ),
     ).rejects.toMatchObject({ code: 'group_has_money' });
   });
 });
@@ -366,9 +394,13 @@ describe('AG-05: excluir a saída descarta os pedidos feitos para ela', () => {
       isTest: false,
     });
 
-    await deleteScheduleEvent({ schedule, bookings, suppliers, payments, intake }, ctx, {
-      eventId: event.id,
-    });
+    await deleteScheduleEvent(
+      { schedule, bookings, suppliers, payments, intake, audit: fakeAuditLogRepository() },
+      ctx,
+      {
+        eventId: event.id,
+      },
+    );
 
     const queue = await intake.listQueue(ctx.tenantId);
     expect(queue.map((i) => i.id)).not.toContain(pedido.id);

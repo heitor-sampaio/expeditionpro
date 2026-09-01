@@ -252,10 +252,19 @@ describe('CP-08: cancelar a inscrição devolve o uso do cupom', () => {
       code: 'VERAO10',
     });
 
-    await cancelBooking({ bookings: s.bookings, coupons: s.coupons, clock: () => NOW }, ctx, {
-      bookingId: s.booking.id,
-      reason: 'família desistiu',
-    });
+    await cancelBooking(
+      {
+        bookings: s.bookings,
+        coupons: s.coupons,
+        audit: fakeAuditLogRepository(),
+        clock: () => NOW,
+      },
+      ctx,
+      {
+        bookingId: s.booking.id,
+        reason: 'família desistiu',
+      },
+    );
 
     expect(await s.coupons.findActiveByBooking(ctx.tenantId, s.booking.id)).toBeNull();
     const coupon = (await s.coupons.list(ctx.tenantId))[0]!;

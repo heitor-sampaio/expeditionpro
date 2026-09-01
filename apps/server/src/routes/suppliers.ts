@@ -112,7 +112,7 @@ export function registerSupplierRoutes(app: FastifyInstance, deps: ServerDeps): 
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
       const expense = await addSupplierExpense(
-        { suppliers: deps.suppliers, schedule: deps.schedule },
+        { suppliers: deps.suppliers, schedule: deps.schedule, audit: deps.audit },
         ctx,
         { groupId: request.params.groupId, ...request.body },
       );
@@ -125,10 +125,14 @@ export function registerSupplierRoutes(app: FastifyInstance, deps: ServerDeps): 
     { schema: { params: z.object({ expenseId: z.string().min(1) }), body: supplierPaymentBody } },
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
-      const payment = await registerSupplierPayment({ suppliers: deps.suppliers }, ctx, {
-        expenseId: request.params.expenseId,
-        ...request.body,
-      });
+      const payment = await registerSupplierPayment(
+        { suppliers: deps.suppliers, audit: deps.audit },
+        ctx,
+        {
+          expenseId: request.params.expenseId,
+          ...request.body,
+        },
+      );
       return reply.status(201).send(supplierPaymentDto(payment));
     },
   );

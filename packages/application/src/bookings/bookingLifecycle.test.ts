@@ -40,10 +40,14 @@ function seed(status = 'pending') {
 describe('IN-10: confirmação manual sem pagamento, com motivo obrigatório', () => {
   it('confirma uma inscrição pending com motivo', async () => {
     const bookings = seed('pending');
-    const result = await confirmBookingManually({ bookings, clock: () => FIXED }, admin, {
-      bookingId: 'bk-1',
-      note: 'cortesia acertada por fora',
-    });
+    const result = await confirmBookingManually(
+      { bookings, audit: fakeAuditLogRepository(), clock: () => FIXED },
+      admin,
+      {
+        bookingId: 'bk-1',
+        note: 'cortesia acertada por fora',
+      },
+    );
     expect(result.status).toBe('confirmed');
     expect(bookings.rows[0]!.status).toBe('confirmed');
   });
@@ -51,10 +55,14 @@ describe('IN-10: confirmação manual sem pagamento, com motivo obrigatório', (
   it('motivo em branco é recusado', async () => {
     const bookings = seed('pending');
     await expect(
-      confirmBookingManually({ bookings, clock: () => FIXED }, admin, {
-        bookingId: 'bk-1',
-        note: '  ',
-      }),
+      confirmBookingManually(
+        { bookings, audit: fakeAuditLogRepository(), clock: () => FIXED },
+        admin,
+        {
+          bookingId: 'bk-1',
+          note: '  ',
+        },
+      ),
     ).rejects.toBeInstanceOf(RequiredFieldError);
   });
 
@@ -62,7 +70,7 @@ describe('IN-10: confirmação manual sem pagamento, com motivo obrigatório', (
     const bookings = seed('pending');
     await expect(
       confirmBookingManually(
-        { bookings, clock: () => FIXED },
+        { bookings, audit: fakeAuditLogRepository(), clock: () => FIXED },
         ctxWith({ kind: 'team', userId: 'u2', role: 'operator' }),
         { bookingId: 'bk-1', note: 'x' },
       ),
@@ -72,10 +80,14 @@ describe('IN-10: confirmação manual sem pagamento, com motivo obrigatório', (
   it('inscrição já confirmada não reconfirma', async () => {
     const bookings = seed('confirmed');
     await expect(
-      confirmBookingManually({ bookings, clock: () => FIXED }, admin, {
-        bookingId: 'bk-1',
-        note: 'x',
-      }),
+      confirmBookingManually(
+        { bookings, audit: fakeAuditLogRepository(), clock: () => FIXED },
+        admin,
+        {
+          bookingId: 'bk-1',
+          note: 'x',
+        },
+      ),
     ).rejects.toMatchObject({ code: 'not_pending' });
   });
 });
@@ -84,7 +96,12 @@ describe('IN-15/IN-16: cancelamento com motivo, sem apagar recebimento', () => {
   it('cancela uma inscrição com motivo', async () => {
     const bookings = seed('confirmed');
     const result = await cancelBooking(
-      { bookings, coupons: fakeCouponRepository(), clock: () => FIXED },
+      {
+        bookings,
+        coupons: fakeCouponRepository(),
+        audit: fakeAuditLogRepository(),
+        clock: () => FIXED,
+      },
       admin,
       {
         bookingId: 'bk-1',
@@ -97,10 +114,19 @@ describe('IN-15/IN-16: cancelamento com motivo, sem apagar recebimento', () => {
   it('motivo obrigatório', async () => {
     const bookings = seed('confirmed');
     await expect(
-      cancelBooking({ bookings, coupons: fakeCouponRepository(), clock: () => FIXED }, admin, {
-        bookingId: 'bk-1',
-        reason: '',
-      }),
+      cancelBooking(
+        {
+          bookings,
+          coupons: fakeCouponRepository(),
+          audit: fakeAuditLogRepository(),
+          clock: () => FIXED,
+        },
+        admin,
+        {
+          bookingId: 'bk-1',
+          reason: '',
+        },
+      ),
     ).rejects.toBeInstanceOf(RequiredFieldError);
   });
 
@@ -108,7 +134,12 @@ describe('IN-15/IN-16: cancelamento com motivo, sem apagar recebimento', () => {
     const bookings = seed('confirmed');
     await expect(
       cancelBooking(
-        { bookings, coupons: fakeCouponRepository(), clock: () => FIXED },
+        {
+          bookings,
+          coupons: fakeCouponRepository(),
+          audit: fakeAuditLogRepository(),
+          clock: () => FIXED,
+        },
         ctxWith({ kind: 'customer', customerId: 'c1', userId: 'u3' }),
         { bookingId: 'bk-1', reason: 'quero cancelar' },
       ),
@@ -118,10 +149,19 @@ describe('IN-15/IN-16: cancelamento com motivo, sem apagar recebimento', () => {
   it('inscrição já cancelada não recancela', async () => {
     const bookings = seed('cancelled');
     await expect(
-      cancelBooking({ bookings, coupons: fakeCouponRepository(), clock: () => FIXED }, admin, {
-        bookingId: 'bk-1',
-        reason: 'x',
-      }),
+      cancelBooking(
+        {
+          bookings,
+          coupons: fakeCouponRepository(),
+          audit: fakeAuditLogRepository(),
+          clock: () => FIXED,
+        },
+        admin,
+        {
+          bookingId: 'bk-1',
+          reason: 'x',
+        },
+      ),
     ).rejects.toMatchObject({ code: 'already_cancelled' });
   });
 
@@ -141,10 +181,19 @@ describe('IN-15/IN-16: cancelamento com motivo, sem apagar recebimento', () => {
       },
       null,
     );
-    await cancelBooking({ bookings, coupons: fakeCouponRepository(), clock: () => FIXED }, admin, {
-      bookingId: 'bk-1',
-      reason: 'desistiu',
-    });
+    await cancelBooking(
+      {
+        bookings,
+        coupons: fakeCouponRepository(),
+        audit: fakeAuditLogRepository(),
+        clock: () => FIXED,
+      },
+      admin,
+      {
+        bookingId: 'bk-1',
+        reason: 'desistiu',
+      },
+    );
     expect(await payments.listByBooking('tenant-a', 'bk-1')).toHaveLength(1);
   });
 });

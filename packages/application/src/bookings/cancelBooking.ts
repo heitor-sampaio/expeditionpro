@@ -1,6 +1,7 @@
 import { requireWriter } from '../audience.js';
 import { BusinessRuleError, NotFoundError, RequiredFieldError } from '../errors.js';
 import { actorUserId } from '../audit/auditLogRepository.js';
+import type { AuditLogRepository } from '../audit/auditLogRepository.js';
 import type { RequestContext } from '../context.js';
 import type { CouponRepository } from '../coupons/couponRepository.js';
 import type { BookingRecord, BookingRepository } from './bookingRepository.js';
@@ -14,6 +15,7 @@ import type { BookingRecord, BookingRepository } from './bookingRepository.js';
 
 export interface CancelBookingDeps {
   readonly bookings: BookingRepository;
+  readonly audit: AuditLogRepository;
   readonly coupons: CouponRepository;
   readonly clock: () => Date;
 }
@@ -48,9 +50,25 @@ export async function cancelBooking(
   // antes de cancelar mantém o resgate coerente mesmo se o cancelamento falhar.
   await deps.coupons.release(ctx.tenantId, booking.id, actorUserId(actor), deps.clock());
 
-  return deps.bookings.cancel(ctx.tenantId, command.bookingId, {
+  const cancelled = await deps.bookings.cancel(ctx.tenantId, command.bookingId, {
     cancelledBy: actor.userId,
     cancelledAt: deps.clock(),
     reason,
   });
+
+  /*
+   * A09 — a trilha estava **pela metade**: este arquivo já importava `actorUserId` e nunca
+   * chamava `audit.record`. Trilha começada e não terminada é pior que ausente, porque o
+   * import faz parecer que existe. O motivo é justamente o que se pergunta depois.
+   */
+  await deps.audit.record({
+    tenantId: ctx.tenantId,
+    actorUserId: actorUserId(actor),
+    entity: 'booking',
+    entityId: command.bookingId,
+    action: 'booking.cancel',
+    diff: { reason, previousStatus: booking.status },
+  });
+
+  return cancelled;
 }

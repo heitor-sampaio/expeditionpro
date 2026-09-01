@@ -73,16 +73,24 @@ async function gasto(
   categoryId: string | null,
   totalCents: number,
 ) {
-  const forn = await createSupplier({ suppliers: d.suppliers }, ctx, {
-    name: nome,
-    ...(categoryId === null ? {} : { categoryId }),
-  });
-  return addSupplierExpense({ suppliers: d.suppliers, schedule: d.schedule }, ctx, {
-    groupId,
-    supplierId: forn.id,
-    description: nome,
-    totalCents,
-  });
+  const forn = await createSupplier(
+    { suppliers: d.suppliers, audit: fakeAuditLogRepository() },
+    ctx,
+    {
+      name: nome,
+      ...(categoryId === null ? {} : { categoryId }),
+    },
+  );
+  return addSupplierExpense(
+    { suppliers: d.suppliers, schedule: d.schedule, audit: fakeAuditLogRepository() },
+    ctx,
+    {
+      groupId,
+      supplierId: forn.id,
+      description: nome,
+      totalCents,
+    },
+  );
 }
 
 describe('FO-06: soma dos gastos por categoria', () => {
@@ -113,12 +121,16 @@ describe('FO-06: soma dos gastos por categoria', () => {
       name: 'Alimentação',
     });
     const expense = await gasto(d, g.id, 'Queijo e Cia', cat.id, 100000);
-    await registerSupplierPayment({ suppliers: d.suppliers }, ctx, {
-      expenseId: expense.id,
-      amountCents: 40000,
-      method: 'pix',
-      paidAt: '2026-03-11',
-    });
+    await registerSupplierPayment(
+      { suppliers: d.suppliers, audit: fakeAuditLogRepository() },
+      ctx,
+      {
+        expenseId: expense.id,
+        amountCents: 40000,
+        method: 'pix',
+        paidAt: '2026-03-11',
+      },
+    );
 
     const view = await getExpensesByCategory(d, ctx, {});
 
@@ -220,21 +232,32 @@ describe('FO-06: a categoria é do fornecedor', () => {
     const alim = await createSupplierCategory({ suppliers: d.suppliers, audit: d.audit }, ctx, {
       name: 'Alimentação',
     });
-    const forn = await createSupplier({ suppliers: d.suppliers }, ctx, {
-      name: 'Fazenda',
-      categoryId: hosp.id,
-    });
-    await addSupplierExpense({ suppliers: d.suppliers, schedule: d.schedule }, ctx, {
-      groupId: g.id,
-      supplierId: forn.id,
-      description: 'Pernoite',
-      totalCents: 300000,
-    });
+    const forn = await createSupplier(
+      { suppliers: d.suppliers, audit: fakeAuditLogRepository() },
+      ctx,
+      {
+        name: 'Fazenda',
+        categoryId: hosp.id,
+      },
+    );
+    await addSupplierExpense(
+      { suppliers: d.suppliers, schedule: d.schedule, audit: fakeAuditLogRepository() },
+      ctx,
+      {
+        groupId: g.id,
+        supplierId: forn.id,
+        description: 'Pernoite',
+        totalCents: 300000,
+      },
+    );
 
     const antes = await getExpensesByCategory(d, ctx, {});
     expect(antes.rows[0]?.categoryName).toBe('Hospedagem');
 
-    await updateSupplier({ suppliers: d.suppliers }, ctx, { id: forn.id, categoryId: alim.id });
+    await updateSupplier({ suppliers: d.suppliers, audit: fakeAuditLogRepository() }, ctx, {
+      id: forn.id,
+      categoryId: alim.id,
+    });
 
     const depois = await getExpensesByCategory(d, ctx, {});
     expect(depois.rows[0]).toMatchObject({

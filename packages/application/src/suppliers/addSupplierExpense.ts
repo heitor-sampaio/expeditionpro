@@ -1,3 +1,5 @@
+import { actorUserId } from '../audit/auditLogRepository.js';
+import type { AuditLogRepository } from '../audit/auditLogRepository.js';
 import { requireWriter } from '../audience.js';
 import { cents } from '@expedition/domain';
 import { BusinessRuleError, NotFoundError, RequiredFieldError } from '../errors.js';
@@ -13,6 +15,7 @@ import type { SupplierExpenseRecord, SupplierRepository } from './supplierReposi
 export interface AddSupplierExpenseDeps {
   readonly suppliers: SupplierRepository;
   readonly schedule: ScheduleRepository;
+  readonly audit: AuditLogRepository;
 }
 
 export interface AddSupplierExpenseCommand {
@@ -46,11 +49,32 @@ export async function addSupplierExpense(
     throw new NotFoundError('fornecedor');
   }
 
-  return deps.suppliers.addExpense({
+  const expense = await deps.suppliers.addExpense({
     tenantId: ctx.tenantId,
     groupId: command.groupId,
     supplierId: command.supplierId,
     description,
     totalCents: cents(command.totalCents),
   });
+
+  /*
+   * A09 — `deleteSupplierExpense` já gravava; criar, não. Só com o lado da exclusão não dá
+   * para reconstruir o saldo: some o "menos" e o "mais" nunca existiu. Criar obrigação
+   * financeira merece o mesmo rastro que apagá-la.
+   */
+  await deps.audit.record({
+    tenantId: ctx.tenantId,
+    actorUserId: actorUserId(ctx.actor),
+    entity: 'supplier_expense',
+    entityId: expense.id,
+    action: 'supplier_expense.add',
+    diff: {
+      groupId: command.groupId,
+      supplierId: command.supplierId,
+      description,
+      totalCents: command.totalCents,
+    },
+  });
+
+  return expense;
 }
