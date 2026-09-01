@@ -27,10 +27,20 @@ export async function verifyAccessToken(
   token: string,
   key: JwtKey,
   algorithms: readonly string[] = ['HS256'],
+  /**
+   * SEC-01 — emissor esperado (`<SUPABASE_URL>/auth/v1`). Sem ele, `jwtVerify` aceita
+   * qualquer token que a chave valide: um segredo HS256 reaproveitado noutro serviço, ou
+   * uma JWKS de emissor compartilhado, deixariam entrar token legítimo de outro sistema
+   * que trouxesse `app_metadata.tenant_id`. Opcional para não quebrar quem já roda sem.
+   */
+  issuer?: string,
 ): Promise<RequestContext> {
   let claims: { sub?: unknown; app_metadata?: unknown };
   try {
-    const { payload } = await jwtVerify(token, key, { algorithms: [...algorithms] });
+    const { payload } = await jwtVerify(token, key, {
+      algorithms: [...algorithms],
+      ...(issuer ? { issuer } : {}),
+    });
     claims = payload;
   } catch {
     throw new UnauthorizedError('Token inválido');

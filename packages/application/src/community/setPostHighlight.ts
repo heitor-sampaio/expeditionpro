@@ -1,4 +1,4 @@
-import { ForbiddenError } from '../errors.js';
+import { requireWriter } from '../audience.js';
 import type { RequestContext } from '../context.js';
 import type { CommunityRepository } from './communityRepository.js';
 
@@ -21,8 +21,6 @@ export async function setPostHighlight(
   ctx: RequestContext,
   command: SetPostHighlightCommand,
 ): Promise<void> {
-  if (ctx.actor.kind !== 'team') {
-    throw new ForbiddenError('Curadoria é da equipe');
-  }
+  requireWriter(ctx);
   await deps.community.setPostFeatured(ctx.tenantId, command.postId, command.featured);
 }

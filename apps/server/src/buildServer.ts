@@ -120,10 +120,42 @@ export interface ServerOptions {
   readonly deps?: ServerDeps;
 }
 
+/**
+ * SEC-01 — o log de acesso do Fastify inclui a query string, e a busca de cliente aceita
+ * **nome, CPF ou telefone** em `?q=`. Sem redação, `?q=90000010057` ficava em claro num
+ * agregador de log, que costuma ter retenção longa e público mais amplo que o back-office.
+ *
+ * Também apaga os cabeçalhos de credencial: nenhum deles é logado por padrão hoje, mas
+ * depender de um padrão para não vazar segredo é depender de sorte.
+ */
+function loggerConfig() {
+  return {
+    redact: {
+      paths: [
+        'req.query.q',
+        'req.headers.authorization',
+        'req.headers.cookie',
+        'req.headers["api_token"]',
+        'req.headers["asaas-access-token"]',
+      ],
+      censor: '[redacted]',
+    },
+  };
+}
+
 export async function buildServer(options: ServerOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: options.logger ?? true,
+    logger: options.logger ?? loggerConfig(),
     genReqId: () => crypto.randomUUID(),
+    /*
+     * SEC-01 — atrás do proxy do Railway toda conexão chega do IP do proxy. Sem isto:
+     *   · o rate limit vira **um balde único para a internet inteira** — 30 req/min na
+     *     vitrine derrubam a vitrine para todos, e um cliente legítimo é bloqueado por
+     *     ruído de terceiros;
+     *   · o `x-forwarded-for` que a prova de aceite grava (DOC-05) fica **forjável**, e
+     *     esse IP é evidência jurídica de consentimento.
+     */
+    trustProxy: true,
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);

@@ -1,4 +1,4 @@
-import { denyCustomer } from '../audience.js';
+import { requireWriter } from '../audience.js';
 import { BusinessRuleError, NotFoundError } from '../errors.js';
 import { actorUserId } from '../audit/auditLogRepository.js';
 import type { RequestContext } from '../context.js';
@@ -32,7 +32,7 @@ export async function mergeCustomers(
   ctx: RequestContext,
   command: MergeCustomersCommand,
 ): Promise<CustomerRecord> {
-  denyCustomer(ctx);
+  requireWriter(ctx);
   if (command.survivorId === command.duplicateId) {
     throw new BusinessRuleError('merge_self', 'Não é possível mesclar um cliente com ele mesmo');
   }

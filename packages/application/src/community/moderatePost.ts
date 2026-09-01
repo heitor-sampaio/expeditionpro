@@ -1,4 +1,5 @@
-import { BusinessRuleError, ForbiddenError } from '../errors.js';
+import { requireWriter } from '../audience.js';
+import { BusinessRuleError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { CommunityRepository } from './communityRepository.js';
 
@@ -30,9 +31,7 @@ export async function moderatePost(
   ctx: RequestContext,
   command: ModeratePostCommand,
 ): Promise<void> {
-  if (ctx.actor.kind !== 'team') {
-    throw new ForbiddenError('Moderação é da equipe');
-  }
+  requireWriter(ctx);
   if (command.action !== 'restore' && command.reason.trim() === '') {
     throw new BusinessRuleError('reason_required', 'Tirar do ar exige motivo');
   }

@@ -1,4 +1,4 @@
-import { denyCustomer } from '../audience.js';
+import { requireWriter } from '../audience.js';
 import { BusinessRuleError, NotFoundError } from '../errors.js';
 import { actorUserId } from '../audit/auditLogRepository.js';
 import type { RequestContext } from '../context.js';
@@ -30,7 +30,7 @@ export async function moveToResponsible(
   ctx: RequestContext,
   command: MoveToResponsibleCommand,
 ): Promise<CustomerRecord> {
-  denyCustomer(ctx);
+  requireWriter(ctx);
   if (command.customerId === command.responsibleId) {
     throw new BusinessRuleError('self_link', 'Um cliente não pode ser vinculado a si mesmo');
   }

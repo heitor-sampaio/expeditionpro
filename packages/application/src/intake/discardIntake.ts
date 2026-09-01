@@ -1,4 +1,5 @@
-import { BusinessRuleError, ForbiddenError, NotFoundError, RequiredFieldError } from '../errors.js';
+import { requireWriter } from '../audience.js';
+import { BusinessRuleError, NotFoundError, RequiredFieldError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { IntakeRepository } from './intakeRepository.js';
 
@@ -21,9 +22,7 @@ export async function discardIntake(
   ctx: RequestContext,
   command: DiscardIntakeCommand,
 ): Promise<void> {
-  if (ctx.actor.kind !== 'team') {
-    throw new ForbiddenError('Descartar inscrição é feito pela equipe');
-  }
+  requireWriter(ctx);
   const reason = command.reason.trim();
   if (reason.length === 0) {
     throw new RequiredFieldError('motivo');

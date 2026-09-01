@@ -53,18 +53,29 @@ describe('SEC-01: autenticação é obrigatória fora de desenvolvimento', () =>
         },
         'production',
       ),
-    ).toEqual({ kind: 'jwks', url: 'https://explicita/jwks.json' });
+      // O emissor esperado sai da `SUPABASE_URL` mesmo quando a JWKS é explícita: são
+      // coisas diferentes — onde buscar a chave, e quem tem direito de emitir.
+    ).toEqual({
+      kind: 'jwks',
+      url: 'https://explicita/jwks.json',
+      issuer: 'https://derivada.supabase.co/auth/v1',
+    });
 
     expect(
       authConfigFrom(
         { SUPABASE_JWT_SECRET: 'segredo', SUPABASE_URL: 'https://derivada.supabase.co' },
         'production',
       ),
-    ).toEqual({ kind: 'secret', secret: 'segredo' });
+    ).toEqual({
+      kind: 'secret',
+      secret: 'segredo',
+      issuer: 'https://derivada.supabase.co/auth/v1',
+    });
 
     expect(authConfigFrom({ SUPABASE_URL: 'https://derivada.supabase.co' }, 'production')).toEqual({
       kind: 'jwks',
       url: 'https://derivada.supabase.co/auth/v1/.well-known/jwks.json',
+      issuer: 'https://derivada.supabase.co/auth/v1',
     });
   });
 

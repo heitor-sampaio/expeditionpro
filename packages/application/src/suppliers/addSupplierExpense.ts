@@ -1,5 +1,6 @@
+import { requireWriter } from '../audience.js';
 import { cents } from '@expedition/domain';
-import { BusinessRuleError, ForbiddenError, NotFoundError, RequiredFieldError } from '../errors.js';
+import { BusinessRuleError, NotFoundError, RequiredFieldError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { ScheduleRepository } from '../schedule/scheduleRepository.js';
 import type { SupplierExpenseRecord, SupplierRepository } from './supplierRepository.js';
@@ -26,9 +27,7 @@ export async function addSupplierExpense(
   ctx: RequestContext,
   command: AddSupplierExpenseCommand,
 ): Promise<SupplierExpenseRecord> {
-  if (ctx.actor.kind !== 'team') {
-    throw new ForbiddenError('Lançar gasto é da equipe');
-  }
+  requireWriter(ctx);
 
   const description = command.description.trim();
   if (description.length === 0) {

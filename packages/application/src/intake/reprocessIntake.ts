@@ -1,4 +1,5 @@
-import { BusinessRuleError, ForbiddenError, NotFoundError } from '../errors.js';
+import { requireWriter } from '../audience.js';
+import { BusinessRuleError, NotFoundError } from '../errors.js';
 import { describeProcessingError } from './intakeProcessingError.js';
 import { resolveIntakeProfile } from './intakeProfiles.js';
 import type { RequestContext } from '../context.js';
@@ -34,9 +35,7 @@ export async function reprocessIntake(
   ctx: RequestContext,
   command: ReprocessIntakeCommand,
 ): Promise<ReprocessedIntake> {
-  if (ctx.actor.kind !== 'team') {
-    throw new ForbiddenError('Reprocessar é feito pela equipe');
-  }
+  requireWriter(ctx);
 
   const row = await deps.intake.findForReprocess(ctx.tenantId, command.intakeId);
   if (!row) {

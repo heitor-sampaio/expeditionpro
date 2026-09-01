@@ -1,5 +1,5 @@
+import { requireWriter } from '../audience.js';
 import { cents } from '@expedition/domain';
-import { ForbiddenError } from '../errors.js';
 import { toLocalDate } from '../support/toLocalDate.js';
 import type { RequestContext } from '../context.js';
 import type { CashbackRepository } from './cashbackRepository.js';
@@ -26,9 +26,7 @@ export async function expireCashback(
   deps: ExpireCashbackDeps,
   ctx: RequestContext,
 ): Promise<ExpiredCashback> {
-  if (ctx.actor.kind !== 'team') {
-    throw new ForbiddenError('Expirar cashback é da equipe');
-  }
+  requireWriter(ctx);
 
   const today = toLocalDate((deps.clock ?? (() => new Date()))());
   const expired = await deps.cashback.listExpiredCredits(ctx.tenantId, today);

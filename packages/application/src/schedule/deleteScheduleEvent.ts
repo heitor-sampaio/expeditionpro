@@ -1,4 +1,4 @@
-import { denyCustomer } from '../audience.js';
+import { requireWriter } from '../audience.js';
 import { BusinessRuleError, NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { BookingRepository } from '../bookings/bookingRepository.js';
@@ -40,7 +40,7 @@ export async function deleteScheduleEvent(
   ctx: RequestContext,
   command: DeleteScheduleEventCommand,
 ): Promise<void> {
-  denyCustomer(ctx);
+  requireWriter(ctx);
   const event = await deps.schedule.findEventById(ctx.tenantId, command.eventId);
   if (!event) {
     throw new NotFoundError('evento');

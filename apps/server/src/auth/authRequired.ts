@@ -11,8 +11,8 @@
  */
 
 export type AuthConfig =
-  | { readonly kind: 'jwks'; readonly url: string }
-  | { readonly kind: 'secret'; readonly secret: string }
+  | { readonly kind: 'jwks'; readonly url: string; readonly issuer?: string }
+  | { readonly kind: 'secret'; readonly secret: string; readonly issuer?: string }
   | { readonly kind: 'insecure-dev-stub' };
 
 export class MissingAuthConfigError extends Error {
@@ -42,14 +42,21 @@ export function authConfigFrom(
   env: Record<string, string | undefined>,
   nodeEnv: string | undefined,
 ): AuthConfig {
+  /*
+   * SEC-01: o emissor esperado é `<SUPABASE_URL>/auth/v1`. Só dá para exigi-lo quando a
+   * URL do projeto é conhecida — quem configura só a JWKS explícita ou o segredo legado
+   * segue sem, que é o comportamento de antes e não piora nada.
+   */
+  const supabaseUrl = env['SUPABASE_URL'];
+  const issuer = supabaseUrl ? `${supabaseUrl.replace(/\/+$/, '')}/auth/v1` : undefined;
+
   const explicitJwks = env['SUPABASE_JWKS_URL'];
-  if (explicitJwks) return { kind: 'jwks', url: explicitJwks };
+  if (explicitJwks) return { kind: 'jwks', url: explicitJwks, ...(issuer ? { issuer } : {}) };
 
   const secret = env['SUPABASE_JWT_SECRET'];
-  if (secret) return { kind: 'secret', secret };
+  if (secret) return { kind: 'secret', secret, ...(issuer ? { issuer } : {}) };
 
-  const supabaseUrl = env['SUPABASE_URL'];
-  if (supabaseUrl) return { kind: 'jwks', url: jwksFromUrl(supabaseUrl) };
+  if (supabaseUrl) return { kind: 'jwks', url: jwksFromUrl(supabaseUrl), issuer: issuer! };
 
   if (nodeEnv === 'development' || nodeEnv === 'test') return { kind: 'insecure-dev-stub' };
   throw new MissingAuthConfigError();

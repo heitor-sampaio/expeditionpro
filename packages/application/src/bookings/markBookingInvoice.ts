@@ -1,5 +1,6 @@
+import { requireWriter } from '../audience.js';
 import { parseLocalDate } from '@expedition/domain';
-import { ForbiddenError, NotFoundError } from '../errors.js';
+import { NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { BookingInvoice, BookingRepository } from './bookingRepository.js';
 
@@ -26,9 +27,7 @@ export async function markBookingInvoice(
   ctx: RequestContext,
   command: MarkBookingInvoiceCommand,
 ): Promise<BookingInvoice> {
-  if (ctx.actor.kind !== 'team') {
-    throw new ForbiddenError('Check de NF é feito pela equipe');
-  }
+  requireWriter(ctx);
 
   const booking = await deps.bookings.findById(ctx.tenantId, command.bookingId);
   if (!booking) {

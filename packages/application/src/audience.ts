@@ -24,9 +24,36 @@ import type { RequestContext } from './context.js';
  * | editar os próprios dados | mexer em dado de outra família |
  */
 
-/** Escrita de back-office e leitura de dado consolidado: só equipe. */
-export function requireTeam(ctx: RequestContext): void {
+/**
+ * Ator de equipe, já estreitado. As guardas abaixo são funções de asserção para que o
+ * caso de uso possa ler `ctx.actor.userId` e `ctx.actor.role` depois delas — era o que a
+ * checagem inline dava de graça, e sem isso trocar `if` por helper custaria um cast.
+ */
+type TeamActor = Extract<RequestContext['actor'], { kind: 'team' }>;
+type TeamContext = RequestContext & { readonly actor: TeamActor };
+
+/** Leitura de back-office: qualquer papel de equipe, `viewer` incluído. */
+export function requireTeam(ctx: RequestContext): asserts ctx is TeamContext {
   if (ctx.actor.kind !== 'team') throw new ForbiddenError('somente equipe');
+}
+
+/**
+ * **Escrita** de back-office: equipe, menos `viewer`.
+ *
+ * `viewer` e `operator` existiam só como texto — apareciam no tipo de papel, na allowlist
+ * do convite e na validação do JWT, e em lugar nenhum na autorização. Toda guarda era
+ * binária, e "equipe" incluía `viewer`: quem fosse convidado como somente-leitura apagava
+ * evento da agenda, lançava gasto, liberava cashback e fundia clientes.
+ *
+ * Convidar alguém para olhar e entregar poder de escrever é pior que não ter o papel: quem
+ * convida acredita ter limitado, e não limitou.
+ *
+ * `operator` segue com o mesmo alcance de antes — separar `operator` de `admin` é decisão
+ * de produto, não correção de segurança, e mudá-la aqui quebraria o trabalho de alguém.
+ */
+export function requireWriter(ctx: RequestContext): asserts ctx is TeamContext {
+  if (ctx.actor.kind !== 'team') throw new ForbiddenError('somente equipe');
+  if (ctx.actor.role === 'viewer') throw new ForbiddenError('viewer é somente leitura');
 }
 
 /**

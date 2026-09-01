@@ -1,3 +1,4 @@
+import { requireWriter } from '../audience.js';
 import {
   detectCustomerDivergence,
   hasDivergence,
@@ -6,7 +7,7 @@ import {
   type CustomerFacts,
   type MappedIntake,
 } from '@expedition/domain';
-import { BusinessRuleError, ForbiddenError, NotFoundError } from '../errors.js';
+import { BusinessRuleError, NotFoundError } from '../errors.js';
 import { allocateBooking } from '../bookings/allocateBooking.js';
 import { EMPTY_ADDRESS } from '../customers/customerRepository.js';
 import {
@@ -54,10 +55,9 @@ export async function allocateFromQueue(
   ctx: RequestContext,
   command: AllocateFromQueueCommand,
 ): Promise<AllocatedFromQueue> {
+  requireWriter(ctx);
+
   const actor = ctx.actor;
-  if (actor.kind !== 'team') {
-    throw new ForbiddenError('Alocação é feita pela equipe');
-  }
 
   // A identidade da empresa é dado de referência — lê fora da transação de escrita.
   const company = await deps.tenants.getCompanyInfo(ctx.tenantId);

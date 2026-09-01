@@ -1,4 +1,5 @@
-import { ForbiddenError, RequiredFieldError } from '../errors.js';
+import { requireWriter } from '../audience.js';
+import { RequiredFieldError } from '../errors.js';
 import { actorUserId } from '../audit/auditLogRepository.js';
 import type { RequestContext } from '../context.js';
 import type { AuditLogRepository } from '../audit/auditLogRepository.js';
@@ -37,9 +38,7 @@ export async function createSupplierCategory(
   ctx: RequestContext,
   command: CreateSupplierCategoryCommand,
 ): Promise<SupplierCategoryRecord> {
-  if (ctx.actor.kind !== 'team') {
-    throw new ForbiddenError('Criar categoria de fornecedor é da equipe');
-  }
+  requireWriter(ctx);
 
   const name = command.name.trim();
   if (name.length === 0) throw new RequiredFieldError('nome da categoria');

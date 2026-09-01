@@ -1,5 +1,6 @@
+import { requireWriter } from '../audience.js';
 import { parseCnpj, parseCpf, parsePixKey } from '@expedition/domain';
-import { BusinessRuleError, ForbiddenError, NotFoundError, RequiredFieldError } from '../errors.js';
+import { BusinessRuleError, NotFoundError, RequiredFieldError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { SupplierRecord, SupplierRepository } from './supplierRepository.js';
 
@@ -31,9 +32,7 @@ export async function createSupplier(
   ctx: RequestContext,
   command: CreateSupplierCommand,
 ): Promise<SupplierRecord> {
-  if (ctx.actor.kind !== 'team') {
-    throw new ForbiddenError('Cadastrar fornecedor é da equipe');
-  }
+  requireWriter(ctx);
 
   const name = command.name.trim();
   if (name.length === 0) {

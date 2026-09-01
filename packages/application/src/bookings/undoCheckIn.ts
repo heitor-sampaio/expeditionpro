@@ -1,4 +1,5 @@
-import { BusinessRuleError, ForbiddenError, NotFoundError } from '../errors.js';
+import { requireWriter } from '../audience.js';
+import { BusinessRuleError, NotFoundError } from '../errors.js';
 import { actorUserId } from '../audit/auditLogRepository.js';
 import type { RequestContext } from '../context.js';
 import type { AuditLogRepository } from '../audit/auditLogRepository.js';
@@ -24,9 +25,7 @@ export async function undoCheckIn(
   ctx: RequestContext,
   command: UndoCheckInCommand,
 ): Promise<BookingRecord> {
-  if (ctx.actor.kind !== 'team') {
-    throw new ForbiddenError('Desfazer o check-in é da equipe');
-  }
+  requireWriter(ctx);
 
   const booking = await deps.bookings.findById(ctx.tenantId, command.bookingId);
   if (!booking) {

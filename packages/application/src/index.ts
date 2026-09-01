@@ -172,6 +172,7 @@ export {
   listBookingPayments,
   type ListBookingPaymentsCommand,
 } from './payments/listBookingPayments.js';
+export { requireWriter } from './audience.js';
 export { requireTeam, requireSelfOrTeam, requireCustomer, denyCustomer } from './audience.js';
 export type {
   ItineraryRepository,

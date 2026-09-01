@@ -181,8 +181,8 @@ function resolveContextForProd(base: ReturnType<typeof createPrismaClient>) {
    */
   const config = authConfigFrom(process.env, process.env['NODE_ENV']);
 
-  if (config.kind === 'jwks') return makeJwksResolveContext(config.url);
-  if (config.kind === 'secret') return makeJwtResolveContext(config.secret);
+  if (config.kind === 'jwks') return makeJwksResolveContext(config.url, config.issuer);
+  if (config.kind === 'secret') return makeJwtResolveContext(config.secret, config.issuer);
 
   console.warn(
     '[dev] SUPABASE_URL/JWKS/JWT_SECRET ausentes — resolveContext usa stub por x-tenant-slug (SEM auth).',

@@ -1,3 +1,4 @@
+import { requireWriter } from '../audience.js';
 import {
   addDays,
   addMonths,
@@ -5,7 +6,7 @@ import {
   resolveCashbackRule,
   sumCents,
 } from '@expedition/domain';
-import { BusinessRuleError, ForbiddenError, NotFoundError } from '../errors.js';
+import { BusinessRuleError, NotFoundError } from '../errors.js';
 import { bookingContracted } from '../bookings/bookingTotals.js';
 import type { RequestContext } from '../context.js';
 import type { BookingRepository } from '../bookings/bookingRepository.js';
@@ -42,10 +43,9 @@ export async function accrueCashback(
   ctx: RequestContext,
   command: AccrueCashbackCommand,
 ): Promise<AccruedCashback> {
+  requireWriter(ctx);
+
   const actor = ctx.actor;
-  if (actor.kind !== 'team') {
-    throw new ForbiddenError('Liberar cashback é da equipe');
-  }
 
   const booking = await deps.bookings.findById(ctx.tenantId, command.bookingId);
   if (!booking) {

@@ -1,3 +1,4 @@
+import { requireWriter } from '../audience.js';
 import {
   normalizeCep,
   normalizePersonName,
@@ -49,10 +50,9 @@ export async function updateCustomer(
   ctx: RequestContext,
   command: UpdateCustomerCommand,
 ): Promise<CustomerRecord> {
+  requireWriter(ctx);
+
   const { actor } = ctx;
-  if (actor.kind !== 'team') {
-    throw new ForbiddenError('Editar cadastro é ação da equipe');
-  }
 
   const current = await deps.customers.findById(ctx.tenantId, command.customerId);
   if (!current) throw new NotFoundError('cliente');

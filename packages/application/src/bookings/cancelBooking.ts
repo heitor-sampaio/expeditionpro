@@ -1,4 +1,5 @@
-import { BusinessRuleError, ForbiddenError, NotFoundError, RequiredFieldError } from '../errors.js';
+import { requireWriter } from '../audience.js';
+import { BusinessRuleError, NotFoundError, RequiredFieldError } from '../errors.js';
 import { actorUserId } from '../audit/auditLogRepository.js';
 import type { RequestContext } from '../context.js';
 import type { CouponRepository } from '../coupons/couponRepository.js';
@@ -27,10 +28,9 @@ export async function cancelBooking(
   ctx: RequestContext,
   command: CancelBookingCommand,
 ): Promise<BookingRecord> {
+  requireWriter(ctx);
+
   const actor = ctx.actor;
-  if (actor.kind !== 'team') {
-    throw new ForbiddenError('Cancelamento é feito apenas pela equipe');
-  }
   const reason = command.reason.trim();
   if (reason.length === 0) {
     throw new RequiredFieldError('motivo');

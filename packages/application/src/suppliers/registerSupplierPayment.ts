@@ -1,5 +1,6 @@
+import { requireWriter } from '../audience.js';
 import { cents, parseLocalDate } from '@expedition/domain';
-import { BusinessRuleError, ForbiddenError, NotFoundError } from '../errors.js';
+import { BusinessRuleError, NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { SupplierPaymentRecord, SupplierRepository } from './supplierRepository.js';
 
@@ -27,9 +28,7 @@ export async function registerSupplierPayment(
   ctx: RequestContext,
   command: RegisterSupplierPaymentCommand,
 ): Promise<SupplierPaymentRecord> {
-  if (ctx.actor.kind !== 'team') {
-    throw new ForbiddenError('Pagamento a fornecedor é lançado apenas pela equipe');
-  }
+  requireWriter(ctx);
   if (!Number.isInteger(command.amountCents) || command.amountCents <= 0) {
     throw new BusinessRuleError('invalid_amount', 'Valor do pagamento deve ser positivo');
   }

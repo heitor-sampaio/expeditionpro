@@ -1,5 +1,6 @@
+import { requireWriter } from '../audience.js';
 import { parsePixKey } from '@expedition/domain';
-import { BusinessRuleError, ForbiddenError, NotFoundError, RequiredFieldError } from '../errors.js';
+import { BusinessRuleError, NotFoundError, RequiredFieldError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import {
   blankToNull,
@@ -33,9 +34,7 @@ export async function updateSupplier(
   ctx: RequestContext,
   command: UpdateSupplierCommand,
 ): Promise<SupplierRecord> {
-  if (ctx.actor.kind !== 'team') {
-    throw new ForbiddenError('Editar fornecedor é da equipe');
-  }
+  requireWriter(ctx);
 
   const current = await deps.suppliers.findSupplierById(ctx.tenantId, command.id);
   if (!current) throw new NotFoundError('fornecedor');

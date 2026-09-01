@@ -1,4 +1,4 @@
-import { requireTeam } from './itineraryAudience.js';
+import { requireWriter } from '../audience.js';
 import { BusinessRuleError, NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { ItineraryDeps } from './priceInput.js';
@@ -25,7 +25,7 @@ export async function updateItinerary(
   ctx: RequestContext,
   command: UpdateItineraryCommand,
 ): Promise<ItineraryRecord> {
-  requireTeam(ctx);
+  requireWriter(ctx);
   const current = await deps.itineraries.findById(ctx.tenantId, command.id);
   if (!current) throw new NotFoundError('roteiro');
 

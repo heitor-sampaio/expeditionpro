@@ -1,4 +1,4 @@
-import { ForbiddenError } from '../errors.js';
+import { requireWriter } from '../audience.js';
 import type { RequestContext } from '../context.js';
 import type { CommunityRepository, ReportDecision } from './communityRepository.js';
 
@@ -22,9 +22,7 @@ export async function resolveReport(
   ctx: RequestContext,
   command: ResolveReportCommand,
 ): Promise<void> {
-  if (ctx.actor.kind !== 'team') {
-    throw new ForbiddenError('Resolver denúncia é da equipe');
-  }
+  requireWriter(ctx);
   await deps.community.resolveReport(
     ctx.tenantId,
     command.reportId,

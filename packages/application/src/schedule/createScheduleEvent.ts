@@ -1,4 +1,4 @@
-import { denyCustomer } from '../audience.js';
+import { requireWriter } from '../audience.js';
 import { compareLocalDate, parseLocalDate } from '@expedition/domain';
 import { BusinessRuleError, NotFoundError } from '../errors.js';
 import { deriveGroupName } from './deriveGroupName.js';
@@ -37,7 +37,7 @@ export async function createScheduleEvent(
   ctx: RequestContext,
   command: CreateScheduleEventCommand,
 ): Promise<ScheduleEventWithGroup> {
-  denyCustomer(ctx);
+  requireWriter(ctx);
   const itinerary = await deps.itineraries.findById(ctx.tenantId, command.itineraryId);
   if (!itinerary) {
     throw new NotFoundError('roteiro');
