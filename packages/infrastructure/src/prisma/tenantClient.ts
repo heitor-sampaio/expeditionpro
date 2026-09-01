@@ -26,7 +26,7 @@ import type { PrismaClient } from '../generated/prisma/client.js';
  *   · upsert → resolve posse e vira update ou create escopado
  */
 
-const SCOPED_BY_TENANT_ID = new Set([
+export const SCOPED_BY_TENANT_ID = new Set([
   'Membership',
   'Customer',
   'VehicleBrand',
@@ -57,8 +57,16 @@ const SCOPED_BY_TENANT_ID = new Set([
   'PostReport',
   'PostLike',
   'MediaConsent',
+  // Somados em 2026-09-01: estavam fora da lista e por isso cruzavam tenant em toda
+  // leitura e escrita pelo servidor. Ver tenantScopeCoverage.test.ts, que agora impede.
+  'ItineraryPhoto',
+  'Coupon',
+  'CouponRedemption',
+  'SupplierCategory',
+  'PaymentIntegration',
+  'PaymentCharge',
 ]);
-const SCOPED_BY_ID = new Set(['Tenant']);
+export const SCOPED_BY_ID = new Set(['Tenant']);
 
 function isScoped(model: string): boolean {
   return SCOPED_BY_TENANT_ID.has(model) || SCOPED_BY_ID.has(model);
@@ -164,8 +172,17 @@ async function scopeOperation(
       });
     }
 
+    /*
+     * SEC-02: operação desconhecida em modelo escopado **não passa**. Antes daqui saía um
+     * `passthrough`, o que significava que qualquer operação nova do Prisma (hoje
+     * `updateManyAndReturn`, amanhã outra) atravessaria sem filtro de tenant, em silêncio.
+     * Default inseguro é como um furo entra sem ninguém escrever uma linha de código.
+     */
     default:
-      return passthrough(args);
+      throw new Error(
+        `tenantClient: operação "${operation}" não escopada para "${model}". ` +
+          'Adicione o tratamento em scopeOperation antes de usá-la.',
+      );
   }
 }
 
