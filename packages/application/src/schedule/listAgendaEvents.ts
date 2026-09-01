@@ -1,3 +1,4 @@
+import { denyCustomer } from '../audience.js';
 import type { RequestContext } from '../context.js';
 import type { BookingRepository } from '../bookings/bookingRepository.js';
 import type { GroupRecord, ScheduleEventRecord, ScheduleRepository } from './scheduleRepository.js';
@@ -31,6 +32,14 @@ export async function listAgendaEvents(
   deps: ListAgendaEventsDeps,
   ctx: RequestContext,
 ): Promise<AgendaEvent[]> {
+  /*
+   * SEC-01: a agenda de back-office traz grupo `private` e não-`open`, com contagem de
+   * confirmados e pendentes. O cliente enxerga agenda pelo `/v1/portal/expeditions`, que
+   * filtra `open` + `public` — a regra do dono ("pode visualizar agenda e só visualizar")
+   * vale por lá, não aqui.
+   */
+  denyCustomer(ctx);
+
   const events = await deps.schedule.listEvents(ctx.tenantId);
   const counts = new Map(
     (await deps.bookings.countByGroup(ctx.tenantId)).map((c) => [c.groupId, c]),

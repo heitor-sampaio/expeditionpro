@@ -6,6 +6,7 @@ import {
   getGroupResult,
   getSupplierFile,
   listGroupExpenses,
+  listSuppliersForTeam,
   registerSupplierPayment,
   updateSupplier,
 } from '@expedition/application';
@@ -87,7 +88,7 @@ export function registerSupplierRoutes(app: FastifyInstance, deps: ServerDeps): 
 
   typed.get('/v1/suppliers', async (request, reply) => {
     const ctx = await deps.resolveContext(request);
-    const rows = await deps.suppliers.listSuppliers(ctx.tenantId);
+    const rows = await listSuppliersForTeam({ suppliers: deps.suppliers }, ctx);
     return reply.send(rows.map(supplierDto));
   });
 

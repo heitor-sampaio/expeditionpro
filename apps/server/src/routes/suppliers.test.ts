@@ -31,6 +31,14 @@ const ctx: RequestContext = {
   actor: { kind: 'team', userId: 'u1', role: 'admin' },
 };
 
+const clienteCtx: RequestContext = {
+  tenantId: 'tenant-a',
+  actor: { kind: 'customer', userId: 'u2', customerId: 'c1' },
+};
+
+/* Quem a rota diz ser — mutável, para trocar de audiência no mesmo servidor. */
+let atual: RequestContext = ctx;
+
 const PRICE = {
   validFrom: '2025-01-01',
   coupleCents: 200000,
@@ -71,7 +79,7 @@ describe('FO-01/GR-08/09/10: rotas de fornecedor e margem', () => {
         paymentIntegrations: inMemoryPaymentIntegrations(),
         charges: inMemoryPaymentCharges(),
         paymentGateway: asaasGateway(),
-        resolveContext: () => Promise.resolve(ctx),
+        resolveContext: () => Promise.resolve(atual),
       },
     });
     await app.ready();
@@ -475,5 +483,15 @@ describe('FO-01/GR-08/09/10: rotas de fornecedor e margem', () => {
     expect(patched.json().name).toBe('Pousada Y');
     expect(patched.json().phone).toBe('5199');
     expect(patched.json().categoryId).toBeNull();
+  });
+
+  it('SEC-01: cliente recebe 403 ao listar fornecedores — documento e PIX são da equipe', async () => {
+    atual = clienteCtx;
+    try {
+      const res = await app.inject({ method: 'GET', url: '/v1/suppliers' });
+      expect(res.statusCode).toBe(403);
+    } finally {
+      atual = ctx;
+    }
   });
 });

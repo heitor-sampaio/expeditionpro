@@ -5,15 +5,16 @@ import {
   buildGroupInsuranceList,
   buildGroupRoomlist,
   cancelBooking,
+  checkInBooking,
   confirmBookingManually,
   deletePayment,
-  checkInBooking,
-  getGroupBoard,
-  markBookingInvoice,
   discountBookingTotal,
-  restoreBookingTablePrice,
+  getGroupBoard,
+  listBookingPayments,
+  markBookingInvoice,
   registerPayment,
   registerRefund,
+  restoreBookingTablePrice,
   undoCheckIn,
 } from '@expedition/application';
 import { cents } from '@expedition/domain';
@@ -424,7 +425,9 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
     { schema: { params: z.object({ bookingId: z.string().min(1) }) } },
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
-      const rows = await deps.payments.listByBooking(ctx.tenantId, request.params.bookingId);
+      const rows = await listBookingPayments({ payments: deps.payments }, ctx, {
+        bookingId: request.params.bookingId,
+      });
       return reply.send(rows.map(paymentRecordDto));
     },
   );

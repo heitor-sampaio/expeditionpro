@@ -31,6 +31,14 @@ const ctx: RequestContext = {
   actor: { kind: 'team', userId: 'u1', role: 'admin' },
 };
 
+const clienteCtx: RequestContext = {
+  tenantId: 'tenant-a',
+  actor: { kind: 'customer', userId: 'u2', customerId: 'c1' },
+};
+
+/* Quem a rota diz ser — mutável, para trocar de audiência no mesmo servidor. */
+let atual: RequestContext = ctx;
+
 const PRICE = {
   validFrom: '2025-01-01',
   coupleCents: 200000,
@@ -86,7 +94,7 @@ describe('GR-03/IN-18: POST /v1/groups/:groupId/bookings', () => {
         paymentIntegrations: inMemoryPaymentIntegrations(),
         charges: inMemoryPaymentCharges(),
         paymentGateway: asaasGateway(),
-        resolveContext: () => Promise.resolve(ctx),
+        resolveContext: () => Promise.resolve(atual),
       },
     });
     await app.ready();
@@ -660,5 +668,15 @@ describe('GR-03/IN-18: POST /v1/groups/:groupId/bookings', () => {
     });
     expect(full.statusCode).toBe(201);
     expect(full.json().bookingCancelled).toBe(true);
+  });
+
+  it('SEC-01: cliente recebe 403 no ledger de recebimentos de uma inscrição', async () => {
+    atual = clienteCtx;
+    try {
+      const res = await app.inject({ method: 'GET', url: '/v1/bookings/qualquer/payments' });
+      expect(res.statusCode).toBe(403);
+    } finally {
+      atual = ctx;
+    }
   });
 });
