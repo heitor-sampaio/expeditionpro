@@ -516,6 +516,18 @@ Um token de cliente criava roteiro, editava qualquer um, trocava as fotos e lia 
 - **Fora da vitrine responde 404, não 403** — 403 confirmaria que a saída fechada existe, e ela é justamente a que ninguém de fora deve saber que existe
 - **Teste em duas camadas**: a aplicação prova a guarda, a rota prova que a rota passa por ela. **A segunda é a que pegaria este defeito** — guarda no caso de uso não vale nada se a rota ler o repositório direto
 
+### Teste não passava pelo typecheck — achado, medido, não fechado ⏳ (2026-09-01)
+
+O `tsconfig.json` de cada pacote comanda o build (`outDir: dist`) e por isso exclui `*.test.ts` — teste não vai para o `dist`. O efeito colateral nunca tinha sido notado: **nenhum dos ~1.300 testes passava pelo typecheck**. Erro de tipo em teste só aparecia rodando, no CI, depois do push.
+
+Foi assim que uma `string` entrou onde o tipo pedia `LocalDate` (que é `{ year, month, day }`): compilou, passou no lint, e quebrou no CI com `PrismaClientValidationError` sem mensagem.
+
+**Feito**: `tsconfig.test.json` em `domain`, `application`, `infrastructure` e `server` — mesmo projeto, sem emitir nada, com os testes incluídos. Roda por `pnpm typecheck:tests`.
+
+**Não feito, de propósito**: ligar no CI. O comando acusa **44 erros em 28 arquivos**, e a maioria é fixture faltando campo (`checkedInAt` em nove `BookingRecord`), `any` implícito e atribuição a propriedade `readonly`. Corrigir isso às pressas é como um teste passa a compilar e para de testar — merece uma passada própria, arquivo por arquivo, não um remendo no fim de outra tarefa.
+
+Enquanto não for ligado, `typecheck:tests` é a fotografia da dívida: rode e veja.
+
 ### Guardas de papel: o levantamento, fechado ✅ (2026-09-01)
 
 Foi a **segunda vez na mesma sessão** que apareceu caso de uso sem guarda (fornecedores, depois roteiros). Varrendo `packages/application`, **29 casos de uso não têm guarda explícita**. Boa parte é legítima — o cliente deve curtir post, salvar veículo, ver expedições abertas. Mas conferindo rota e caso de uso um a um, estes **não checam audiência em lugar nenhum**:

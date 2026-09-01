@@ -27,7 +27,8 @@
     "db:baseline": "pnpm --filter @expedition/infrastructure db:baseline",
     "db:seed": "pnpm --filter @expedition/infrastructure db:seed",
     "check:rls": "node scripts/check-rls-migrations.mjs",
-    "check:markers": "node scripts/check-markers.mjs"
+    "check:markers": "node scripts/check-markers.mjs",
+    "typecheck:tests": "pnpm -r typecheck:tests"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

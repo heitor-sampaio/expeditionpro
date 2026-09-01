@@ -5,7 +5,7 @@ import {
   EMPTY_ADDRESS,
   type RequestContext,
 } from '@expedition/application';
-import { parseCpf, searchKey } from '@expedition/domain';
+import { parseCpf, parseLocalDate, searchKey } from '@expedition/domain';
 import { createPrismaClient } from '../prisma/client.js';
 import { prismaCustomerRepository } from './prismaCustomerRepository.js';
 import { resetSchema, testDatabaseUrl } from '../testkit/db.js';
@@ -118,7 +118,7 @@ describe('CL-02: busca por nome sem acento (Prisma + Postgres real)', () => {
       responsibleId: null,
       fullName: 'João Gonçalves',
       cpf: parseCpf('900.000.100-57'),
-      birthDate: '1985-04-02',
+      birthDate: parseLocalDate('1985-04-02'),
       email: null,
       phone: null,
       address: EMPTY_ADDRESS,

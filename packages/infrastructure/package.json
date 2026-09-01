@@ -23,7 +23,8 @@
     "db:baseline:dry": "node scripts/baseline.mjs --dry-run",
     "db:supabase-setup": "prisma db execute --file prisma/supabase-setup.sql --schema prisma/schema.prisma",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "typecheck:tests": "tsc -p tsconfig.test.json"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
