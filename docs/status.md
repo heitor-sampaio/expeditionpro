@@ -504,6 +504,32 @@ Quatro itens de backend do "Médio" que tinham ficado para trás, todos TDD, **s
 - **Portal**: `listEnrollmentRequests` + `GET /v1/portal/enrollment-requests` e aviso no Início — **"seu pedido está em análise"**. Sem isso o cliente pediria e não veria nada, já que a inscrição só existe depois da alocação. Busca no servidor (`intake_events` é tabela de operação; a RLS não abre nada dela para o cliente) e escopo de família pelo head
 - **Efeito colateral a saber**: a inscrição do portal deixou de ser imediata. O cliente não ocupa vaga nem gera cashback até a equipe aprovar — na prática pouco muda, porque vaga só é ocupada por inscrição confirmada e confirmação exige pagamento
 
+### Audiência do catálogo de roteiros — SEC-01 ✅ (2026-09-01)
+
+Nenhum dos sete casos de uso de roteiro tinha guarda de papel, e `GET /v1/itineraries` e `GET /:id/photos` liam o repositório **direto**, sem passar por caso de uso — não havia sequer onde pôr a guarda. Como o servidor fala com o banco por um role com `BYPASSRLS`, a policy do Postgres não protege essa via.
+
+Um token de cliente criava roteiro, editava qualquer um, trocava as fotos e lia o catálogo inteiro com a tabela de preços. A apresentação do portal buscava `GET /v1/itineraries` e achava o roteiro certo com um `.find()` **no navegador** — filtro de audiência no cliente não é filtro, o dado já saiu.
+
+- **Escrita e histórico de preço**: equipe. **Leitura do cliente**: só a vitrine (`active` + `catalog`)
+- **`listItineraries` e `listItineraryPhotos`** nasceram aqui, porque as rotas não tinham caso de uso nenhum onde a guarda coubesse
+- **Preço vigente o cliente lê**, mas só o da vitrine: a apresentação do roteiro mostra preço
+- **Fora da vitrine responde 404, não 403** — 403 confirmaria que a saída fechada existe, e ela é justamente a que ninguém de fora deve saber que existe
+- **Teste em duas camadas**: a aplicação prova a guarda, a rota prova que a rota passa por ela. **A segunda é a que pegaria este defeito** — guarda no caso de uso não vale nada se a rota ler o repositório direto
+
+### Guardas de papel: o levantamento que falta fechar ⏳ (2026-09-01)
+
+Foi a **segunda vez na mesma sessão** que apareceu caso de uso sem guarda (fornecedores, depois roteiros). Varrendo `packages/application`, **29 casos de uso não têm guarda explícita**. Boa parte é legítima — o cliente deve curtir post, salvar veículo, ver expedições abertas. Mas conferindo rota e caso de uso um a um, estes **não checam audiência em lugar nenhum**:
+
+| Caso de uso | O que um token de cliente alcança |
+|---|---|
+| `searchCustomers` | busca na base inteira de clientes: nome, CPF, contato |
+| `getGroupBoard` | a mesa da saída: contratado e pago de **todas** as famílias |
+| `mergeCustomers`, `moveToResponsible`, `promoteToResponsible` | cirurgia de família em qualquer cliente |
+| `createScheduleEvent`, `updateScheduleEvent`, `deleteScheduleEvent` | criar e apagar saídas na agenda |
+| `updatePaymentFees`, `disconnectPaymentProvider` | configuração do gateway de pagamento |
+
+O padrão do defeito é sempre o mesmo: a guarda foi posta onde alguém lembrou. **A correção durável não é escrever mais 20 guardas e torcer** — é um `check:guards` no CI, no molde do `check:rls`, que reprove caso de uso tocando repositório de equipe sem guarda declarada.
+
 ### A armadilha da subconsulta em policy — RO-01 ✅ (2026-09-01)
 
 A primeira execução dos testes de RLS pegou uma policy que **não fazia o que estava escrita nela**. A galeria de fotos dizia "foto de roteiro ativo do tenant":
