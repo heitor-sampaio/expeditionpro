@@ -4,6 +4,7 @@ import { useBoard } from '../crm/useBoard.js';
 import { useItineraries } from '../agenda/useItineraries.js';
 import { ContactPanel } from './ContactPanel.js';
 import { channelLabel, contactTitle, iniciais, type Channel } from './inboxFormat.js';
+import { matchesSearch } from './searchConversations.js';
 import { useInbox, type Conversation, type Message } from './useInbox.js';
 
 /**
@@ -48,6 +49,7 @@ export function InboxScreen(): React.JSX.Element {
     recarregar,
   } = useInbox();
   const [canal, setCanal] = useState<Channel | 'todos'>('todos');
+  const [busca, setBusca] = useState('');
   const [detalhes, setDetalhes] = useState(false);
 
   // AT-10: o funil já vem pela API do CRM, e o painel da direita lê dela. Uma requisição para
@@ -59,8 +61,11 @@ export function InboxScreen(): React.JSX.Element {
 
   const conversas = list.status === 'ready' ? list.conversations : [];
   const filtradas = useMemo(
-    () => (canal === 'todos' ? conversas : conversas.filter((c) => c.channel === canal)),
-    [conversas, canal],
+    () =>
+      conversas
+        .filter((c) => canal === 'todos' || c.channel === canal)
+        .filter((c) => matchesSearch(c, busca)),
+    [conversas, canal, busca],
   );
   const naoLidas = conversas.reduce((total, c) => total + (c.unreadCount > 0 ? 1 : 0), 0);
 
@@ -154,8 +159,19 @@ export function InboxScreen(): React.JSX.Element {
           className={`inbox${openId === null ? '' : ' is-open'}${detalhes ? ' is-details' : ''}`}
         >
           <div className="inbox-list">
+            {/* Fica preso no topo: a lista rola por baixo dele, como em qualquer caixa. */}
+            <div className="inbox-search">
+              <input
+                className="field-input"
+                type="search"
+                value={busca}
+                aria-label="Buscar conversa por nome ou telefone"
+                placeholder="Buscar por nome ou telefone"
+                onChange={(e) => setBusca(e.target.value)}
+              />
+            </div>
             {filtradas.length === 0 ? (
-              <p className="members-empty">Nenhuma conversa neste canal.</p>
+              <p className="members-empty">{semResultado(busca, canal)}</p>
             ) : (
               filtradas.map((conversa) => (
                 <ConversationRow
@@ -214,6 +230,15 @@ export function InboxScreen(): React.JSX.Element {
       )}
     </main>
   );
+}
+
+/**
+ * O estado de "filtro sem resultado" diz **qual** filtro não achou: com dois em cima da mesma
+ * lista, "nenhuma conversa" deixa quem procura sem saber o que afrouxar.
+ */
+function semResultado(busca: string, canal: Channel | 'todos'): string {
+  if (busca.trim() !== '') return `Nenhuma conversa para "${busca.trim()}".`;
+  return canal === 'todos' ? 'Nenhuma conversa.' : 'Nenhuma conversa neste canal.';
 }
 
 function ConversationRow({

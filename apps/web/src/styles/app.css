@@ -4716,3 +4716,18 @@
     display: inline-flex;
   }
 }
+
+/* Busca da caixa: presa no topo da lista, que rola por baixo dela. */
+.inbox-search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+}
+.inbox-search .field-input {
+  width: 100%;
+  height: var(--tap);
+  font-size: 13px;
+}
