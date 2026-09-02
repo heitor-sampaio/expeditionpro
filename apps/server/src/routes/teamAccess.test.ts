@@ -84,3 +84,65 @@ describe('SEC-17: rotas de acesso da equipe', () => {
     await app.close();
   });
 });
+
+/**
+ * SEC-18 — trocar o papel pelo HTTP.
+ *
+ * A tela de acesso precisava de um caminho para isso: convidar de novo não resolve, porque
+ * o Supabase recusa recriar e-mail existente.
+ */
+describe('SEC-18: PATCH /v1/team/members/:userId', () => {
+  it('owner troca o papel e recebe 204', async () => {
+    const { app, memberships } = await servidor();
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/v1/team/members/u-guia',
+      payload: { role: 'admin' },
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(await memberships.findByUser('tenant-a', 'u-guia')).toMatchObject({ role: 'admin' });
+    await app.close();
+  });
+
+  it('papel fora da lista é recusado na borda, antes do caso de uso', async () => {
+    const { app, memberships } = await servidor();
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/v1/team/members/u-guia',
+      payload: { role: 'superusuario' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(await memberships.findByUser('tenant-a', 'u-guia')).toMatchObject({ role: 'operator' });
+    await app.close();
+  });
+
+  it('trocar o próprio papel responde 400, não 204', async () => {
+    const { app } = await servidor();
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/v1/team/members/u-chefe',
+      payload: { role: 'viewer' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('operator não troca papel', async () => {
+    const { app } = await servidor('operator');
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/v1/team/members/u-chefe',
+      payload: { role: 'viewer' },
+    });
+
+    expect(res.statusCode).toBe(403);
+    await app.close();
+  });
+});

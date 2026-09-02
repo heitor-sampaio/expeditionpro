@@ -2,6 +2,7 @@ import {
   decideIdentityChange,
   inviteTeamMember,
   listIdentityChangeRequests,
+  changeTeamRole,
   listTeamMembers,
   revokeTeamAccess,
 } from '@expedition/application';
@@ -75,6 +76,31 @@ export function registerTeamRoutes(app: FastifyInstance, deps: ServerDeps): void
       const ctx = await deps.resolveContext(request);
       await revokeTeamAccess({ memberships: deps.memberships, audit: deps.audit }, ctx, {
         userId: request.params.userId,
+      });
+      return reply.status(204).send();
+    },
+  );
+
+  /*
+   * SEC-18 — troca o papel de quem já está na equipe. Vale na requisição seguinte, como a
+   * remoção: desde o SEC-17 quem decide o que a pessoa pode é a linha de acesso, não o token.
+   *
+   * `owner` está na lista aceita porque promover a dono é a saída de quem vai embora — o
+   * caso de uso deixa só um owner fazer isso.
+   */
+  typed.patch(
+    '/v1/team/members/:userId',
+    {
+      schema: {
+        params: z.object({ userId: z.string().min(1) }),
+        body: z.object({ role: z.enum(['owner', 'admin', 'operator', 'viewer']) }),
+      },
+    },
+    async (request, reply) => {
+      const ctx = await deps.resolveContext(request);
+      await changeTeamRole({ memberships: deps.memberships, audit: deps.audit }, ctx, {
+        userId: request.params.userId,
+        role: request.body.role,
       });
       return reply.status(204).send();
     },

@@ -103,9 +103,34 @@ RLS.
 O `FORCE RLS` continua valendo como defesa em profundidade contra um bug **dentro** da
 extension. Fica como trabalho próprio, não como remendo no fim de uma lista.
 
+### SEC-18 — troca de papel, e o buraco que ela revelou (2026-09-02)
+
+Trocar o papel de quem já está na equipe não tinha caminho: convidar de novo falha (o
+Supabase recusa recriar e-mail existente, 409/422) e tirar o acesso e reconvidar também,
+porque o login continua lá. A saída era UPDATE à mão. Agora é `PATCH /v1/team/members/:userId`
+e um seletor na tela, valendo na requisição seguinte como a remoção.
+
+**Ao escrever isso apareceu um buraco no SEC-17, entregue horas antes:** `revokeTeamAccess`
+exigia owner **ou** admin sem distinguir o alvo, então **um admin podia tirar o acesso do
+dono**. O tenant ficaria sem dono nenhum e quem nomeou o admin perderia o sistema — escalada
+de privilégio completa, num clique. A regra agora vive em `teamGuards.ts`, num lugar só, e
+vale para remover e para rebaixar:
+
+- Só um owner mexe no papel ou no acesso de outro owner.
+- Só um owner promove alguém a owner — é transferência de dono, não administração de equipe,
+  e é o que dá saída para o dono que vai embora: ele promove alguém antes.
+- Ninguém mexe em si mesmo, nem para remover nem para trocar o papel.
+
+Disso sai o invariante que interessa: **o último owner não some**. Ele não se remove, e
+ninguém abaixo dele alcança.
+
+`app_metadata.role` segue no login do Supabase decidindo a **audiência** (equipe ou cliente);
+o papel **dentro** da equipe vem do banco desde o SEC-17. São coisas diferentes e a troca de
+papel mexe só na segunda — por isso ela não chama a Admin API do Supabase.
+
 ### O que sobrou aberto, e por quê
 
-- **Trocar o papel de quem já está na equipe** não tem caminho. Convidar de novo não resolve:
+- ~~Trocar o papel de quem já está na equipe~~ — **feito** (SEC-18, acima). Ficava assim: convidar de novo não resolve,
   o Supabase recusa criar usuário com e-mail existente (409/422). Tirar o acesso e reconvidar
   também não, porque o login continua lá. Precisa de uma rota que atualize o papel na linha de
   acesso e no `app_metadata` — pequena, mas é feature.

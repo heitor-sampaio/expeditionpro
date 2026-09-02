@@ -1,5 +1,6 @@
 import { actorUserId, type AuditLogRepository } from '../audit/auditLogRepository.js';
-import { BusinessRuleError, ForbiddenError, NotFoundError } from '../errors.js';
+import { BusinessRuleError, NotFoundError } from '../errors.js';
+import { assertOwnerReach, requireTeamAdmin } from './teamGuards.js';
 import type { RequestContext } from '../context.js';
 import type { MembershipRepository } from './membershipRepository.js';
 
@@ -28,10 +29,9 @@ export async function revokeTeamAccess(
   ctx: RequestContext,
   command: RevokeTeamAccessCommand,
 ): Promise<void> {
+  requireTeamAdmin(ctx, 'Tirar acesso');
   const { actor } = ctx;
-  if (!(actor.kind === 'team' && (actor.role === 'owner' || actor.role === 'admin'))) {
-    throw new ForbiddenError('Tirar acesso exige owner ou admin');
-  }
+
   if (command.userId === actor.userId) {
     throw new BusinessRuleError('cannot_revoke_self', 'Não é possível tirar o próprio acesso');
   }
@@ -39,6 +39,8 @@ export async function revokeTeamAccess(
   // Busca antes de apagar: a trilha precisa do papel e do e-mail que deixaram de existir.
   const alvo = await deps.memberships.findByUser(ctx.tenantId, command.userId);
   if (!alvo) throw new NotFoundError('membro da equipe');
+
+  assertOwnerReach(actor, alvo.role);
 
   await deps.memberships.revoke(ctx.tenantId, command.userId);
 

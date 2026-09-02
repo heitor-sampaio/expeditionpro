@@ -111,17 +111,27 @@ export function UsuariosScreen(): React.JSX.Element {
 }
 
 /**
- * SEC-17 — quem tem acesso ao sistema, e o botão de tirar.
+ * SEC-17/18 — quem tem acesso ao sistema, com troca de papel e remoção.
  *
- * Até aqui não havia nem lista nem remoção: o papel vivia só no login do Supabase, e
- * desligar alguém exigia entrar no painel de lá. O papel mostrado é o do banco, o mesmo
- * que o servidor consulta a cada requisição — por isso tirar o acesso vale na requisição
- * seguinte, não quando o token da pessoa expirar.
+ * Até aqui não havia nem lista, nem remoção, nem como mudar o papel de alguém: tudo isso
+ * vivia no painel do Supabase. O papel mostrado é o do banco, o mesmo que o servidor
+ * consulta a cada requisição — por isso tanto tirar o acesso quanto rebaixar valem na
+ * requisição seguinte, e não quando o token da pessoa expirar.
  */
 function AcessoSection({ souEu }: { souEu: string | null }): React.JSX.Element {
-  const { state, revoke, refresh, busy } = useTeamMembers();
+  const { state, revoke, changeRole, refresh, busy } = useTeamMembers();
   const [alvo, setAlvo] = useState<TeamMember | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  /*
+   * Promover a owner é transferência de dono, e só um owner faz. O papel vem da própria
+   * lista, não do `app_metadata` do token: desde o SEC-17 quem manda é o banco, e é ele que
+   * o servidor vai consultar quando recusar. Oferecer a opção que o servidor nega seria
+   * convidar ao erro.
+   */
+  const souOwner =
+    state.status === 'ready' && state.members.some((m) => m.userId === souEu && m.role === 'owner');
 
   const confirmar = async () => {
     if (!alvo) return;
@@ -132,6 +142,16 @@ function AcessoSection({ souEu }: { souEu: string | null }): React.JSX.Element {
     } else {
       setErro(resultado.message);
     }
+  };
+
+  const trocar = async (membro: TeamMember, papel: MemberRole) => {
+    setAviso(null);
+    const resultado = await changeRole(membro.userId, papel);
+    setAviso(
+      resultado.ok
+        ? `${membro.email ?? 'Membro'} agora é ${PAPEL[papel].toLowerCase()}.`
+        : resultado.message,
+    );
   };
 
   return (
@@ -165,6 +185,13 @@ function AcessoSection({ souEu }: { souEu: string | null }): React.JSX.Element {
         </div>
       )}
 
+      {aviso && (
+        <div className="feedback feedback-info" role="status">
+          <span className="feedback-dot" />
+          <span>{aviso}</span>
+        </div>
+      )}
+
       {state.status === 'ready' && state.members.length === 0 && (
         <p className="members-empty">Ninguém com acesso ainda. Convide alguém acima.</p>
       )}
@@ -178,21 +205,38 @@ function AcessoSection({ souEu }: { souEu: string | null }): React.JSX.Element {
                 <span className="member-name">{m.email ?? 'sem e-mail'}</span>
                 <span className="member-cpf">desde {formatarData(m.since)}</span>
               </span>
-              <span className="pill pill-neutral">{PAPEL[m.role]}</span>
               {m.userId === souEu ? (
-                <span className="member-cpf">você</span>
+                <>
+                  <span className="pill pill-neutral">{PAPEL[m.role]}</span>
+                  <span className="member-cpf">você</span>
+                </>
               ) : (
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  disabled={busy}
-                  onClick={() => {
-                    setErro(null);
-                    setAlvo(m);
-                  }}
-                >
-                  Tirar acesso
-                </button>
+                <>
+                  <select
+                    className="field-input"
+                    aria-label={`Papel de ${m.email ?? 'membro'}`}
+                    value={m.role}
+                    disabled={busy}
+                    onChange={(e) => void trocar(m, e.target.value as MemberRole)}
+                  >
+                    {(souOwner ? PAPEIS : PAPEIS.filter((p) => p !== 'owner')).map((p) => (
+                      <option key={p} value={p}>
+                        {PAPEL[p]}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={busy}
+                    onClick={() => {
+                      setErro(null);
+                      setAlvo(m);
+                    }}
+                  >
+                    Tirar acesso
+                  </button>
+                </>
               )}
             </div>
           ))}
@@ -246,6 +290,9 @@ const PAPEL: Record<MemberRole, string> = {
   operator: 'Operador',
   viewer: 'Leitura',
 };
+
+/** Do mais poderoso ao menos: a ordem do seletor é a ordem em que se pensa no papel. */
+const PAPEIS: readonly MemberRole[] = ['owner', 'admin', 'operator', 'viewer'];
 
 function iniciais(email: string | null): string {
   const base = (email ?? '?').trim();

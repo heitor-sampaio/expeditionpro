@@ -1,4 +1,4 @@
-import { ForbiddenError } from '../errors.js';
+import { requireTeamAdmin } from './teamGuards.js';
 import type { RequestContext } from '../context.js';
 import type { MembershipRecord, MembershipRepository } from './membershipRepository.js';
 
@@ -17,9 +17,6 @@ export async function listTeamMembers(
   deps: TeamAccessDeps,
   ctx: RequestContext,
 ): Promise<readonly MembershipRecord[]> {
-  const { actor } = ctx;
-  if (!(actor.kind === 'team' && (actor.role === 'owner' || actor.role === 'admin'))) {
-    throw new ForbiddenError('Ver quem tem acesso exige owner ou admin');
-  }
+  requireTeamAdmin(ctx, 'Ver quem tem acesso');
   return deps.memberships.list(ctx.tenantId);
 }

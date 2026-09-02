@@ -72,7 +72,28 @@ export function useTeamMembers() {
     [refresh],
   );
 
-  return { state, revoke, refresh, busy };
+  const changeRole = useCallback(
+    async (userId: string, role: MemberRole): Promise<RevokeResult> => {
+      setBusy(true);
+      try {
+        const res = await api(`/v1/team/members/${encodeURIComponent(userId)}`, {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ role }),
+        });
+        if (!res.ok) return { ok: false, message: mensagemDoPapel(res.status) };
+        refresh();
+        return { ok: true };
+      } catch {
+        return { ok: false, message: 'Falha de conexão.' };
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refresh],
+  );
+
+  return { state, revoke, changeRole, refresh, busy };
 }
 
 function messageFor(status: number): string {
@@ -81,4 +102,13 @@ function messageFor(status: number): string {
   // 400 aqui só vem de `cannot_revoke_self`: é a única regra de negócio desta rota.
   if (status === 400) return 'Não é possível tirar o próprio acesso.';
   return 'Não foi possível tirar o acesso.';
+}
+
+function mensagemDoPapel(status: number): string {
+  if (status === 401 || status === 403)
+    return 'Somente o owner muda o papel de um owner, ou promove alguém a owner.';
+  if (status === 404) return 'Esta pessoa já não tem acesso.';
+  // 400 vem de `cannot_change_own_role` ou de papel fora da lista aceita.
+  if (status === 400) return 'Não é possível trocar o próprio papel.';
+  return 'Não foi possível trocar o papel.';
 }

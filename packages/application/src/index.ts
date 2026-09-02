@@ -860,4 +860,9 @@ export {
   type RevokeTeamAccessDeps,
   type RevokeTeamAccessCommand,
 } from './team/revokeTeamAccess.js';
+export {
+  changeTeamRole,
+  type ChangeTeamRoleDeps,
+  type ChangeTeamRoleCommand,
+} from './team/changeTeamRole.js';
 export type { MembershipRecord, MembershipRepository } from './team/membershipRepository.js';
