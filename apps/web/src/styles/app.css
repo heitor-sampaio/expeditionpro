@@ -4858,3 +4858,49 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Formatação nativa do WhatsApp dentro do balão (§5.17, AT-07) --------------------------- */
+
+/*
+ * O corpo da mensagem deixa de ser um parágrafo e vira um bloco com parágrafos, listas e
+ * citações dentro. O espaçamento é apertado de propósito: é conversa, não documento.
+ */
+.inbox-msg-body p + p,
+.inbox-msg-body p + ul,
+.inbox-msg-body p + ol,
+.inbox-msg-body p + blockquote,
+.inbox-msg-body blockquote + p,
+.inbox-msg-body ul + p,
+.inbox-msg-body ol + p {
+  margin-top: 6px;
+}
+.inbox-quote {
+  border-left: 3px solid var(--line-2);
+  padding-left: 10px;
+  color: var(--ink-2);
+  margin: 0;
+}
+.inbox-list {
+  margin: 0;
+  padding-left: 20px;
+}
+.inbox-list li {
+  margin: 2px 0;
+}
+/* Mono para código, como manda o design system: a família carrega o papel. */
+.inbox-code,
+.inbox-pre {
+  font-family: var(--f-mono);
+  font-size: 13px;
+  background: var(--relief);
+  border-radius: 6px;
+}
+.inbox-code {
+  padding: 1px 5px;
+}
+.inbox-pre {
+  margin: 0;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

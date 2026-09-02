@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { whatsappLink } from '../ui/whatsapp.js';
 import { kindOf, lerArquivo, tamanhoAceito, LIMITE_BYTES } from './attachment.js';
+import { FormattedText } from './FormattedText.js';
 import { channelLabel, contactTitle, iniciais } from './inboxFormat.js';
 import { useVoiceRecorder } from './useVoiceRecorder.js';
 import type { Anexo, Conversation, Message, MessageMedia } from './useInbox.js';
@@ -133,7 +134,7 @@ export function Thread({
                 Foto sem legenda chega com o marcador `[imagem]`, e repeti-lo embaixo da
                 própria imagem é ruído. Com legenda, o texto é o que a pessoa quis dizer.
               */}
-              {!ehMarcador(mensagem) && <p className="inbox-msg-body">{mensagem.body}</p>}
+              {!ehMarcador(mensagem) && <FormattedText text={mensagem.body} />}
               <span className="inbox-msg-time">{hora(mensagem.sentAt)}</span>
             </div>
           ))
