@@ -18,10 +18,10 @@ import type { PrismaClient } from '../generated/prisma/client.js';
  *
  * Cobertura por operação:
  *   · reads com where livre (findFirst/findMany/count/aggregate/groupBy) → injeta where
- *   · findUnique/findUniqueOrThrow → reescreve para findFirst escopado (o where único
- *     por id não aceita filtro extra; por id sem tenant cruzaria fronteira)
+ *   · findUnique/findUniqueOrThrow → confere a posse e relê por id (por id sem tenant
+ *     cruzaria fronteira; ver `ownedId`)
  *   · create/createMany → injeta tenant no data
- *   · update/delete → verifica posse escopada e age por id (fidelidade do retorno)
+ *   · update/delete → verifica posse e age por id (fidelidade do retorno)
  *   · updateMany/deleteMany → injeta where
  *   · upsert → resolve posse e vira update ou create escopado
  */
@@ -103,10 +103,44 @@ function modelFromDelegate(delegate: string): string {
 
 interface DelegateLike {
   findFirst(args: Args): Promise<{ id: string } | null>;
+  findUnique(args: Args): Promise<Args | null>;
   update(args: Args): Promise<unknown>;
   delete(args: Args): Promise<unknown>;
   create(args: Args): Promise<unknown>;
   [operation: string]: (args: Args) => Promise<unknown>;
+}
+
+/**
+ * Resolve **de quem é** a linha alcançada por um `where` único, e devolve o id só se ela for
+ * deste tenant.
+ *
+ * Vai por `findUnique`, e não por `findFirst` com o tenant injetado, porque o `where` das
+ * operações únicas pode ser uma **chave composta** (`{ tenantId_channel: { … } }`): esse nome
+ * só existe no `where` único, e o `findFirst` recusa a consulta antes de tocar no banco.
+ * Foi um 500 em produção ao conectar o canal de mensagem (§5.17).
+ *
+ * A conferência do dono acontece **aqui**, e não no filtro: a chave composta é única no banco
+ * inteiro, não dentro do tenant, então achar a linha não quer dizer que ela é nossa. Linha de
+ * outro tenant volta como `null` — indistinguível de inexistente, que é o comportamento que o
+ * resto do sistema já espera.
+ *
+ * Custa uma consulta a mais no `findUnique` (posse, depois a leitura com o `select` do
+ * chamador). `update`, `delete` e `upsert` já custavam duas.
+ */
+async function ownedId(
+  model: string,
+  where: unknown,
+  tenantId: string,
+  delegate: DelegateLike,
+): Promise<string | null> {
+  const porId = SCOPED_BY_ID.has(model);
+  const row = await delegate.findUnique({
+    where: (where as Args) ?? {},
+    select: porId ? { id: true } : { id: true, tenantId: true },
+  });
+  if (!row) return null;
+  const dono = porId ? row['id'] : row['tenantId'];
+  return dono === tenantId ? (row['id'] as string) : null;
 }
 
 /**
@@ -138,12 +172,12 @@ async function scopeOperation(
 
     case 'findUnique':
     case 'findUniqueOrThrow': {
-      const row = await delegate.findFirst({
-        ...args,
-        where: scopeWhere(model, args['where'], tenantId),
-      });
-      if (!row && operation === 'findUniqueOrThrow') throw new NotFoundError(model);
-      return row;
+      const id = await ownedId(model, args['where'], tenantId, delegate);
+      if (id === null) {
+        if (operation === 'findUniqueOrThrow') throw new NotFoundError(model);
+        return null;
+      }
+      return delegate.findUnique({ ...args, where: { id } });
     }
 
     case 'create':
@@ -154,22 +188,16 @@ async function scopeOperation(
 
     case 'update':
     case 'delete': {
-      const target = await delegate.findFirst({
-        where: scopeWhere(model, args['where'], tenantId),
-        select: { id: true },
-      });
-      if (!target) throw new NotFoundError(model);
-      return delegate[operation]!({ ...args, where: { id: target.id } });
+      const id = await ownedId(model, args['where'], tenantId, delegate);
+      if (id === null) throw new NotFoundError(model);
+      return delegate[operation]!({ ...args, where: { id } });
     }
 
     case 'upsert': {
-      const target = await delegate.findFirst({
-        where: scopeWhere(model, args['where'], tenantId),
-        select: { id: true },
-      });
-      if (target) {
+      const id = await ownedId(model, args['where'], tenantId, delegate);
+      if (id !== null) {
         return delegate.update({
-          where: { id: target.id },
+          where: { id },
           data: args['update'],
           ...pick(args, ['select', 'include']),
         });
