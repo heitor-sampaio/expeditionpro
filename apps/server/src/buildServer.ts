@@ -1,7 +1,11 @@
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
-import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
+import Fastify, {
+  type FastifyInstance,
+  type FastifyRequest,
+  type FastifyServerOptions,
+} from 'fastify';
 import {
   serializerCompiler,
   validatorCompiler,
@@ -128,8 +132,11 @@ export interface ServerDeps {
 export interface ServerOptions {
   /** Origens permitidas no CORS (domínios do tenant, IN-24). Vazio = nega tudo. */
   readonly corsOrigins?: readonly string[];
-  /** Logger do Fastify. Desligue nos testes para saída limpa. Default: ligado. */
-  readonly logger?: boolean;
+  /**
+   * Logger do Fastify. `false` desliga (saída limpa nos testes); um objeto de opções
+   * substitui a configuração padrão — é como um teste captura o que foi registrado.
+   */
+  readonly logger?: FastifyServerOptions['logger'];
   /** Casos de uso e resolução de contexto. Sem isso, só o health check sobe. */
   readonly deps?: ServerDeps;
 }
@@ -151,6 +158,7 @@ function loggerConfig() {
         'req.headers.cookie',
         'req.headers["api_token"]',
         'req.headers["asaas-access-token"]',
+        'req.headers["x-webhook-token"]',
       ],
       censor: '[redacted]',
     },

@@ -8,6 +8,7 @@ import {
   markConversationRead,
   receiveChannelMessage,
 } from '@expedition/application';
+import { UnauthorizedError } from '@expedition/application';
 import { z } from 'zod';
 import type {
   ChannelIntegrationView,
@@ -53,23 +54,50 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
       },
     },
     async (request, reply) => {
-      const tenantId = await deps.tenants.findIdBySlug(request.params.tenantSlug);
-      // Slug desconhecido responde igual a token errado: 401 não confirma que o tenant existe.
-      if (!tenantId) return reply.status(401).send({ error: 'unauthorized' });
+      /*
+       * A recusa é **uma só** para quem chama e **duas** para quem opera.
+       *
+       * Quem chama recebe sempre o mesmo 401: a diferença entre "este tenant não existe" e
+       * "o segredo está errado" enumeraria os clientes da plataforma, um chute por vez.
+       *
+       * Quem opera precisa do contrário. "A Evolution não manda o cabeçalho" e "o segredo
+       * colado lá é outro" têm conserto diferente — configuração do provedor num caso,
+       * reconectar no outro — e sem essa distinção o diagnóstico vira adivinhação. Ela fica
+       * no log, que é nosso, e **sem o valor apresentado**: segredo não entra em log nem
+       * quando ajudaria a depurar.
+       */
+      const recusar = (motivo: string) => {
+        request.log.warn(
+          { motivo, tenantSlug: request.params.tenantSlug },
+          'webhook evolution recusado',
+        );
+        return reply.status(401).send({ error: 'unauthorized' });
+      };
 
-      const outcome = await receiveChannelMessage(
-        {
-          integrations: deps.channelIntegrations,
-          conversations: deps.conversations,
-          customers: deps.customers,
-        },
-        { tenantId, actor: { kind: 'system' } },
-        {
-          token: (request.headers[WEBHOOK_HEADER] as string | undefined) ?? '',
-          body: request.body,
-        },
-      );
-      return reply.send({ handled: outcome.handled });
+      const tenantId = await deps.tenants.findIdBySlug(request.params.tenantSlug);
+      if (!tenantId) return recusar('slug_desconhecido');
+
+      const cabecalho = request.headers[WEBHOOK_HEADER];
+      const token = typeof cabecalho === 'string' ? cabecalho : '';
+      if (token === '') return recusar('sem_cabecalho');
+
+      try {
+        const outcome = await receiveChannelMessage(
+          {
+            integrations: deps.channelIntegrations,
+            conversations: deps.conversations,
+            customers: deps.customers,
+          },
+          { tenantId, actor: { kind: 'system' } },
+          { token, body: request.body },
+        );
+        return reply.send({ handled: outcome.handled });
+      } catch (error) {
+        // Só o caso de segredo errado ganha linha própria; o resto segue para o tratador
+        // global, que já sabe traduzir erro de negócio e falha inesperada.
+        if (error instanceof UnauthorizedError) return recusar('token_nao_confere');
+        throw error;
+      }
     },
   );
 

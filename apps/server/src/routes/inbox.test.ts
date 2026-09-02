@@ -268,3 +268,111 @@ describe('AT-01: conexão de canal pelo HTTP', () => {
     await app.close();
   });
 });
+
+/**
+ * AT-02 · SEC — a recusa é **uma só** para quem chama, e **duas** para quem opera.
+ *
+ * Este teste nasceu de um webhook que chegava e voltava 401 sem ninguém saber por quê. Pelo
+ * log era impossível separar "a Evolution não está mandando o cabeçalho" de "o segredo colado
+ * lá é outro" — e são conserto diferente: um é configuração do provedor, o outro é reconectar.
+ *
+ * A resposta continua idêntica nos dois casos, porque a diferença enumeraria tenants (AT-02).
+ * A diferença vive no log, que é nosso — e **sem o valor do segredo**, que não entra em log
+ * nem quando ajudaria a depurar.
+ */
+describe('AT-02: a recusa do webhook é diagnosticável pelo log', () => {
+  async function servidorComLog(role: 'owner' = 'owner') {
+    const linhas: string[] = [];
+    const conversations = inMemoryConversations();
+    const channelIntegrations = inMemoryChannelIntegrations([
+      {
+        tenantId: TENANT,
+        id: 'ch-1',
+        channel: 'whatsapp',
+        provider: 'evolution',
+        baseUrl: 'https://evo.local',
+        externalAccountId: 'drakkar',
+        accessToken: 'CHAVE',
+        webhookToken: 'SEGREDO',
+        active: true,
+        connectedAt: new Date('2026-09-01T00:00:00Z'),
+      },
+    ]);
+    const ctx: RequestContext = { tenantId: TENANT, actor: { kind: 'team', userId: 'u1', role } };
+    const app = await buildServer({
+      logger: {
+        level: 'warn',
+        stream: {
+          write: (linha: string) => {
+            linhas.push(linha);
+          },
+        },
+      },
+      deps: inMemoryServerDeps({
+        conversations,
+        channelIntegrations,
+        resolveContext: () => Promise.resolve(ctx),
+      }),
+    });
+    await app.ready();
+    return { app, linhas };
+  }
+
+  it('sem cabeçalho nenhum, o log diz que faltou o cabeçalho', async () => {
+    const { app, linhas } = await servidorComLog();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev',
+      payload: evento('MSG-1', 'oi'),
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(linhas.join(' ')).toContain('sem_cabecalho');
+    await app.close();
+  });
+
+  it('com cabeçalho e segredo errado, o log diz que o segredo não confere', async () => {
+    const { app, linhas } = await servidorComLog();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev',
+      headers: { 'x-webhook-token': 'CHUTE-DE-QUEM-SONDA' },
+      payload: evento('MSG-1', 'oi'),
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(linhas.join(' ')).toContain('token_nao_confere');
+    await app.close();
+  });
+
+  it('o segredo apresentado nunca aparece no log', async () => {
+    const { app, linhas } = await servidorComLog();
+
+    await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev',
+      headers: { 'x-webhook-token': 'CHUTE-DE-QUEM-SONDA' },
+      payload: evento('MSG-1', 'oi'),
+    });
+
+    expect(linhas.join(' ')).not.toContain('CHUTE-DE-QUEM-SONDA');
+    await app.close();
+  });
+
+  it('slug desconhecido também é registrado, e responde igual', async () => {
+    const { app, linhas } = await servidorComLog();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/nao-existe',
+      headers: { 'x-webhook-token': 'SEGREDO' },
+      payload: evento('MSG-1', 'oi'),
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(linhas.join(' ')).toContain('slug_desconhecido');
+    await app.close();
+  });
+});
