@@ -4563,17 +4563,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/*
- * Rola, mas sem barra à vista: o fio ocupa a coluna inteira e a barra cortava a largura das
- * mensagens. A rolagem continua inteira — roda do mouse, toque, teclado e a ida automática
- * para o fim.
- */
 .inbox-msgs {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -4912,6 +4905,36 @@
   overflow-wrap: anywhere;
 }
 
+/* Barra de rolagem da caixa (§5.17) ----------------------------------------------------- */
+
+/*
+ * A barra volta, mas discreta: 5px e na cor de borda do sistema, que já é o cinza mais
+ * apagado da paleta. Ela é **indicação**, não controle — quem rola usa roda, toque ou
+ * teclado, e a barra só precisa dizer que existe mais coisa fora da vista.
+ *
+ * Sem hex nenhum: `--line-2` no repouso e `--ink-3` ao passar o mouse acompanham o modo
+ * claro e o escuro sozinhos. No Firefox a largura exata não é ajustável — `thin` é o mais
+ * perto que ele deixa chegar.
+ */
+.inbox-list,
+.inbox-msgs {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+.inbox-list::-webkit-scrollbar,
 .inbox-msgs::-webkit-scrollbar {
-  display: none;
+  width: 5px;
+}
+.inbox-list::-webkit-scrollbar-track,
+.inbox-msgs::-webkit-scrollbar-track {
+  background: transparent;
+}
+.inbox-list::-webkit-scrollbar-thumb,
+.inbox-msgs::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: var(--r-pill);
+}
+.inbox-list::-webkit-scrollbar-thumb:hover,
+.inbox-msgs::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-3);
 }
