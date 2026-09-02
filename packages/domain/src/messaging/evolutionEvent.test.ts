@@ -109,3 +109,42 @@ describe('AT-03: mapeamento do evento da Evolution', () => {
     expect(mapEvolutionEvent(corpo)).toEqual({ kind: 'ignored' });
   });
 });
+
+/**
+ * AT-05 — `pushName` é o nome de perfil de **quem mandou**, e em mensagem que sai quem mandou
+ * somos nós.
+ *
+ * Bug visto em produção: todos os contatos apareciam com o nome da empresa. A causa é esta —
+ * o eco da própria resposta (e a resposta digitada no celular pareado) chega com `fromMe:
+ * true` e o `pushName` da instância, e o nome da conversa era sobrescrito com ele. Uma
+ * conversa por cliente virava "Drakkar Expedições" assim que alguém respondia.
+ *
+ * A regra fica aqui, e não em quem grava: quem sabe o que `pushName` significa em cada evento
+ * é o mapeador do provedor.
+ */
+describe('AT-05: nome do perfil só vale quando é da outra pessoa', () => {
+  const saindo = {
+    event: 'messages.upsert',
+    data: {
+      key: { id: 'MSG-9', remoteJid: '5548999998877@s.whatsapp.net', fromMe: true },
+      pushName: 'Drakkar Expedições',
+      message: { conversation: 'Bom dia! Vou te passar os valores.' },
+      messageTimestamp: 1788000000,
+    },
+  };
+
+  it('mensagem que sai não traz nome de contato — o perfil ali é o nosso', () => {
+    const evento = mapEvolutionEvent(saindo);
+
+    expect(evento).toMatchObject({ kind: 'message', direction: 'out', displayName: null });
+  });
+
+  it('mensagem que entra continua trazendo o nome de quem escreveu', () => {
+    const evento = mapEvolutionEvent({
+      ...saindo,
+      data: { ...saindo.data, key: { ...saindo.data.key, fromMe: false }, pushName: 'Ana Prado' },
+    });
+
+    expect(evento).toMatchObject({ direction: 'in', displayName: 'Ana Prado' });
+  });
+});

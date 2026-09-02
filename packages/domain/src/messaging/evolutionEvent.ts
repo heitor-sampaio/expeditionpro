@@ -69,15 +69,24 @@ export function mapEvolutionEvent(body: unknown): EvolutionEvent {
   const texto = textoDe(data.message);
   if (texto === null) return IGNORED;
 
+  // O celular pareado continua sendo usado à mão: sem `fromMe`, a caixa contaria só metade
+  // da conversa, que é pior que não ter caixa.
+  const saindo = data.key?.fromMe === true;
+
   return {
     kind: 'message',
     externalId,
     channelUserId,
-    // O celular pareado continua sendo usado à mão: sem `fromMe`, a caixa contaria só
-    // metade da conversa, que é pior que não ter caixa.
-    direction: data.key?.fromMe === true ? 'out' : 'in',
+    direction: saindo ? 'out' : 'in',
     body: texto,
-    displayName: typeof data.pushName === 'string' && data.pushName !== '' ? data.pushName : null,
+    /*
+     * `pushName` é o nome de perfil de **quem mandou** — e em mensagem que sai, quem mandou
+     * somos nós. Aproveitá-lo ali renomeia o contato com o nome da própria empresa, que foi
+     * o que aconteceu em produção: bastava alguém responder para a conversa virar
+     * "Drakkar Expedições".
+     */
+    displayName:
+      !saindo && typeof data.pushName === 'string' && data.pushName !== '' ? data.pushName : null,
     sentAt: horarioDe(data.messageTimestamp),
   };
 }
