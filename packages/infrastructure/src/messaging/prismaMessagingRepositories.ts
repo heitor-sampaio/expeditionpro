@@ -40,6 +40,7 @@ export function prismaChannelIntegrationRepository(
     baseUrl: row.baseUrl,
     externalAccountId: row.externalAccountId,
     accessToken: cipher.decrypt(row.accessToken),
+    allowedIps: row.allowedIps,
     active: row.active,
     connectedAt: row.connectedAt,
   });
@@ -71,6 +72,7 @@ export function prismaChannelIntegrationRepository(
           baseUrl: integration.baseUrl,
           externalAccountId: integration.externalAccountId,
           accessToken: cipher.encrypt(integration.accessToken),
+          allowedIps: [...integration.allowedIps],
           webhookTokenHash: sha256(integration.webhookToken ?? ''),
           connectedBy: integration.connectedBy,
         },
@@ -79,6 +81,7 @@ export function prismaChannelIntegrationRepository(
           baseUrl: integration.baseUrl,
           externalAccountId: integration.externalAccountId,
           accessToken: cipher.encrypt(integration.accessToken),
+          allowedIps: [...integration.allowedIps],
           ...(integration.webhookToken === undefined
             ? {}
             : { webhookTokenHash: sha256(integration.webhookToken) }),

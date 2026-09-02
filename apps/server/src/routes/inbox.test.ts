@@ -30,6 +30,7 @@ async function servidor(role: 'owner' | 'admin' | 'operator' | 'viewer' = 'owner
       baseUrl: 'https://evo.local',
       externalAccountId: 'drakkar',
       accessToken: 'CHAVE',
+      allowedIps: [],
       webhookToken: 'SEGREDO',
       active: true,
       connectedAt: new Date('2026-09-01T00:00:00Z'),
@@ -207,6 +208,98 @@ describe('AT-02: segredo no caminho, para provedor sem cabeçalho', () => {
   });
 });
 
+/**
+ * AT-02 — a cerca de origem, ligada pela rota de verdade.
+ *
+ * As peças foram escritas cada uma com seu teste — `ipIsAllowed`, `clientIp`,
+ * `receiveChannelMessage`. O que se cobra aqui é a **ligação**: que a rota leia o endereço
+ * pelo último salto e não pelo `request.ip`, que com `trustProxy` é escrito por quem chama.
+ * Errar essa ligação deixaria a cerca aberta com as três peças verdes.
+ */
+describe('AT-02: cerca de origem pelo HTTP', () => {
+  const DO_SERVIDOR = '69.62.88.81';
+
+  async function comCerca() {
+    const conversations = inMemoryConversations();
+    const channelIntegrations = inMemoryChannelIntegrations([
+      {
+        tenantId: TENANT,
+        id: 'ch-1',
+        channel: 'whatsapp',
+        provider: 'evolution',
+        baseUrl: 'https://evo.local',
+        externalAccountId: 'drakkar',
+        accessToken: 'CHAVE',
+        allowedIps: [DO_SERVIDOR],
+        webhookToken: 'SEGREDO',
+        active: true,
+        connectedAt: new Date('2026-09-01T00:00:00Z'),
+      },
+    ]);
+    const ctx: RequestContext = {
+      tenantId: TENANT,
+      actor: { kind: 'team', userId: 'u1', role: 'owner' },
+    };
+    const app = await buildServer({
+      logger: false,
+      deps: inMemoryServerDeps({
+        conversations,
+        channelIntegrations,
+        resolveContext: () => Promise.resolve(ctx),
+      }),
+    });
+    await app.ready();
+    return { app, conversations };
+  }
+
+  it('sem segredo nenhum, o endereço declarado entra', async () => {
+    const { app, conversations } = await comCerca();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev',
+      headers: { 'x-forwarded-for': DO_SERVIDOR },
+      payload: evento('MSG-1', 'oi'),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(conversations.messages).toHaveLength(1);
+    await app.close();
+  });
+
+  it('endereço de fora não entra', async () => {
+    const { app, conversations } = await comCerca();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev',
+      headers: { 'x-forwarded-for': '203.0.113.9' },
+      payload: evento('MSG-1', 'oi'),
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(conversations.messages).toHaveLength(0);
+    await app.close();
+  });
+
+  /** O ataque: escrever o endereço permitido no cabeçalho e esperar que o servidor acredite. */
+  it('cabeçalho forjado pelo chamador não abre a cerca', async () => {
+    const { app, conversations } = await comCerca();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev',
+      // O primeiro é o que o invasor escreveu; o último é o que o proxy viu.
+      headers: { 'x-forwarded-for': `${DO_SERVIDOR}, 203.0.113.9` },
+      payload: evento('MSG-1', 'oi'),
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(conversations.messages).toHaveLength(0);
+    await app.close();
+  });
+});
+
 describe('AT-07: a caixa pelo HTTP', () => {
   async function comConversa(role: 'owner' | 'viewer' = 'owner') {
     const tudo = await servidor(role);
@@ -379,6 +472,7 @@ describe('AT-02: a recusa do webhook é diagnosticável pelo log', () => {
         baseUrl: 'https://evo.local',
         externalAccountId: 'drakkar',
         accessToken: 'CHAVE',
+        allowedIps: [],
         webhookToken: 'SEGREDO',
         active: true,
         connectedAt: new Date('2026-09-01T00:00:00Z'),

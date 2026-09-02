@@ -1,3 +1,4 @@
+import { parseAllowedIps } from '@expedition/domain';
 import { actorUserId } from '../audit/auditLogRepository.js';
 import { requireTeamAdmin } from '../team/teamGuards.js';
 import { RequiredFieldError } from '../errors.js';
@@ -23,6 +24,11 @@ export interface ConnectChannelCommand {
   readonly baseUrl: string;
   readonly externalAccountId: string;
   readonly accessToken: string;
+  /**
+   * AT-02 — de onde o provedor pode chamar o webhook. Vazio = cerca desligada, e aí só o
+   * segredo autentica.
+   */
+  readonly allowedIps?: readonly string[] | undefined;
 }
 
 export interface ConnectedChannel extends ChannelIntegrationView {
@@ -61,6 +67,10 @@ export async function connectChannel(
   const externalAccountId = command.externalAccountId.trim();
   if (externalAccountId.length === 0) throw new RequiredFieldError('nome da instância');
 
+  // Valida aqui e não só na tela: endereço torto guardado vira cerca que nunca deixa passar,
+  // e o sintoma aparece dias depois, como "parou de chegar mensagem".
+  const allowedIps = parseAllowedIps((command.allowedIps ?? []).join(','));
+
   const existente = await deps.integrations.findByChannel(ctx.tenantId, command.channel);
   const novoSegredo = existente ? null : (deps.newSecret ?? defaultSecret)();
 
@@ -71,6 +81,7 @@ export async function connectChannel(
     baseUrl,
     externalAccountId,
     accessToken,
+    allowedIps,
     ...(novoSegredo === null ? {} : { webhookToken: novoSegredo }),
     connectedBy: actorUserId(ctx.actor),
   });
@@ -82,7 +93,12 @@ export async function connectChannel(
     entityId: record.id,
     action: 'channel_integration.connect',
     // Sem a chave e sem o segredo: a trilha registra que houve conexão, não como entrar nela.
-    diff: { channel: command.channel, provider: command.provider, baseUrl },
+    diff: {
+      channel: command.channel,
+      provider: command.provider,
+      baseUrl,
+      allowedIps: allowedIps.join(', '),
+    },
   });
 
   return { ...toView(record), webhookToken: novoSegredo };
@@ -105,6 +121,7 @@ export function toView(record: {
   baseUrl: string;
   externalAccountId: string;
   accessToken: string;
+  allowedIps: readonly string[];
   active: boolean;
   connectedAt: Date;
 }): ChannelIntegrationView {
@@ -114,6 +131,7 @@ export function toView(record: {
     baseUrl: record.baseUrl,
     externalAccountId: record.externalAccountId,
     tokenPreview: preview(record.accessToken),
+    allowedIps: record.allowedIps,
     active: record.active,
     connectedAt: record.connectedAt,
   };

@@ -14,6 +14,8 @@ export interface ChannelIntegrationView {
   readonly externalAccountId: string;
   /** Os quatro últimos caracteres da chave. Nunca a chave. */
   readonly tokenPreview: string;
+  /** AT-02: de onde o provedor pode chamar. Vazio = cerca desligada. */
+  readonly allowedIps: readonly string[];
   readonly active: boolean;
   readonly connectedAt: Date;
 }

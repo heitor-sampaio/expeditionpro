@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { API_BASE } from '../auth/apiUrl.js';
 import { evolutionWebhookUrl } from './webhookUrl.js';
+import { InvalidIpError, parseAllowedIps } from '@expedition/domain';
 import { channelLabel, type Channel } from '../inbox/inboxFormat.js';
 import {
   useChannelIntegrations,
@@ -94,6 +95,7 @@ function ChannelBlock({
   const [baseUrl, setBaseUrl] = useState('');
   const [instancia, setInstancia] = useState('');
   const [chave, setChave] = useState('');
+  const [origens, setOrigens] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [editando, setEditando] = useState(false);
   // Só existe na resposta da conexão: some ao sair da tela, como o token de API.
@@ -113,6 +115,34 @@ function ChannelBlock({
 
   const preenchido = baseUrl.trim() !== '' && instancia.trim() !== '' && chave.trim() !== '';
 
+  /**
+   * Confere os endereços aqui antes de mandar, para o erro sair sem ida ao servidor. Lá a
+   * mesma conferência acontece de novo — borda não confia em cliente.
+   */
+  const conectar = () => {
+    let allowedIps: string[];
+    try {
+      allowedIps = parseAllowedIps(origens);
+    } catch (erroDeIp) {
+      setErro(
+        erroDeIp instanceof InvalidIpError
+          ? `${erroDeIp.value} não é um endereço IP.`
+          : 'Endereço liberado inválido.',
+      );
+      return;
+    }
+    void act(
+      onConnect({
+        channel,
+        provider: 'evolution',
+        baseUrl: baseUrl.trim(),
+        externalAccountId: instancia.trim(),
+        accessToken: chave.trim(),
+        allowedIps,
+      }),
+    );
+  };
+
   return (
     <div className="rowpanel-block">
       <div className="panel-head">
@@ -128,6 +158,11 @@ function ChannelBlock({
             Instância {connected.externalAccountId} em {connected.baseUrl} · chave{' '}
             {connected.tokenPreview} · desde {formatDate(connected.connectedAt)}
           </p>
+          <p className="field-help">
+            {connected.allowedIps.length > 0
+              ? `Recebe só de ${connected.allowedIps.join(', ')}.`
+              : 'Sem endereço liberado: só entra quem apresentar o segredo.'}
+          </p>
           <div className="form-actions">
             <button
               type="button"
@@ -136,6 +171,7 @@ function ChannelBlock({
               onClick={() => {
                 setBaseUrl(connected.baseUrl);
                 setInstancia(connected.externalAccountId);
+                setOrigens(connected.allowedIps.join('\n'));
                 setEditando(true);
               }}
             >
@@ -188,23 +224,34 @@ function ChannelBlock({
                 onChange={(e) => setChave(e.target.value)}
               />
             </label>
+            {/*
+              AT-02 — a saída para instalação que não deixa configurar nada na chamada. É IP e
+              não domínio porque a requisição que chega não carrega URL nenhuma: carrega o
+              endereço de quem conectou. Domínio precisaria ser resolvido, e a resolução pode
+              apontar para outro lugar que não o de onde a mensagem sai — falha silenciosa.
+            */}
+            <label className="field field-wide">
+              <span className="field-label">Endereços liberados (opcional)</span>
+              <textarea
+                className="field-input field-textarea is-mono"
+                rows={2}
+                value={origens}
+                placeholder="69.62.88.81"
+                onChange={(e) => setOrigens(e.target.value)}
+              />
+              <span className="field-help">
+                IP do servidor onde a Evolution roda, um por linha. Preenchido, ele passa a
+                autenticar sozinho — e aí a URL do webhook não precisa levar segredo nenhum. Vazio,
+                só o segredo vale.
+              </span>
+            </label>
           </div>
           <div className="form-actions">
             <button
               type="button"
               className="btn btn-primary btn-sm"
               disabled={busy || !preenchido}
-              onClick={() =>
-                void act(
-                  onConnect({
-                    channel,
-                    provider: 'evolution',
-                    baseUrl: baseUrl.trim(),
-                    externalAccountId: instancia.trim(),
-                    accessToken: chave.trim(),
-                  }),
-                )
-              }
+              onClick={conectar}
             >
               Conectar
             </button>

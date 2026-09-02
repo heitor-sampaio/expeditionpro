@@ -9,6 +9,7 @@ import {
 import {
   IntakeValidationError,
   InvalidCnpjError,
+  InvalidIpError,
   InvalidCompanyLogoError,
   InvalidCpfError,
   InvalidLocalDateError,
@@ -63,6 +64,10 @@ export function installErrorHandler(app: FastifyInstance): void {
     }
     if (error instanceof RequiredFieldError) {
       return reply.status(422).send({ error: error.code, field: error.field });
+    }
+    // AT-02: endereço torto no campo de origem. 422 como o resto da validação de borda.
+    if (error instanceof InvalidIpError) {
+      return reply.status(422).send({ error: error.code, value: error.value });
     }
     if (error instanceof DuplicateCpfError) return reply.status(409).send({ error: error.code });
     if (error instanceof UnauthorizedError) return reply.status(401).send({ error: error.code });

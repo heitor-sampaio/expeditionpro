@@ -125,3 +125,63 @@ describe('AT-01: listar e desconectar', () => {
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
+
+/**
+ * AT-02 — o campo que guarda de onde o provedor pode chamar.
+ *
+ * Fica no mesmo lugar da chave porque é a mesma decisão: quem opera o canal declara em que
+ * servidor ele roda. Endereço inválido é recusado na hora — guardado, viraria uma cerca que
+ * nunca deixa passar, e o sintoma apareceria só quando a mensagem não chegasse.
+ */
+describe('AT-02: endereços liberados na conexão', () => {
+  it('guarda os endereços declarados', async () => {
+    const d = deps();
+
+    await connectChannel({ ...d, newSecret: () => 'S' }, ctxCom('owner'), {
+      ...comando,
+      allowedIps: ['69.62.88.81'],
+    });
+
+    expect(d.integrations.rows[0]?.allowedIps).toEqual(['69.62.88.81']);
+  });
+
+  it('sem o campo, a cerca nasce desligada', async () => {
+    const d = deps();
+
+    await connectChannel({ ...d, newSecret: () => 'S' }, ctxCom('owner'), comando);
+
+    expect(d.integrations.rows[0]?.allowedIps).toEqual([]);
+  });
+
+  it('endereço inválido é recusado antes de qualquer escrita', async () => {
+    const d = deps();
+
+    await expect(
+      connectChannel(d, ctxCom('owner'), { ...comando, allowedIps: ['evolution.meudominio.com'] }),
+    ).rejects.toThrow(/evolution.meudominio.com/);
+    expect(d.integrations.rows).toHaveLength(0);
+  });
+
+  it('endereço repetido entra uma vez só', async () => {
+    const d = deps();
+
+    await connectChannel({ ...d, newSecret: () => 'S' }, ctxCom('owner'), {
+      ...comando,
+      allowedIps: ['69.62.88.81', '69.62.88.81'],
+    });
+
+    expect(d.integrations.rows[0]?.allowedIps).toEqual(['69.62.88.81']);
+  });
+
+  it('a listagem mostra os endereços — a equipe precisa conferir a cerca', async () => {
+    const d = deps();
+    await connectChannel({ ...d, newSecret: () => 'S' }, ctxCom('owner'), {
+      ...comando,
+      allowedIps: ['69.62.88.81'],
+    });
+
+    const lista = await listChannelIntegrations(d, ctxCom('operator'));
+
+    expect(lista[0]?.allowedIps).toEqual(['69.62.88.81']);
+  });
+});

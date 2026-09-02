@@ -46,6 +46,7 @@ export function inMemoryChannelIntegrations(
         baseUrl: integration.baseUrl,
         externalAccountId: integration.externalAccountId,
         accessToken: integration.accessToken,
+        allowedIps: integration.allowedIps,
         webhookToken: integration.webhookToken ?? rows[i]!.webhookToken,
         active: true,
         connectedAt: i >= 0 ? rows[i]!.connectedAt : new Date('2026-09-02T00:00:00Z'),

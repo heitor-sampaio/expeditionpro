@@ -30,6 +30,7 @@ function comCanal() {
       baseUrl: 'https://evo.exemplo',
       externalAccountId: 'drakkar',
       accessToken: 'chave',
+      allowedIps: [],
       webhookToken: 'segredo-certo',
       active: true,
       connectedAt: new Date('2026-09-01T00:00:00Z'),
@@ -56,7 +57,12 @@ describe('AT-02: o segredo é que autentica', () => {
     const d = comCanal();
 
     await expect(
-      receiveChannelMessage(d, sistema, { token: 'chute', body: CORPO }),
+      receiveChannelMessage(d, sistema, {
+        token: 'chute',
+        clientIp: '',
+        channel: 'whatsapp',
+        body: CORPO,
+      }),
     ).rejects.toBeInstanceOf(UnauthorizedError);
   });
 
@@ -64,7 +70,12 @@ describe('AT-02: o segredo é que autentica', () => {
     const d = { ...comCanal(), integrations: fakeChannelIntegrationRepository([]) };
 
     await expect(
-      receiveChannelMessage(d, sistema, { token: 'segredo-certo', body: CORPO }),
+      receiveChannelMessage(d, sistema, {
+        token: 'segredo-certo',
+        clientIp: '',
+        channel: 'whatsapp' as const,
+        body: CORPO,
+      }),
     ).rejects.toBeInstanceOf(UnauthorizedError);
   });
 });
@@ -73,7 +84,12 @@ describe('AT-03..AT-05: a mensagem vira conversa', () => {
   it('primeira mensagem cria a conversa e guarda o texto', async () => {
     const d = comCanal();
 
-    const r = await receiveChannelMessage(d, sistema, { token: 'segredo-certo', body: CORPO });
+    const r = await receiveChannelMessage(d, sistema, {
+      token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp' as const,
+      body: CORPO,
+    });
 
     expect(r).toEqual({ handled: true });
     const conversa = await d.conversations.findByChannelUser(
@@ -88,9 +104,19 @@ describe('AT-03..AT-05: a mensagem vira conversa', () => {
 
   it('a mesma mensagem reenviada não vira linha nova', async () => {
     const d = comCanal();
-    await receiveChannelMessage(d, sistema, { token: 'segredo-certo', body: CORPO });
+    await receiveChannelMessage(d, sistema, {
+      token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp' as const,
+      body: CORPO,
+    });
 
-    const r = await receiveChannelMessage(d, sistema, { token: 'segredo-certo', body: CORPO });
+    const r = await receiveChannelMessage(d, sistema, {
+      token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp' as const,
+      body: CORPO,
+    });
 
     expect(r).toEqual({ handled: false });
     const conversa = await d.conversations.findByChannelUser(
@@ -103,10 +129,17 @@ describe('AT-03..AT-05: a mensagem vira conversa', () => {
 
   it('segunda mensagem entra na mesma conversa', async () => {
     const d = comCanal();
-    await receiveChannelMessage(d, sistema, { token: 'segredo-certo', body: CORPO });
+    await receiveChannelMessage(d, sistema, {
+      token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp' as const,
+      body: CORPO,
+    });
 
     await receiveChannelMessage(d, sistema, {
       token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp',
       body: { ...CORPO, data: { ...CORPO.data, key: { ...CORPO.data.key, id: 'MSG-2' } } },
     });
 
@@ -124,6 +157,8 @@ describe('AT-03..AT-05: a mensagem vira conversa', () => {
 
     const r = await receiveChannelMessage(d, sistema, {
       token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp',
       body: { event: 'connection.update', data: {} },
     });
 
@@ -136,6 +171,8 @@ describe('AT-03..AT-05: a mensagem vira conversa', () => {
 
     await receiveChannelMessage(d, sistema, {
       token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp',
       body: {
         ...CORPO,
         data: { ...CORPO.data, key: { ...CORPO.data.key, fromMe: true } },
@@ -174,7 +211,12 @@ describe('AT-06: casar com cliente existente pelo telefone', () => {
   it('telefone bate com um cliente: a conversa vem vinculada', async () => {
     const d = await comCliente('5548999998877');
 
-    await receiveChannelMessage(d, sistema, { token: 'segredo-certo', body: CORPO });
+    await receiveChannelMessage(d, sistema, {
+      token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp' as const,
+      body: CORPO,
+    });
 
     const conversa = await d.conversations.findByChannelUser(
       'tenant-a',
@@ -187,7 +229,12 @@ describe('AT-06: casar com cliente existente pelo telefone', () => {
   it('telefone não bate com ninguém: a conversa fica solta, e nenhum cliente é criado', async () => {
     const d = await comCliente('5511999990000');
 
-    await receiveChannelMessage(d, sistema, { token: 'segredo-certo', body: CORPO });
+    await receiveChannelMessage(d, sistema, {
+      token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp' as const,
+      body: CORPO,
+    });
 
     const conversa = await d.conversations.findByChannelUser(
       'tenant-a',
@@ -206,7 +253,12 @@ describe('AT-06: casar com cliente existente pelo telefone', () => {
      */
     const d = await comCliente('5548999998877', 2);
 
-    await receiveChannelMessage(d, sistema, { token: 'segredo-certo', body: CORPO });
+    await receiveChannelMessage(d, sistema, {
+      token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp' as const,
+      body: CORPO,
+    });
 
     const conversa = await d.conversations.findByChannelUser(
       'tenant-a',
@@ -225,3 +277,100 @@ const EMPTY = {
   state: null,
   zip: null,
 };
+
+/**
+ * AT-02 — a **cerca de origem**, para provedor que não deixa configurar nada na chamada.
+ *
+ * A Evolution instalada aqui não tem campo de cabeçalho nem de corpo: a chamada chega como
+ * ela quiser mandar. Sobra saber de quem é a conexão. Quando a equipe declara o endereço do
+ * servidor da instância, ele passa a valer como autenticação — e o segredo deixa de precisar
+ * viajar em URL, que era o preço da alternativa anterior.
+ *
+ * As duas formas convivem: quem consegue mandar segredo continua entrando por ele.
+ */
+describe('AT-02: cerca por endereço de origem', () => {
+  const DO_SERVIDOR = '69.62.88.81';
+
+  function comCerca(allowedIps: readonly string[]) {
+    return fakeChannelIntegrationRepository([
+      {
+        tenantId: 'tenant-a',
+        id: 'ch-1',
+        channel: 'whatsapp',
+        provider: 'evolution',
+        baseUrl: 'https://evo.local',
+        externalAccountId: 'drakkar',
+        accessToken: 'CHAVE',
+        allowedIps,
+        webhookToken: 'SEGREDO',
+        active: true,
+        connectedAt: new Date('2026-09-01T00:00:00Z'),
+      },
+    ]);
+  }
+
+  it('sem segredo nenhum, o endereço declarado autentica', async () => {
+    const deps = { ...comCanal(), integrations: comCerca([DO_SERVIDOR]) };
+
+    const resultado = await receiveChannelMessage(deps, sistema, {
+      token: '',
+      clientIp: DO_SERVIDOR,
+      channel: 'whatsapp',
+      body: CORPO,
+    });
+
+    expect(resultado.handled).toBe(true);
+  });
+
+  it('endereço de fora não entra, mesmo com a cerca ligada', async () => {
+    const deps = { ...comCanal(), integrations: comCerca([DO_SERVIDOR]) };
+
+    await expect(
+      receiveChannelMessage(deps, sistema, {
+        token: '',
+        clientIp: '203.0.113.9',
+        channel: 'whatsapp',
+        body: CORPO,
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it('cerca desligada e sem segredo: não entra ninguém', async () => {
+    const deps = { ...comCanal(), integrations: comCerca([]) };
+
+    await expect(
+      receiveChannelMessage(deps, sistema, {
+        token: '',
+        clientIp: DO_SERVIDOR,
+        channel: 'whatsapp',
+        body: CORPO,
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it('o segredo continua valendo, venha de onde vier', async () => {
+    const deps = { ...comCanal(), integrations: comCerca([DO_SERVIDOR]) };
+
+    const resultado = await receiveChannelMessage(deps, sistema, {
+      token: 'SEGREDO',
+      clientIp: '203.0.113.9',
+      channel: 'whatsapp',
+      body: CORPO,
+    });
+
+    expect(resultado.handled).toBe(true);
+  });
+
+  it('canal sem conexão nenhuma recusa, e não vaza que o tenant existe', async () => {
+    const deps = { ...comCanal(), integrations: fakeChannelIntegrationRepository([]) };
+
+    await expect(
+      receiveChannelMessage(deps, sistema, {
+        token: '',
+        clientIp: DO_SERVIDOR,
+        channel: 'whatsapp',
+        body: CORPO,
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+});

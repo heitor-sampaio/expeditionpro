@@ -25,6 +25,13 @@ export interface NewChannelIntegration {
    * webhook no provedor, e a mensagem pararia de chegar em silêncio até alguém notar.
    */
   readonly webhookToken?: string | undefined;
+  /**
+   * AT-02 — endereços de onde o provedor pode chamar o webhook. Vazio = cerca desligada.
+   *
+   * Existe porque nem toda instalação deixa configurar cabeçalho nem corpo na chamada; aí o
+   * único jeito de saber quem está do outro lado é o endereço da conexão.
+   */
+  readonly allowedIps: readonly string[];
   readonly connectedBy: string | null;
 }
 
@@ -35,6 +42,7 @@ export interface ChannelIntegrationRecord {
   readonly baseUrl: string;
   readonly externalAccountId: string;
   readonly accessToken: string;
+  readonly allowedIps: readonly string[];
   readonly active: boolean;
   readonly connectedAt: Date;
 }

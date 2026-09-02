@@ -1,9 +1,9 @@
-import { mapEvolutionEvent } from '@expedition/domain';
+import { ipIsAllowed, mapEvolutionEvent } from '@expedition/domain';
 import { UnauthorizedError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { CustomerRepository } from '../customers/customerRepository.js';
 import type { ChannelIntegrationRepository } from './channelIntegrationRepository.js';
-import type { ConversationRepository } from './conversationRepository.js';
+import type { Channel, ConversationRepository } from './conversationRepository.js';
 
 export interface ReceiveChannelMessageDeps {
   readonly integrations: ChannelIntegrationRepository;
@@ -12,7 +12,12 @@ export interface ReceiveChannelMessageDeps {
 }
 
 export interface ReceiveChannelMessageCommand {
+  /** Segredo apresentado, quando o provedor consegue mandar um. Vazio quando não consegue. */
   readonly token: string;
+  /** AT-02: de onde a conexão veio de verdade — o último salto, nunca o que o chamador diz. */
+  readonly clientIp: string;
+  /** Qual canal esta rota atende. Necessário para achar a conexão quando não há segredo. */
+  readonly channel: Channel;
   readonly body: unknown;
 }
 
@@ -29,7 +34,8 @@ const IGNORADO: ReceiveOutcome = { handled: false };
  * Três regras herdadas do webhook de pagamento, pelas mesmas razões:
  *
  * - **O segredo autentica, não a URL.** O endereço é público por natureza: o provedor precisa
- *   alcançá-lo sem sessão.
+ *   alcançá-lo sem sessão. Quando o provedor não consegue apresentar segredo nenhum — nem em
+ *   cabeçalho, nem em corpo, nem no caminho —, o que resta é a **origem da conexão** (AT-02).
  * - **401, nunca 403.** O endereço traz o slug do tenant, e 403 confirmaria que aquele tenant
  *   existe e tem canal conectado — enumeração de clientes da plataforma, um chute por vez.
  * - **Ignorar responde 200.** Evento desconhecido e mensagem repetida não são erro; devolver
@@ -44,7 +50,7 @@ export async function receiveChannelMessage(
   ctx: RequestContext,
   command: ReceiveChannelMessageCommand,
 ): Promise<ReceiveOutcome> {
-  const integration = await deps.integrations.findByWebhookToken(ctx.tenantId, command.token);
+  const integration = await autenticar(deps, ctx, command);
   if (!integration) throw new UnauthorizedError('Webhook não autenticado');
 
   const evento = mapEvolutionEvent(command.body);
@@ -91,6 +97,34 @@ export async function receiveChannelMessage(
   });
 
   return { handled: true };
+}
+
+/**
+ * AT-02 — quem pode escrever nesta caixa.
+ *
+ * Duas provas, e **uma basta**:
+ *
+ * - **o segredo**, quando o provedor consegue apresentá-lo. É a prova melhor: vale de qualquer
+ *   lugar e não depende de onde o servidor do provedor está hospedado;
+ * - **a origem da conexão**, quando ele não consegue. A equipe declara o endereço do servidor
+ *   da instância, e só ele entra.
+ *
+ * Cerca vazia não libera ninguém: quem conectou o canal e não preencheu o campo continua
+ * dependendo do segredo. O padrão de quem esquece de configurar é o fechado.
+ */
+async function autenticar(
+  deps: ReceiveChannelMessageDeps,
+  ctx: RequestContext,
+  command: ReceiveChannelMessageCommand,
+) {
+  if (command.token !== '') {
+    const porSegredo = await deps.integrations.findByWebhookToken(ctx.tenantId, command.token);
+    if (porSegredo) return porSegredo;
+  }
+
+  const doCanal = await deps.integrations.findByChannel(ctx.tenantId, command.channel);
+  if (doCanal?.active && ipIsAllowed(command.clientIp, doCanal.allowedIps)) return doCanal;
+  return null;
 }
 
 /**

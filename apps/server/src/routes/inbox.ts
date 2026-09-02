@@ -9,6 +9,7 @@ import {
   receiveChannelMessage,
 } from '@expedition/application';
 import { UnauthorizedError } from '@expedition/application';
+import { clientIp } from '../log/clientIp.js';
 import { z } from 'zod';
 import type {
   ChannelIntegrationView,
@@ -117,7 +118,6 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
     // que vale mesmo que a URL antiga com segredo ainda esteja cadastrada em algum lugar.
     const cabecalho = request.headers[WEBHOOK_HEADER];
     const token = typeof cabecalho === 'string' && cabecalho !== '' ? cabecalho : tokenDoCaminho;
-    if (token === '') return recusar('sem_segredo');
 
     try {
       const outcome = await receiveChannelMessage(
@@ -127,13 +127,28 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
           customers: deps.customers,
         },
         { tenantId, actor: { kind: 'system' } },
-        { token, body: request.body },
+        {
+          token,
+          /*
+           * AT-02 — o último salto, e **não** o `request.ip`.
+           *
+           * Com `trustProxy` ligado, `request.ip` devolve o primeiro `x-forwarded-for` — um
+           * cabeçalho que o próprio chamador escreve. Uma cerca por origem lida assim seria
+           * contornada mandando o endereço permitido nesse cabeçalho.
+           */
+          clientIp: clientIp(request.headers['x-forwarded-for'], request.socket.remoteAddress),
+          channel: 'whatsapp',
+          body: request.body,
+        },
       );
       return reply.send({ handled: outcome.handled });
     } catch (error) {
       // Só o caso de segredo errado ganha linha própria; o resto segue para o tratador
       // global, que já sabe traduzir erro de negócio e falha inesperada.
-      if (error instanceof UnauthorizedError) return recusar('token_nao_confere');
+      if (error instanceof UnauthorizedError) {
+        // Sem segredo apresentado, quem recusou foi a cerca de origem — outro conserto.
+        return recusar(token === '' ? 'sem_segredo_e_origem_recusada' : 'token_nao_confere');
+      }
       throw error;
     }
   }
@@ -214,6 +229,9 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
           baseUrl: z.string().trim().min(1),
           externalAccountId: z.string().trim().min(1),
           accessToken: z.string().trim().min(1),
+          // AT-02: a forma de cada endereço é conferida no caso de uso, que é onde a regra
+          // mora — aqui só se garante que é uma lista de texto.
+          allowedIps: z.array(z.string()).optional(),
         }),
       },
     },
@@ -290,6 +308,7 @@ function integrationDto(integration: ChannelIntegrationView) {
     baseUrl: integration.baseUrl,
     externalAccountId: integration.externalAccountId,
     tokenPreview: integration.tokenPreview,
+    allowedIps: integration.allowedIps,
     active: integration.active,
     connectedAt: integration.connectedAt.toISOString(),
   };

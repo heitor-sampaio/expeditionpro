@@ -16,6 +16,8 @@ export interface ChannelIntegration {
   baseUrl: string;
   externalAccountId: string;
   tokenPreview: string;
+  /** AT-02: de onde o provedor pode chamar. Vazio = cerca desligada. */
+  allowedIps: string[];
   active: boolean;
   connectedAt: string;
 }
@@ -35,6 +37,7 @@ export interface ConnectChannelInput {
   baseUrl: string;
   externalAccountId: string;
   accessToken: string;
+  allowedIps: string[];
 }
 
 export function useChannelIntegrations() {
@@ -106,6 +109,7 @@ export function useChannelIntegrations() {
 /** O código de erro do servidor vira frase em português; a tela nunca vê status HTTP. */
 function mensagem(codigo: string | undefined, status: number): string {
   if (codigo === 'required_field') return 'Preencha o endereço, a instância e a chave.';
+  if (codigo === 'invalid_ip') return 'Endereço liberado inválido: use IP, um por linha.';
   if (status === 401 || status === 403) return 'Conectar um canal exige owner ou admin.';
   if (status === 404) return 'Este canal não está conectado.';
   return 'Não foi possível concluir.';

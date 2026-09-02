@@ -1077,6 +1077,9 @@ model ChannelIntegration {
   externalAccountId String   @map("external_account_id")
   accessToken       String   @map("access_token")
   webhookTokenHash  String   @map("webhook_token_hash")
+  // AT-02 — de onde o provedor pode chamar o webhook. Vazio = cerca desligada, e aí só o
+  // segredo autentica. Existe para instalação que não deixa configurar nada na chamada.
+  allowedIps        String[] @map("allowed_ips")
   active            Boolean  @default(true)
   connectedBy       String?  @map("connected_by") @db.Uuid
   connectedAt       DateTime @default(now()) @map("connected_at")
