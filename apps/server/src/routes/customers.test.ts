@@ -17,7 +17,11 @@ import { inMemoryAuthAdmin } from '../dev/inMemoryAuthAdmin.js';
 import { inMemoryIdentityChange } from '../dev/inMemoryIdentityChange.js';
 import { inMemoryAudit } from '../dev/inMemoryAudit.js';
 import { inMemoryMemberships } from '../dev/inMemoryMemberships.js';
-import { inMemoryChannelIntegrations, inMemoryConversations } from '../dev/inMemoryMessaging.js';
+import {
+  inMemoryChannelIntegrations,
+  inMemoryConversations,
+  inMemoryMessagingGateway,
+} from '../dev/inMemoryMessaging.js';
 import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
 import { inMemoryLegalDocuments } from '../dev/inMemoryLegalDocuments.js';
 import { inMemoryConsents } from '../dev/inMemoryConsents.js';
@@ -73,6 +77,7 @@ async function serverWith(customers: CustomerRepository): Promise<FastifyInstanc
       opportunities: inMemoryOpportunities(),
       channelIntegrations: inMemoryChannelIntegrations(),
       conversations: inMemoryConversations(),
+      messagingGateway: inMemoryMessagingGateway(),
       documents: inMemoryLegalDocuments(),
       consents: inMemoryConsents(),
       community: inMemoryCommunity(),
@@ -612,6 +617,7 @@ describe('PC-01/PC-02: POST /v1/customers/:id/portal-invite', () => {
         opportunities: inMemoryOpportunities(),
         channelIntegrations: inMemoryChannelIntegrations(),
         conversations: inMemoryConversations(),
+        messagingGateway: inMemoryMessagingGateway(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),

@@ -5,9 +5,12 @@ import type {
   ConversationRecord,
   ConversationRepository,
   MessageRecord,
+  MessagingGateway,
   NewChannelIntegration,
   NewConversation,
   NewMessage,
+  OutboundText,
+  SendOutcome,
 } from '@expedition/application';
 
 /**
@@ -176,6 +179,34 @@ export function inMemoryConversations(): ConversationRepository & {
       const i = indice(tenantId, conversationId);
       conversations[i] = { ...conversations[i]!, opportunityId };
       return Promise.resolve(conversations[i]!);
+    },
+  };
+}
+
+/**
+ * Provedor de mensagem em memória — SÓ para dev sem banco e testes de rota (§5.17).
+ *
+ * Aceita tudo e devolve um id sequencial. `falharCom` existe para o teste exercitar o caminho
+ * de recusa, que é onde mora a regra: mensagem que o provedor não aceitou **não** entra no fio.
+ */
+export function inMemoryMessagingGateway(): MessagingGateway & {
+  enviadas: { to: string; text: string }[];
+  falharCom(detalhe: string): void;
+} {
+  const enviadas: { to: string; text: string }[] = [];
+  let falha: string | null = null;
+  let seq = 0;
+
+  return {
+    enviadas,
+    falharCom(detalhe: string) {
+      falha = detalhe;
+    },
+    sendText(message: OutboundText): Promise<SendOutcome> {
+      if (falha !== null) return Promise.resolve({ ok: false, detail: falha });
+      enviadas.push({ to: message.to, text: message.text });
+      seq += 1;
+      return Promise.resolve({ ok: true, externalId: `DEV-${seq}` });
     },
   };
 }

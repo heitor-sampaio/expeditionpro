@@ -105,6 +105,27 @@ export function useInbox() {
     useCallback(() => recarregar(), [recarregar]),
   );
 
+  /**
+   * AT-08 — responder. Devolve o motivo do provedor quando ele recusa: "o número não existe
+   * no WhatsApp" e "não foi possível enviar" levam a lugares diferentes.
+   */
+  const enviar = useCallback(
+    async (id: string, texto: string): Promise<{ ok: true } | { ok: false; message: string }> => {
+      const res = await api(`/v1/inbox/conversations/${encodeURIComponent(id)}/messages`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ body: texto }),
+      });
+      if (res.ok) {
+        recarregar();
+        return { ok: true };
+      }
+      const corpo = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
+      return { ok: false, message: falhaAoEnviar(corpo, res.status) };
+    },
+    [recarregar],
+  );
+
   const abrir = useCallback((id: string) => setOpenId(id), []);
   /** Volta para a lista. No telefone é a única saída: com conversa aberta, a lista some. */
   const fechar = useCallback(() => setOpenId(null), []);
@@ -169,5 +190,26 @@ export function useInbox() {
     [anexar],
   );
 
-  return { list, thread, openId, abrir, fechar, marcarLida, anexar, criarEAnexar, recarregar };
+  return {
+    list,
+    thread,
+    openId,
+    abrir,
+    fechar,
+    enviar,
+    marcarLida,
+    anexar,
+    criarEAnexar,
+    recarregar,
+  };
+}
+
+/** O código do servidor vira frase; o motivo do provedor passa direto, que é o que ajuda. */
+function falhaAoEnviar(corpo: { error?: string; detail?: string }, status: number): string {
+  if (corpo.error === 'send_failed' && corpo.detail) return `O WhatsApp recusou: ${corpo.detail}`;
+  if (corpo.error === 'channel_not_connected')
+    return 'O canal desta conversa não está conectado. Reconecte em Configurações → Integrações.';
+  if (corpo.error === 'required_field') return 'Escreva a mensagem antes de enviar.';
+  if (status === 401 || status === 403) return 'Seu perfil não permite responder.';
+  return 'Não foi possível enviar.';
 }

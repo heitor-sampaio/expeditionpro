@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { buildServer } from '../buildServer.js';
 import { inMemoryServerDeps } from '../dev/inMemoryServerDeps.js';
-import { inMemoryChannelIntegrations, inMemoryConversations } from '../dev/inMemoryMessaging.js';
+import {
+  inMemoryChannelIntegrations,
+  inMemoryConversations,
+  inMemoryMessagingGateway,
+} from '../dev/inMemoryMessaging.js';
 import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
 import type { RequestContext } from '@expedition/application';
 
@@ -21,6 +25,7 @@ function evento(id: string, texto: string) {
 
 async function servidor(role: 'owner' | 'admin' | 'operator' | 'viewer' = 'owner') {
   const conversations = inMemoryConversations();
+  const messagingGateway = inMemoryMessagingGateway();
   const channelIntegrations = inMemoryChannelIntegrations([
     {
       tenantId: TENANT,
@@ -45,12 +50,13 @@ async function servidor(role: 'owner' | 'admin' | 'operator' | 'viewer' = 'owner
     deps: inMemoryServerDeps({
       conversations,
       channelIntegrations,
+      messagingGateway,
       opportunities,
       resolveContext: () => Promise.resolve(ctx),
     }),
   });
   await app.ready();
-  return { app, conversations, channelIntegrations, opportunities };
+  return { app, conversations, channelIntegrations, opportunities, messagingGateway };
 }
 
 /**
@@ -544,6 +550,110 @@ describe('AT-02: a recusa do webhook é diagnosticável pelo log', () => {
 
     expect(res.statusCode).toBe(401);
     expect(linhas.join(' ')).toContain('slug_desconhecido');
+    await app.close();
+  });
+});
+
+/**
+ * AT-08 — responder pela caixa, pelo HTTP.
+ *
+ * A regra que importa mora no caso de uso e está testada lá. Aqui se cobra a borda: que a
+ * recusa do provedor **não** volte como 500 anônimo, e que o motivo dele chegue à tela — é a
+ * diferença entre "não deu" e "o número não existe no WhatsApp".
+ */
+describe('AT-08: POST /v1/inbox/conversations/:id/messages', () => {
+  async function comConversa(role: 'owner' | 'viewer' = 'owner') {
+    const tudo = await servidor(role);
+    await tudo.app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev',
+      headers: { 'x-webhook-token': 'SEGREDO' },
+      payload: evento('MSG-1', 'Quanto custa a Coxilha Rica?'),
+    });
+    return tudo;
+  }
+
+  it('envia e devolve a mensagem gravada', async () => {
+    const { app, conversations } = await comConversa();
+    const id = conversations.conversations[0]!.id;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/inbox/conversations/${id}/messages`,
+      payload: { body: 'Bom dia! Vou te passar os valores.' },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({
+      direction: 'out',
+      body: 'Bom dia! Vou te passar os valores.',
+    });
+    await app.close();
+  });
+
+  // Só espaço passa pelo `min(1)` do Zod e cai no caso de uso, que responde 422 como toda
+  // validação de campo obrigatório neste projeto.
+  it('mensagem só com espaço é recusada', async () => {
+    const { app, conversations } = await comConversa();
+    const id = conversations.conversations[0]!.id;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/inbox/conversations/${id}/messages`,
+      payload: { body: '   ' },
+    });
+
+    expect(res.statusCode).toBe(422);
+    await app.close();
+  });
+
+  it('viewer não responde', async () => {
+    const { app, conversations } = await comConversa('viewer');
+    const id = conversations.conversations[0]!.id;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/inbox/conversations/${id}/messages`,
+      payload: { body: 'oi' },
+    });
+
+    expect(res.statusCode).toBe(403);
+    await app.close();
+  });
+
+  it('recusa do provedor volta como 502, com o motivo dele', async () => {
+    const { app, conversations, messagingGateway } = await comConversa();
+    const id = conversations.conversations[0]!.id;
+    messagingGateway.falharCom('number not exists on whatsapp');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/inbox/conversations/${id}/messages`,
+      payload: { body: 'oi' },
+    });
+
+    expect(res.statusCode).toBe(502);
+    expect(res.json()).toMatchObject({
+      error: 'send_failed',
+      detail: 'number not exists on whatsapp',
+    });
+    expect(conversations.messages).toHaveLength(1);
+    await app.close();
+  });
+
+  it('canal desconectado diz isso, e não vira 500', async () => {
+    const { app, conversations, channelIntegrations } = await comConversa();
+    const id = conversations.conversations[0]!.id;
+    await channelIntegrations.remove(TENANT, 'whatsapp');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/inbox/conversations/${id}/messages`,
+      payload: { body: 'oi' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'channel_not_connected' });
     await app.close();
   });
 });

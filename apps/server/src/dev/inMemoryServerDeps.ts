@@ -15,7 +15,11 @@ import { inMemoryItineraries } from './inMemoryItineraries.js';
 import { inMemoryLegalDocuments } from './inMemoryLegalDocuments.js';
 import { inMemoryMediaConsents } from './inMemoryMediaConsents.js';
 import { inMemoryMemberships } from './inMemoryMemberships.js';
-import { inMemoryChannelIntegrations, inMemoryConversations } from './inMemoryMessaging.js';
+import {
+  inMemoryChannelIntegrations,
+  inMemoryConversations,
+  inMemoryMessagingGateway,
+} from './inMemoryMessaging.js';
 import { inMemoryOpportunities } from './inMemoryOpportunities.js';
 import { inMemoryPayments } from './inMemoryPayments.js';
 import { inMemorySchedule } from './inMemorySchedule.js';
@@ -60,6 +64,7 @@ export function inMemoryServerDeps(override: Partial<ServerDeps> = {}): ServerDe
     opportunities: inMemoryOpportunities(),
     channelIntegrations: inMemoryChannelIntegrations(),
     conversations: inMemoryConversations(),
+    messagingGateway: inMemoryMessagingGateway(),
     documents: inMemoryLegalDocuments(),
     consents: inMemoryConsents(),
     community: inMemoryCommunity(),

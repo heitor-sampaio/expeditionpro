@@ -64,3 +64,4 @@ export {
   prismaChannelIntegrationRepository,
   prismaConversationRepository,
 } from './messaging/prismaMessagingRepositories.js';
+export { evolutionGateway } from './messaging/evolutionGateway.js';

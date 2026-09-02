@@ -7,8 +7,9 @@ import {
   listConversations,
   markConversationRead,
   receiveChannelMessage,
+  sendChannelMessage,
 } from '@expedition/application';
-import { UnauthorizedError } from '@expedition/application';
+import { BusinessRuleError, UnauthorizedError } from '@expedition/application';
 import { z } from 'zod';
 import type {
   ChannelIntegrationView,
@@ -188,6 +189,44 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
         conversationId: request.params.conversationId,
       });
       return reply.status(204).send();
+    },
+  );
+
+  /*
+   * AT-08 — responder pela caixa.
+   *
+   * 502 e não 500 quando o provedor recusa: a falha é de lá, e o motivo dele sobe junto no
+   * corpo. É o que faz a tela dizer "o número não existe no WhatsApp" em vez de "não deu" —
+   * a diferença entre corrigir o contato e sair procurando o que houve.
+   */
+  typed.post(
+    '/v1/inbox/conversations/:conversationId/messages',
+    {
+      schema: {
+        params: z.object({ conversationId: z.string().min(1) }),
+        body: z.object({ body: z.string().min(1) }),
+      },
+    },
+    async (request, reply) => {
+      const ctx = await deps.resolveContext(request);
+      try {
+        const enviada = await sendChannelMessage(
+          {
+            conversations: deps.conversations,
+            integrations: deps.channelIntegrations,
+            gateway: deps.messagingGateway,
+            clock: deps.clock ?? (() => new Date()),
+          },
+          ctx,
+          { conversationId: request.params.conversationId, body: request.body.body },
+        );
+        return reply.status(201).send(messageDto(enviada));
+      } catch (error) {
+        if (error instanceof BusinessRuleError && error.code === 'send_failed') {
+          return reply.status(502).send({ error: error.code, detail: error.message });
+        }
+        throw error;
+      }
     },
   );
 

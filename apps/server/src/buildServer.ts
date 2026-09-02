@@ -14,6 +14,7 @@ import type {
   OpportunityRepository,
   ChannelIntegrationRepository,
   ConversationRepository,
+  MessagingGateway,
   AuthAdminGateway,
   BookingRepository,
   CashbackRepository,
@@ -96,6 +97,8 @@ export interface ServerDeps {
   readonly channelIntegrations: ChannelIntegrationRepository;
   /** §5.17: a caixa de conversas — compartilhada por toda a equipe (AT-07). */
   readonly conversations: ConversationRepository;
+  /** §5.17: por onde a resposta da equipe sai para o provedor (AT-08). */
+  readonly messagingGateway: MessagingGateway;
   /** §5.13: Termo de adesão (versionamento + aceite). */
   readonly documents: LegalDocumentRepository;
   /** §5.9 · DOC-06: consentimento de comunicação por canal (marketing). */

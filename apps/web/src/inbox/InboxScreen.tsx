@@ -35,8 +35,18 @@ const CANAIS: readonly { id: Channel | 'todos'; label: string }[] = [
 ];
 
 export function InboxScreen(): React.JSX.Element {
-  const { list, thread, openId, abrir, fechar, marcarLida, anexar, criarEAnexar, recarregar } =
-    useInbox();
+  const {
+    list,
+    thread,
+    openId,
+    abrir,
+    fechar,
+    enviar,
+    marcarLida,
+    anexar,
+    criarEAnexar,
+    recarregar,
+  } = useInbox();
   const [canal, setCanal] = useState<Channel | 'todos'>('todos');
   const [detalhes, setDetalhes] = useState(false);
 
@@ -181,6 +191,7 @@ export function InboxScreen(): React.JSX.Element {
                 messages={thread.messages}
                 onVoltar={fechar}
                 onDetalhes={() => setDetalhes((atual) => !atual)}
+                onEnviar={enviar}
               />
             )}
           </div>
@@ -242,14 +253,32 @@ function Thread({
   messages,
   onVoltar,
   onDetalhes,
+  onEnviar,
 }: {
   conversation: Conversation;
   messages: Message[];
   onVoltar: () => void;
   onDetalhes: () => void;
+  onEnviar: (id: string, texto: string) => Promise<{ ok: true } | { ok: false; message: string }>;
 }): React.JSX.Element {
   const titulo = contactTitle(conversation);
   const fim = useRef<HTMLDivElement>(null);
+  const [texto, setTexto] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const enviar = async () => {
+    const conteudo = texto.trim();
+    if (conteudo === '' || enviando) return;
+    setEnviando(true);
+    setErro(null);
+    const resultado = await onEnviar(conversation.id, conteudo);
+    setEnviando(false);
+    // Só limpa o campo quando saiu de verdade: apagar o que a pessoa escreveu depois de uma
+    // recusa a obrigaria a digitar de novo, e a recusa costuma ser do provedor, não do texto.
+    if (resultado.ok) setTexto('');
+    else setErro(resultado.message);
+  };
 
   // Fio de conversa se lê pelo fim: é lá que está a mensagem que ainda não foi respondida.
   useEffect(() => {
@@ -306,9 +335,35 @@ function Thread({
         <div ref={fim} />
       </div>
 
-      <div className="feedback feedback-info inbox-foot" role="status">
-        <span className="feedback-dot" />
-        <span>Responder por aqui entra na próxima etapa. Por enquanto, use o botão acima.</span>
+      {erro && (
+        <div className="feedback feedback-error inbox-foot" role="alert">
+          <span className="feedback-dot" />
+          <span>{erro}</span>
+        </div>
+      )}
+
+      <div className="inline-form inbox-foot">
+        <input
+          className="field-input"
+          value={texto}
+          maxLength={4000}
+          disabled={enviando}
+          aria-label="Escreva a resposta"
+          placeholder="Escreva a resposta"
+          onChange={(e) => setTexto(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void enviar();
+          }}
+        />
+        <button
+          type="button"
+          className="inline-send"
+          aria-label="Enviar resposta"
+          disabled={enviando || texto.trim() === ''}
+          onClick={() => void enviar()}
+        >
+          <SendIcon />
+        </button>
       </div>
     </>
   );
@@ -326,4 +381,23 @@ function quando(iso: string | null): string {
   return mesmoDia
     ? data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     : data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+/** Ícone do botão de enviar. Cópia local, como na comunidade: a terceira é que vira comum. */
+function SendIcon(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m4 12 16-8-6 8 6 8z" />
+    </svg>
+  );
 }

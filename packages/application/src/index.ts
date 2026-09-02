@@ -935,6 +935,12 @@ export {
 export { disconnectChannel, type DisconnectChannelCommand } from './messaging/disconnectChannel.js';
 export { listConversations, type InboxDeps } from './messaging/listConversations.js';
 export {
+  sendChannelMessage,
+  type SendChannelMessageDeps,
+  type SendChannelMessageCommand,
+} from './messaging/sendChannelMessage.js';
+export type { MessagingGateway, OutboundText, SendOutcome } from './messaging/messagingGateway.js';
+export {
   getConversation,
   type ConversationThread,
   type GetConversationCommand,
