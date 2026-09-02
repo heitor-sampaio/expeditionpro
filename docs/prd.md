@@ -1,5 +1,5 @@
 # PRD — ExpeditionPRO
-### Sistema de gestão de expedições 4x4 · v1.9.4
+### Sistema de gestão de expedições 4x4 · v1.10.0
 
 ---
 
@@ -12,6 +12,18 @@ A Drakkar opera expedições 4x4 com grupos familiares, veículos próprios dos 
 **Objetivo estratégico:** multi-tenant desde a primeira migration. Virar SaaS deve ser decisão comercial, não rewrite.
 
 **Princípio norteador:** este é um sistema financeiro antes de ser um CRM. Histórico é imutável; saldos são derivados.
+
+> **Sobre o CRM (§5.16, §5.17).** O princípio acima continua valendo e não é retórica: ele
+> decide o que acontece quando o funil e o ledger discordam. O funil vive **antes** do dinheiro
+> e não encosta nele — oportunidade não tem pagamento, não entra em relatório financeiro e não
+> vira linha de caixa. O valor previsto de uma oportunidade é uma aposta sobre o futuro; o
+> ledger só registra o que aconteceu. Quando o negócio fecha, a oportunidade **gera** uma
+> inscrição e para ali: daquele ponto em diante quem manda é o §3.6.
+>
+> Isso é o oposto do CRM que trata a venda como o centro e a contabilidade como consequência.
+> Aqui a contabilidade é o centro, e o funil é a antessala — existe porque hoje quem conversa e
+> não preenche o formulário não deixa rastro nenhum (§5.7.2), não porque o sistema tenha virado
+> outra coisa.
 
 ---
 
@@ -62,6 +74,22 @@ Teste de fumaça obrigatório na fase 0: um teste automatizado que prova que o t
 | **Participante** | `booking_participants` | Cada pessoa dentro de uma inscrição. |
 | **Cliente** | `customers` | Pessoa física. Única por `(tenant_id, cpf)`. |
 | **Fornecedor** | `suppliers` | Parceiro que presta serviço na saída. |
+| **Oportunidade** | `opportunities` | Alguém interessado, **antes** de virar inscrição. O cartão do funil (§5.16). |
+| **Etapa** | `opportunity_stages` | Coluna do funil. Configurável por tenant. |
+| **Conversa** | `conversations` | O fio com uma pessoa num canal de mensagem (§5.17). |
+| **Mensagem** | `messages` | Cada troca dentro de uma conversa. |
+
+> **Oportunidade não é cliente, e a diferença é o CPF.** `customers` exige CPF
+> (`UNIQUE (tenant_id, cpf)`, §4) porque é a identidade que sustenta inscrição, contrato e
+> dinheiro. Quem manda "quanto custa a Coxilha Rica?" no WhatsApp não tem CPF e não deveria
+> precisar de um para ser lembrado. Por isso a oportunidade é entidade própria, e **nunca**
+> vira cliente sozinha: quem promove é a equipe, no ato de fechar (OP-08).
+>
+> **Sobre "canal".** `communication_consents.channel` (§4) já significa `email | push`, e
+> `conversations.channel` significa `whatsapp | instagram | messenger`. É o mesmo conceito —
+> por onde se fala com a pessoa — em granularidade diferente, não um segundo vocabulário. Se
+> um dia houver disparo ativo por WhatsApp, o consentimento daquela tabela cresce para
+> cobri-lo, em vez de nascer um paralelo.
 
 ### 3.2 Clientes e vínculo familiar
 
@@ -526,6 +554,28 @@ post_reports(id, tenant_id, post_id NULL, comment_id NULL,
              resolved_by, resolved_at)
 media_consents(id, tenant_id, customer_id, scope: community|marketing,
                granted_at, revoked_at, source)
+
+opportunity_stages(id, tenant_id, name, position,
+                   kind: open|won|lost, archived_at)
+  UNIQUE (tenant_id, position)
+opportunities(id, tenant_id, stage_id, contact_name, phone, email,
+              itinerary_id NULL, customer_id NULL, booking_id NULL,
+              expected_value_cents NULL, source: manual|whatsapp|instagram|messenger|site,
+              lost_reason NULL, created_at, updated_at, deleted_at)
+
+channel_integrations(id, tenant_id, channel: whatsapp|instagram|messenger,
+                     provider: evolution|meta, base_url, external_account_id,
+                     access_token, webhook_token_hash, active,
+                     connected_by, connected_at)
+  UNIQUE (tenant_id, channel)
+conversations(id, tenant_id, channel, external_id,
+              display_name, customer_id NULL, opportunity_id NULL,
+              last_message_at, unread_count, created_at)
+  UNIQUE (tenant_id, channel, external_id)
+messages(id, tenant_id, conversation_id, external_id,
+         direction: in|out, body, sent_by_user_id NULL,
+         payload jsonb, sent_at, created_at)
+  UNIQUE (tenant_id, conversation_id, external_id)
 ```
 
 ---
@@ -1159,11 +1209,71 @@ Conteúdo em **Markdown**, com HTML renderizado e sanitizado por allowlist na gr
 
 ---
 
+### 5.16 Funil de oportunidades
+
+O que existe hoje começa na inscrição. Quem chama no WhatsApp perguntando da Coxilha Rica,
+recebe o preço e some **não deixa rastro nenhum** — e é exatamente essa pessoa que um funil
+existe para acompanhar. O §5.7.2 reconhece a conversa comercial numa linha ("WhatsApp →
+conversa → formulário") e a trata como acontecendo fora do sistema.
+
+| ID | Requisito |
+|---|---|
+| OP-01 | **Etapas configuráveis pelo tenant**: criar, renomear, reordenar e arquivar. Cada etapa tem um `kind` — `open`, `won` ou `lost`. |
+| OP-02 | Tenant novo nasce com etapas padrão. Quadro que nasce vazio não é usado: a primeira tela precisa mostrar como a coisa funciona. |
+| OP-03 | Oportunidade exige **nome do contato** e mais nada. Telefone, e-mail, roteiro de interesse e valor previsto são opcionais. Pedir CPF aqui seria repetir o erro que o §3.2 evita no formulário: atrito onde ainda não há compromisso. |
+| OP-04 | Criação manual pela tela, e automática a partir de uma conversa (AT-10). |
+| OP-05 | Mover entre etapas. **O movimento vai para a trilha** (`audit_log`, entidade `opportunity`): quem moveu, quando, de qual etapa para qual. Sem isso não há como responder "por que essa venda parou". |
+| OP-06 | **Arquivar etapa é bloqueado enquanto houver oportunidade nela** — o caminho é mover as oportunidades antes. Mesma regra da categoria de fornecedor (FO-05), pelo mesmo motivo: sumiço em silêncio. |
+| OP-07 | Marcar como perdida **exige motivo**. Perda sem motivo é dado que não ensina nada depois. |
+| OP-08 | **Fechar gera a inscrição, e nunca sozinho.** A equipe escolhe o grupo; o cliente é criado ou reaproveitado por CPF (IN-03); a oportunidade guarda o `booking_id` e para de se mover. O CPF é pedido **neste momento**, que é quando existe compromisso para justificá-lo. |
+| OP-09 | **Oportunidade não entra em nenhum relatório financeiro.** `expected_value_cents` é previsão, não caixa — aparece só no funil, sempre rotulado como previsto, e nunca somado a valor recebido, contratado ou em aberto (§3.6). |
+| OP-10 | Exclusão lógica (`deleted_at`). Oportunidade que virou inscrição nunca é apagada. |
+| OP-11 | **Só a equipe.** O cliente não vê funil, não vê etapa e não sabe que existe. `viewer` lê e não move. |
+
+> **Por que a oportunidade não é uma inscrição em outro estado.** Seria mais barato reusar
+> `bookings` com um estado a mais, e seria errado por três motivos. A inscrição exige grupo, e
+> a maior parte das conversas morre antes de existir data escolhida. A inscrição exige CPF, e
+> pedir CPF para responder um preço afasta a venda. E a inscrição é o começo do rastro
+> financeiro — encher a tabela de inscrições com gente que nunca fechou contamina o número que
+> o §3.6 existe para manter confiável.
+
+---
+
+### 5.17 Atendimento (WhatsApp · Instagram · Messenger)
+
+Hoje a equipe **sai do produto** para conversar: o sistema abre um link `wa.me` e volta para
+marcar `phone_verified_at` na mão (§5.7.2). A conversa em si — o que foi combinado, o preço que
+foi dado, quem respondeu — não existe em lugar nenhum.
+
+| ID | Requisito |
+|---|---|
+| AT-01 | Conexão de canal por tenant, em Configurações → Integrações, no mesmo molde do gateway (§5.14): o segredo que precisa voltar em claro é **cifrado**; o que só se compara é **hasheado**. O segredo aparece **uma vez**, no ato de conectar. |
+| AT-02 | Webhook por provedor, autenticado pelo segredo. **Slug desconhecido e segredo errado respondem igual (401)** — a diferença enumera os tenants da plataforma (SEC). |
+| AT-03 | **Idempotência pelo id da mensagem no provedor.** Todos reenviam até receber `200`; mensagem repetida não vira linha nova. |
+| AT-04 | O corpo cru do webhook é guardado em `payload`, como o intake faz (IN-01), e **nunca vai para o log da aplicação** — mensagem é conteúdo pessoal. |
+| AT-05 | A conversa é identificada por `(canal, id externo)`. Instagram e Messenger entregam um id opaco por aplicativo, não telefone nem e-mail: **casar por identidade real é impossível nesses canais, e fingir que dá é o caminho para misturar duas pessoas**. |
+| AT-06 | No WhatsApp, tenta casar o telefone com um cliente existente e vincula. Não achou, a conversa fica solta. **Nunca cria cliente sozinho** (§5.7.2: auto-merge silencioso corrompe a base). |
+| AT-07 | **Caixa compartilhada**: toda a equipe vê e responde qualquer conversa. Conversa parada porque o dono dela está na estrada é pior que conversa sem dono. |
+| AT-08 | Toda mensagem enviada grava **quem da equipe respondeu**. É o que a caixa compartilhada troca pela atribuição. |
+| AT-09 | A caixa atualiza ao vivo, sem recarregar. |
+| AT-10 | Anexar uma conversa a uma oportunidade — existente ou criada ali, com o nome já preenchido pelo canal. É a ponte entre §5.16 e §5.17. |
+| AT-11 | **O cliente não vê a caixa.** O portal (§5.11) não ganha chat nesta fase; as tabelas nascem sem policy de cliente. |
+| AT-12 | Na Meta, mensagem livre só nas **24h** após a última mensagem da pessoa. Fora da janela, a tela recusa e explica — regra de negócio visível, não erro de API traduzido. |
+| AT-13 | Mídia (foto, áudio, documento) chega numa fase posterior: exige baixar do provedor **no servidor** e guardar em bucket privado por tenant, caminho diferente do upload pelo navegador que existe hoje (CO-09). Até lá, mensagem com mídia mostra que veio mídia e não o conteúdo. |
+
+> **Um port, quatro provedores.** WhatsApp pela Evolution API (auto-hospedada) e Instagram e
+> Messenger pela Graph API da Meta são adaptadores diferentes de um mesmo port de mensageria
+> (§10.1). O domínio conhece conversa e mensagem; não conhece Evolution nem Meta. É o que
+> permite trocar a Evolution pela API oficial do WhatsApp sem tocar em regra de negócio — e
+> essa troca é previsível, porque número pareado por QR pode ser bloqueado.
+
+---
+
 ## 6. Fora de escopo no v1
 
 
 
-Emissão automática de NFS-e (só o gancho fica previsto) · conversão multi-moeda · uso offline · comunidade cross-tenant · mensagem direta entre clientes · **editor de campos personalizados** (as colunas `jsonb` e a tabela de definição entram desde já; a tela de edição espera o segundo tenant, §3.8) · **formulário público hospedado** — o tenant mantém o próprio front (§5.7.1) · publicação nas lojas antes do sistema estar em uso real.
+Emissão automática de NFS-e (só o gancho fica previsto) · conversão multi-moeda · uso offline · comunidade cross-tenant · **mensagem direta entre clientes** (segue fora: o §5.17 abre equipe ↔ pessoa de fora, nunca cliente ↔ cliente) · **chat no portal do cliente** (AT-11) · **mídia nas conversas** (AT-13) · **editor de campos personalizados** (as colunas `jsonb` e a tabela de definição entram desde já; a tela de edição espera o segundo tenant, §3.8) · **formulário público hospedado** — o tenant mantém o próprio front (§5.7.1) · publicação nas lojas antes do sistema estar em uso real.
 
 ---
 

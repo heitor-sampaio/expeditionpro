@@ -21,8 +21,17 @@ Testes: Vitest · Playwright · Postgres real, nunca mock
 | Participante | `bookingParticipant` | Cada pessoa numa inscrição |
 | Cliente | `customer` | Pessoa física, única por `(tenantId, cpf)` |
 | Fornecedor | `supplier` | Parceiro que presta serviço na saída |
+| Oportunidade | `opportunity` | Interessado **antes** de virar inscrição — o cartão do funil |
+| Etapa | `stage` | Coluna do funil, configurável por tenant |
+| Conversa | `conversation` | O fio com uma pessoa num canal |
+| Mensagem | `message` | Cada troca dentro de uma conversa |
 
 Nunca traduza de novo. Dois vocabulários = bug de conversa e bug de código.
+
+**Oportunidade não é cliente:** `customer` exige CPF, e quem pergunta o preço no WhatsApp não
+tem. Oportunidade nunca vira cliente sozinha — quem promove é a equipe, ao fechar (OP-08).
+**Oportunidade não é dinheiro:** `expectedValueCents` é previsão e não entra em relatório
+financeiro nenhum (OP-09).
 
 ## Camadas
 
