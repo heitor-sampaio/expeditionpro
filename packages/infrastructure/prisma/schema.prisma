@@ -74,6 +74,9 @@ model Tenant {
   couponRedemptions      CouponRedemption[]
   opportunityStages      OpportunityStage[]
   opportunities          Opportunity[]
+  channelIntegrations    ChannelIntegration[]
+  conversations          Conversation[]
+  messages               Message[]
 
   @@map("tenants")
 }
@@ -149,6 +152,7 @@ model Customer {
   mediaConsents          MediaConsent[]
   coupons                Coupon[]
   opportunities          Opportunity[]
+  conversations          Conversation[]
   couponRedemptions      CouponRedemption[]
 
   @@unique([tenantId, cpf])
@@ -1051,7 +1055,91 @@ model Opportunity {
   customer  Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
   booking   Booking?         @relation(fields: [bookingId], references: [id], onDelete: SetNull)
 
+  conversations Conversation[]
+
   @@index([tenantId, stageId])
   @@index([tenantId, phone])
   @@map("opportunities")
+}
+
+// §5.17 — a conexão do tenant com cada canal de mensagem.
+//
+// Espelha `payment_integrations`, inclusive na divisão dos segredos: `access_token` é
+// **cifrado** (precisa voltar em claro para chamar a API do provedor) e `webhook_token_hash`
+// é só sha256 (só se compara). A cifra vive na infraestrutura; a aplicação não a conhece.
+model ChannelIntegration {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  channel           String // whatsapp | instagram | messenger
+  provider          String // evolution | meta
+  baseUrl           String   @map("base_url")
+  // Nome da instância na Evolution; id da página/conta na Meta.
+  externalAccountId String   @map("external_account_id")
+  accessToken       String   @map("access_token")
+  webhookTokenHash  String   @map("webhook_token_hash")
+  active            Boolean  @default(true)
+  connectedBy       String?  @map("connected_by") @db.Uuid
+  connectedAt       DateTime @default(now()) @map("connected_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Uma conexão por canal: reconectar atualiza, não empilha.
+  @@unique([tenantId, channel])
+  @@index([tenantId])
+  @@map("channel_integrations")
+}
+
+// §5.17 — o fio com uma pessoa num canal.
+//
+// A chave é `(canal, id da pessoa no canal)`. No WhatsApp esse id é o telefone; no Instagram
+// e no Messenger é um id opaco por aplicativo, que não é telefone nem e-mail e não serve para
+// achar a pessoa em lugar nenhum — casar por identidade real ali é impossível.
+model Conversation {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  channel       String
+  channelUserId String    @map("channel_user_id")
+  displayName   String?   @map("display_name")
+  // Vínculos opcionais: a conversa existe sozinha, e a equipe liga quando souber quem é.
+  customerId    String?   @map("customer_id") @db.Uuid
+  opportunityId String?   @map("opportunity_id") @db.Uuid
+  lastMessageAt DateTime? @map("last_message_at")
+  unreadCount   Int       @default(0) @map("unread_count")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer    Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  messages    Message[]
+
+  @@unique([tenantId, channel, channelUserId])
+  @@index([tenantId, lastMessageAt])
+  @@map("conversations")
+}
+
+// §5.17 — cada troca dentro de uma conversa.
+//
+// `external_id` é o id da mensagem no provedor e é a marca de idempotência (AT-03): todo
+// provedor reenvia até receber 200. `payload` guarda o corpo cru, como `intake_events` faz —
+// e, como lá, ele **nunca** vai para o log da aplicação: mensagem é conteúdo pessoal (AT-04).
+model Message {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  externalId     String   @map("external_id")
+  direction      String // in | out
+  body           String
+  // AT-08: quem da equipe respondeu. Null em mensagem recebida — e também na que sai pelo
+  // celular pareado, porque o provedor não diz quem digitou.
+  sentByUserId   String?  @map("sent_by_user_id") @db.Uuid
+  payload        Json
+  sentAt         DateTime @map("sent_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, externalId])
+  @@index([tenantId, conversationId, sentAt])
+  @@map("messages")
 }

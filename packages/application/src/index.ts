@@ -899,3 +899,26 @@ export {
   type SetOpportunityItineraryDeps,
   type SetOpportunityItineraryCommand,
 } from './crm/setOpportunityItinerary.js';
+
+// §5.17 — atendimento
+export {
+  receiveChannelMessage,
+  type ReceiveChannelMessageDeps,
+  type ReceiveChannelMessageCommand,
+  type ReceiveOutcome,
+} from './messaging/receiveChannelMessage.js';
+export type {
+  Channel,
+  MessageDirection,
+  ConversationRecord,
+  ConversationRepository,
+  MessageRecord,
+  NewConversation,
+  NewMessage,
+} from './messaging/conversationRepository.js';
+export type {
+  ChannelProvider,
+  ChannelIntegrationRecord,
+  ChannelIntegrationRepository,
+  NewChannelIntegration,
+} from './messaging/channelIntegrationRepository.js';

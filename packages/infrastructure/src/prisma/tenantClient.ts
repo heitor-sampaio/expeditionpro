@@ -69,6 +69,10 @@ export const SCOPED_BY_TENANT_ID = new Set([
   // deixa passar cru e o quadro de um tenant mostraria oportunidade de outro.
   'OpportunityStage',
   'Opportunity',
+  // §5.17 — atendimento.
+  'ChannelIntegration',
+  'Conversation',
+  'Message',
 ]);
 export const SCOPED_BY_ID = new Set(['Tenant']);
 
