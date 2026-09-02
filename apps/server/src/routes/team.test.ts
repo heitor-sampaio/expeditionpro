@@ -208,3 +208,30 @@ describe('PC-07: fila de identidade no back-office', () => {
     await app.close();
   });
 });
+
+/**
+ * SEC — a resposta que carrega o link de acesso não é guardada por ninguém.
+ *
+ * O convite devolve `actionLink` no corpo: um magic link que **loga como a pessoa
+ * convidada**. Isso é deliberado — sem SMTP configurado, é assim que a equipe entrega o
+ * acesso à mão —, mas uma credencial num corpo de resposta não pode ficar em cache de
+ * proxy, de CDN ou do próprio navegador.
+ *
+ * `no-store` é o que diz "não escreva isto em lugar nenhum", diferente de `no-cache`, que
+ * permite guardar e só exige revalidar.
+ */
+describe('SEC: a resposta com link de acesso não vai para cache', () => {
+  it('o convite de equipe responde com no-store', async () => {
+    const app = await serverWith(inMemoryAuthAdmin());
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/team/invitations',
+      payload: { email: 'novo@drakkar.com', role: 'operator' },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.headers['cache-control']).toContain('no-store');
+    await app.close();
+  });
+});

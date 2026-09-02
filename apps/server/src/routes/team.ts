@@ -44,7 +44,17 @@ export function registerTeamRoutes(app: FastifyInstance, deps: ServerDeps): void
           role: request.body.role,
         },
       );
-      return reply.status(201).send({ userId: invited.userId, actionLink: invited.actionLink });
+      /*
+       * SEC — o corpo carrega um magic link que **loga como a pessoa convidada**. Isso é
+       * deliberado: sem SMTP configurado, é assim que a equipe entrega o acesso à mão. Mas
+       * credencial em corpo de resposta não pode ficar em cache de proxy, de CDN ou do
+       * navegador — `no-store` é o que proíbe guardar, diferente de `no-cache`, que só
+       * exige revalidar.
+       */
+      return reply
+        .status(201)
+        .header('cache-control', 'no-store')
+        .send({ userId: invited.userId, actionLink: invited.actionLink });
     },
   );
 

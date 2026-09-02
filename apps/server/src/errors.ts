@@ -25,6 +25,17 @@ import type { FastifyInstance } from 'fastify';
  * então o mapeamento é por instância, não por string.
  */
 export function installErrorHandler(app: FastifyInstance): void {
+  /*
+   * SEC — rota inexistente responde no formato do sistema.
+   *
+   * O handler padrão do Fastify devolvia `{"message":"Route GET:/x not found","error":"Not
+   * Found","statusCode":404}`: formato diferente de todo o resto (que é `{ error: <código> }`),
+   * com o caminho pedido ecoado de volta e o nome do servidor de brinde. Nada grave sozinho,
+   * mas é o hábito oposto ao do handler abaixo, escrito justamente para nunca devolver o que
+   * recebeu.
+   */
+  app.setNotFoundHandler((_request, reply) => reply.status(404).send({ error: 'not_found' }));
+
   app.setErrorHandler((error, request, reply) => {
     if (hasZodFastifySchemaValidationErrors(error)) {
       return reply.status(400).send({ error: 'validation_failed' });

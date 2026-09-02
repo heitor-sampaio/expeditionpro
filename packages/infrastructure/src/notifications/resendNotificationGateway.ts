@@ -1,4 +1,5 @@
 import type { BookingNotification, NotificationGateway } from '@expedition/application';
+import { OUTBOUND_TIMEOUT_MS } from '../outbound.js';
 
 /**
  * Notificações via Resend (PC-23). Chamada REST direta (fetch): a API key é segredo, só
@@ -10,19 +11,26 @@ import type { BookingNotification, NotificationGateway } from '@expedition/appli
 export interface ResendConfig {
   readonly apiKey: string;
   readonly from: string; // remetente verificado no Resend
+  /** Injetável para o teste de prazo; em produção é o `fetch` do runtime. */
+  readonly fetchImpl?: typeof fetch | undefined;
+  readonly timeoutMs?: number | undefined;
 }
 
 export function resendNotificationGateway(config: ResendConfig): NotificationGateway {
+  const call = config.fetchImpl ?? fetch;
+  const timeoutMs = config.timeoutMs ?? OUTBOUND_TIMEOUT_MS;
   return {
     async sendBookingNotification(notification: BookingNotification): Promise<void> {
       const { subject, html } = render(notification);
-      const res = await fetch('https://api.resend.com/emails', {
+      const res = await call('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
           authorization: `Bearer ${config.apiKey}`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({ from: config.from, to: notification.to, subject, html }),
+        // SEC: sem sinal, `fetch` espera para sempre. Ver `OUTBOUND_TIMEOUT_MS`.
+        signal: AbortSignal.timeout(timeoutMs),
       });
       if (!res.ok) {
         throw new Error(`Resend respondeu ${res.status}`);

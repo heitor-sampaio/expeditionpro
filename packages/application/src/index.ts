@@ -866,3 +866,8 @@ export {
   type ChangeTeamRoleCommand,
 } from './team/changeTeamRole.js';
 export type { MembershipRecord, MembershipRepository } from './team/membershipRepository.js';
+export {
+  listPostComments,
+  type ListPostCommentsDeps,
+  type ListPostCommentsCommand,
+} from './community/listPostComments.js';

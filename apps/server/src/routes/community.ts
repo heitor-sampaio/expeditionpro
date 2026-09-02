@@ -5,6 +5,7 @@ import {
   deleteOwnPost,
   getCommunityFeed,
   getModerationQueue,
+  listPostComments,
   moderatePost,
   reportContent,
   resolveReport,
@@ -115,8 +116,9 @@ export function registerCommunityRoutes(app: FastifyInstance, deps: ServerDeps):
     { schema: { params: z.object({ postId: z.string().min(1) }) } },
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
-      // Leitura direta do repo (equipe e cliente leem os comentários publicados).
-      const rows = await deps.community.listComments(ctx.tenantId, request.params.postId);
+      const rows = await listPostComments({ community: deps.community }, ctx, {
+        postId: request.params.postId,
+      });
       const viewer = viewerCustomerId(ctx);
       return reply.send(rows.map((row) => commentDto(row, viewer)));
     },

@@ -5,6 +5,7 @@ import type {
   PortalInvite,
   TeamInvite,
 } from '@expedition/application';
+import { OUTBOUND_TIMEOUT_MS } from '../outbound.js';
 
 /**
  * Implementação do port de admin de identidade via **Admin API** do Supabase (GoTrue).
@@ -17,6 +18,9 @@ import type {
 export interface SupabaseAuthAdminConfig {
   readonly url: string;
   readonly serviceRoleKey: string;
+  /** Injetável para o teste de prazo; em produção é o `fetch` do runtime. */
+  readonly fetchImpl?: typeof fetch | undefined;
+  readonly timeoutMs?: number | undefined;
 }
 
 interface CreatedUser {
@@ -25,6 +29,8 @@ interface CreatedUser {
 
 export function supabaseAuthAdmin(config: SupabaseAuthAdminConfig): AuthAdminGateway {
   const base = config.url.replace(/\/+$/, '');
+  const call = config.fetchImpl ?? fetch;
+  const timeoutMs = config.timeoutMs ?? OUTBOUND_TIMEOUT_MS;
   const headers = {
     apikey: config.serviceRoleKey,
     authorization: `Bearer ${config.serviceRoleKey}`,
@@ -37,10 +43,12 @@ export function supabaseAuthAdmin(config: SupabaseAuthAdminConfig): AuthAdminGat
     email: string,
     appMetadata: Record<string, string>,
   ): Promise<InvitedUser> {
-    const created = await fetch(`${base}/auth/v1/admin/users`, {
+    const created = await call(`${base}/auth/v1/admin/users`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ email, email_confirm: false, app_metadata: appMetadata }),
+      // SEC: sem sinal, `fetch` espera para sempre. Ver `OUTBOUND_TIMEOUT_MS`.
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (created.status === 409 || created.status === 422) {
       throw new BusinessRuleError('email_already_registered', 'E-mail já tem conta neste sistema');
@@ -50,10 +58,11 @@ export function supabaseAuthAdmin(config: SupabaseAuthAdminConfig): AuthAdminGat
     }
     const user = (await created.json()) as CreatedUser;
 
-    const link = await fetch(`${base}/auth/v1/admin/generate_link`, {
+    const link = await call(`${base}/auth/v1/admin/generate_link`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ type: 'magiclink', email }),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const actionLink = link.ok
       ? (((await link.json()) as { action_link?: string }).action_link ?? null)

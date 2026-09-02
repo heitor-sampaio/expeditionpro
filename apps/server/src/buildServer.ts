@@ -159,6 +159,19 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
      *     esse IP é evidência jurídica de consentimento.
      */
     trustProxy: true,
+    /*
+     * SEC — o servidor também desiste.
+     *
+     * Sem prazo, uma conexão que abre e não termina de enviar o corpo fica aberta
+     * indefinidamente: é slowloris, e não precisa de má intenção — rede móvel ruim no meio
+     * de uma saída produz o mesmo efeito. Cada conexão pendurada é um socket que não volta.
+     *
+     * `requestTimeout` é o prazo para a requisição inteira chegar; `connectionTimeout`, para
+     * o socket ocioso antes disso. 30s é folgado para qualquer upload que este sistema faz —
+     * a foto da comunidade é comprimida no navegador antes de subir.
+     */
+    requestTimeout: 30_000,
+    connectionTimeout: 30_000,
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);

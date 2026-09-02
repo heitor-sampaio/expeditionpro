@@ -1,3 +1,4 @@
+import { OUTBOUND_TIMEOUT_MS } from '../outbound.js';
 import type {
   GatewayAccount,
   GatewaySettlement,
@@ -41,7 +42,10 @@ interface AsaasPayment {
   readonly status?: string;
 }
 
-export function asaasGateway(fetchImpl: typeof fetch = fetch): PaymentGateway {
+export function asaasGateway(
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = OUTBOUND_TIMEOUT_MS,
+): PaymentGateway {
   const call = async (
     credentials: GatewayCredentials,
     path: string,
@@ -57,6 +61,8 @@ export function asaasGateway(fetchImpl: typeof fetch = fetch): PaymentGateway {
         'User-Agent': 'ExpeditionPRO',
       },
       ...(init?.body ? { body: JSON.stringify(init.body) } : {}),
+      // SEC: sem sinal, `fetch` espera para sempre. Ver `OUTBOUND_TIMEOUT_MS`.
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const body: unknown = await response.json().catch(() => null);
     return { ok: response.ok, status: response.status, body };
