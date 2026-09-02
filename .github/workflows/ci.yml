@@ -67,9 +67,10 @@ jobs:
       - name: Typecheck dos testes
         run: pnpm typecheck:tests
 
-      - name: Guardas de política (RLS em toda tabela · sem TODO)
+      - name: Guardas de política (RLS em toda tabela · sem SQL cru · sem TODO)
         run: |
           pnpm check:rls
+          pnpm check:raw-sql
           pnpm check:markers
 
       - name: Testes unitários (domínio puro)
