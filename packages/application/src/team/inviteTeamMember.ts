@@ -1,4 +1,6 @@
 import { actorUserId } from '../audit/auditLogRepository.js';
+import type { MembershipRepository } from './membershipRepository.js';
+import type { TeamRole } from '../context.js';
 import type { AuditLogRepository } from '../audit/auditLogRepository.js';
 import { BusinessRuleError, ForbiddenError } from '../errors.js';
 import type { RequestContext } from '../context.js';
@@ -17,6 +19,7 @@ const GRANTABLE_ROLES = new Set(['admin', 'operator', 'viewer']);
 
 export interface InviteTeamMemberDeps {
   readonly authAdmin: AuthAdminGateway;
+  readonly memberships: MembershipRepository;
   readonly audit: AuditLogRepository;
 }
 
@@ -46,6 +49,20 @@ export async function inviteTeamMember(
     tenantId: ctx.tenantId,
     role: command.role,
   });
+
+  /*
+   * SEC-17 — a linha de acesso é o que a lista lê e o que a revogação apaga, e é ela que
+   * o resolvedor de contexto consulta a cada requisição. Sem gravá-la aqui, o papel
+   * viveria só no `app_metadata` do login: invisível para o sistema e impossível de tirar
+   * sem o painel do Supabase. Gravada depois do convite: e-mail já cadastrado é recusado
+   * pelo Supabase, e a recusa não pode deixar acesso órfão.
+   */
+  await deps.memberships.grant(
+    ctx.tenantId,
+    invited.userId,
+    command.email.trim(),
+    command.role as TeamRole,
+  );
 
   /*
    * A09 — convite **cria conta de acesso**. Quem concedeu, para quem e com qual papel é

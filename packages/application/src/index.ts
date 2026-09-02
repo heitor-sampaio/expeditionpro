@@ -853,3 +853,11 @@ export type {
   NewRedemption,
   RedemptionRecord,
 } from './coupons/couponRepository.js';
+
+export { listTeamMembers, type TeamAccessDeps } from './team/listTeamMembers.js';
+export {
+  revokeTeamAccess,
+  type RevokeTeamAccessDeps,
+  type RevokeTeamAccessCommand,
+} from './team/revokeTeamAccess.js';
+export type { MembershipRecord, MembershipRepository } from './team/membershipRepository.js';

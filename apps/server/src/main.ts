@@ -22,13 +22,18 @@ import {
   prismaUnitOfWork,
   resendNotificationGateway,
   supabaseAuthAdmin,
+  prismaMembershipRepository,
   prismaPaymentIntegrationRepository,
   prismaPaymentChargeRepository,
   newWebhookSecret,
   asaasGateway,
   createTokenCipher,
 } from '@expedition/infrastructure';
-import type { AuthAdminGateway, NotificationGateway } from '@expedition/application';
+import type {
+  AuthAdminGateway,
+  NotificationGateway,
+  RequestContext,
+} from '@expedition/application';
 import type { TokenCipher } from '@expedition/infrastructure';
 import { buildServer, type ServerDeps } from './buildServer.js';
 import { inMemoryCustomers } from './dev/inMemoryCustomers.js';
@@ -45,6 +50,7 @@ import { inMemoryCashback } from './dev/inMemoryCashback.js';
 import { inMemoryCoupons } from './dev/inMemoryCoupons.js';
 import { inMemoryIdentityChange } from './dev/inMemoryIdentityChange.js';
 import { inMemoryAudit } from './dev/inMemoryAudit.js';
+import { inMemoryMemberships } from './dev/inMemoryMemberships.js';
 import { inMemoryLegalDocuments } from './dev/inMemoryLegalDocuments.js';
 import { inMemoryConsents } from './dev/inMemoryConsents.js';
 import { inMemoryCommunity } from './dev/inMemoryCommunity.js';
@@ -54,6 +60,7 @@ import {
 } from './dev/inMemoryPaymentGateway.js';
 import { inMemoryMediaConsents } from './dev/inMemoryMediaConsents.js';
 import { makeJwksResolveContext, makeJwtResolveContext } from './auth/resolveContext.js';
+import { withMembershipCheck } from './auth/withMembership.js';
 import { authConfigFrom, requireDatabase } from './auth/authRequired.js';
 import { missingEnvWarning } from './env/missingEnvWarning.js';
 import type { FastifyRequest } from 'fastify';
@@ -124,6 +131,7 @@ function buildDeps(): ServerDeps {
     const bookings = inMemoryBookings();
     return {
       customers: inMemoryCustomers(),
+      memberships: inMemoryMemberships(),
       vehicles: inMemoryVehicles(),
       itineraries: inMemoryItineraries(),
       schedule: inMemorySchedule(),
@@ -181,6 +189,7 @@ function buildDeps(): ServerDeps {
     uow: prismaUnitOfWork(base),
     authAdmin: buildAuthAdmin(),
     notifications: buildNotifications(),
+    memberships: prismaMembershipRepository(base),
     resolveContext: resolveContextForProd(base),
   };
 }
@@ -199,8 +208,17 @@ function resolveContextForProd(base: ReturnType<typeof createPrismaClient>) {
    */
   const config = authConfigFrom(process.env, process.env['NODE_ENV']);
 
-  if (config.kind === 'jwks') return makeJwksResolveContext(config.url, config.issuer);
-  if (config.kind === 'secret') return makeJwtResolveContext(config.secret, config.issuer);
+  /*
+   * SEC-17: com auth real, o token prova quem é a pessoa e o banco decide o que ela pode.
+   * O stub de dev fica **de fora** de propósito: ele já é declaradamente sem auth, e
+   * exigir linha de acesso ali trancaria o desenvolvimento local, onde ninguém tem uma.
+   */
+  const comAcesso = (resolve: (request: FastifyRequest) => Promise<RequestContext>) =>
+    withMembershipCheck(resolve, { memberships: prismaMembershipRepository(base) });
+
+  if (config.kind === 'jwks') return comAcesso(makeJwksResolveContext(config.url, config.issuer));
+  if (config.kind === 'secret')
+    return comAcesso(makeJwtResolveContext(config.secret, config.issuer));
 
   console.warn(
     '[dev] SUPABASE_URL/JWKS/JWT_SECRET ausentes — resolveContext usa stub por x-tenant-slug (SEM auth).',

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fakeMembershipRepository } from './team/membershipRepository.fake.js';
 import { fakeAuditLogRepository } from './audit/auditLogRepository.fake.js';
 import { fakeCustomerRepository } from './customers/customerRepository.fake.js';
 import { fakeIdentityChangeRepository } from './identity/identityChangeRepository.fake.js';
@@ -98,7 +99,7 @@ describe('A09: convite deixa trilha — cria conta de acesso', () => {
   it('§3.7: convite de equipe grava quem convidou, para qual e-mail e com qual papel', async () => {
     const audit = fakeAuditLogRepository();
 
-    await inviteTeamMember({ authAdmin, audit }, owner, {
+    await inviteTeamMember({ authAdmin, audit, memberships: fakeMembershipRepository() }, owner, {
       email: 'novo@drakkar.com',
       role: 'operator',
     });

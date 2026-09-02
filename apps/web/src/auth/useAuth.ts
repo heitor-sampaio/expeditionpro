@@ -14,6 +14,8 @@ export type AuthState =
   | { status: 'signed-out' }
   | {
       status: 'signed-in';
+      /** SEC-17: id do login. A tela de acesso usa para não oferecer remover a si mesmo. */
+      userId: string;
       email: string | null;
       role: string | null;
       customerId: string | null;
@@ -44,6 +46,7 @@ function toState(session: Session | null): AuthState {
   const meta = (session.user.app_metadata ?? {}) as { role?: string; customer_id?: string };
   return {
     status: 'signed-in',
+    userId: session.user.id,
     email: session.user.email ?? null,
     role: meta.role ?? null,
     customerId: meta.customer_id ?? null,

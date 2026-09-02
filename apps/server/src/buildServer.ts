@@ -10,6 +10,7 @@ import {
 import type {
   ApiKeyRepository,
   AuditLogRepository,
+  MembershipRepository,
   AuthAdminGateway,
   BookingRepository,
   CashbackRepository,
@@ -81,6 +82,8 @@ export interface ServerDeps {
   readonly identityRequests: IdentityChangeRepository;
   /** §3.2.1 · A09: trilha de auditoria das ações sensíveis (reorg, merge, chave, CPF). */
   readonly audit: AuditLogRepository;
+  /** SEC-17: quem tem acesso ao sistema. Fonte da verdade do papel, lida por requisição. */
+  readonly memberships: MembershipRepository;
   /** §5.13: Termo de adesão (versionamento + aceite). */
   readonly documents: LegalDocumentRepository;
   /** §5.9 · DOC-06: consentimento de comunicação por canal (marketing). */

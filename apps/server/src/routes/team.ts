@@ -2,6 +2,8 @@ import {
   decideIdentityChange,
   inviteTeamMember,
   listIdentityChangeRequests,
+  listTeamMembers,
+  revokeTeamAccess,
 } from '@expedition/application';
 import { maskCpf, parseCpf, type LocalDate } from '@expedition/domain';
 import { z } from 'zod';
@@ -34,7 +36,7 @@ export function registerTeamRoutes(app: FastifyInstance, deps: ServerDeps): void
       }
       const ctx = await deps.resolveContext(request);
       const invited: InvitedUser = await inviteTeamMember(
-        { authAdmin: deps.authAdmin, audit: deps.audit },
+        { authAdmin: deps.authAdmin, audit: deps.audit, memberships: deps.memberships },
         ctx,
         {
           email: request.body.email,
@@ -42,6 +44,39 @@ export function registerTeamRoutes(app: FastifyInstance, deps: ServerDeps): void
         },
       );
       return reply.status(201).send({ userId: invited.userId, actionLink: invited.actionLink });
+    },
+  );
+
+  /*
+   * SEC-17 — quem tem acesso ao sistema.
+   *
+   * O DTO não devolve nada além do necessário para a tela decidir: e-mail, papel e desde
+   * quando. O `userId` vai porque é a chave da remoção — é o id do login no Supabase, não
+   * um dado pessoal, e sem ele a tela não teria como apontar quem remover.
+   */
+  typed.get('/v1/team/members', async (request, reply) => {
+    const ctx = await deps.resolveContext(request);
+    const membros = await listTeamMembers({ memberships: deps.memberships }, ctx);
+    return reply.send(
+      membros.map((m) => ({
+        userId: m.userId,
+        email: m.email,
+        role: m.role,
+        since: m.createdAt.toISOString().slice(0, 10),
+      })),
+    );
+  });
+
+  // SEC-17 — tira o acesso. Vale na requisição seguinte, não quando o token expirar.
+  typed.delete(
+    '/v1/team/members/:userId',
+    { schema: { params: z.object({ userId: z.string().min(1) }) } },
+    async (request, reply) => {
+      const ctx = await deps.resolveContext(request);
+      await revokeTeamAccess({ memberships: deps.memberships, audit: deps.audit }, ctx, {
+        userId: request.params.userId,
+      });
+      return reply.status(204).send();
     },
   );
 

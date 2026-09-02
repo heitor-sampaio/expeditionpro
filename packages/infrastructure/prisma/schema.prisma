@@ -81,6 +81,9 @@ model Membership {
   tenantId  String   @map("tenant_id") @db.Uuid
   userId    String   @map("user_id") @db.Uuid
   role      String // owner | admin | operator | viewer
+  /// SEC-17: desnormalizado do Supabase Auth para a lista de acesso ser legível sem
+  /// uma chamada à Admin API por linha.
+  email     String?
   createdAt DateTime @default(now()) @map("created_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)

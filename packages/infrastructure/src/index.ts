@@ -58,3 +58,4 @@ export {
 } from './payments/prismaPaymentGatewayRepositories.js';
 export { asaasGateway } from './payments/asaasGateway.js';
 export { createTokenCipher, type TokenCipher } from './payments/tokenCipher.js';
+export { prismaMembershipRepository } from './team/prismaMembershipRepository.js';
