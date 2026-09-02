@@ -112,10 +112,7 @@ export function inMemoryConversations(): ConversationRepository & {
     conversations,
     messages,
 
-    findByChannelUser: (tenantId, channel: Channel, identidade) => {
-      const formas = [identidade.channelUserId, identidade.phone].filter(
-        (forma): forma is string => forma !== null,
-      );
+    findByChannelUser: (tenantId, channel: Channel, formas) => {
       return Promise.resolve(
         conversations.find(
           (c) =>

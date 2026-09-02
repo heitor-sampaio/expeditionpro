@@ -82,12 +82,16 @@ export interface ConversationRepository {
    * AT-05 — procura pelas **duas** formas de endereçamento do mesmo contato.
    *
    * Durante a migração do WhatsApp para o LID a mesma pessoa chega ora por telefone, ora por
-   * LID. Procurar só por uma abriria um segundo fio, e o histórico ficaria partido ao meio.
+   * LID — e o telefone ainda vem em duas grafias, com e sem o nono dígito (AT-06). Procurar
+   * por uma só abriria um segundo fio, e o histórico ficaria partido ao meio.
+   *
+   * `formas` são todas as maneiras de escrever quem é esse contato. Quem monta a lista é o
+   * caso de uso: é ele que conhece as regras de identidade.
    */
   findByChannelUser(
     tenantId: string,
     channel: Channel,
-    identidade: { channelUserId: string; phone: string | null },
+    formas: readonly string[],
   ): Promise<ConversationRecord | null>;
   /**
    * AT-05 — a conversa converge para o LID assim que ele aparece: é a identidade que não

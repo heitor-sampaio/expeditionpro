@@ -78,3 +78,27 @@ describe('AT-07: busca na lista de conversas', () => {
     expect(matchesSearch(semNome, 'ana')).toBe(false);
   });
 });
+
+/**
+ * AT-06 — o nono dígito também na busca.
+ *
+ * Quem procura digita o número como está na ficha do cliente, com o nono. A conversa pode
+ * estar guardada como a instância mandou, sem ele. Sem tratar, a busca não acha justamente o
+ * contato que a pessoa tem na frente.
+ */
+describe('AT-06: busca pelas duas grafias do celular', () => {
+  const semNono = { displayName: 'Ana Prado', phone: '554888888888' };
+  const comNono = { displayName: 'Ana Prado', phone: '5548988888888' };
+
+  it('digitando com o nono, acha a conversa guardada sem ele', () => {
+    expect(matchesSearch(semNono, '5548988888888')).toBe(true);
+  });
+
+  it('digitando sem o nono, acha a conversa guardada com ele', () => {
+    expect(matchesSearch(comNono, '554888888888')).toBe(true);
+  });
+
+  it('número de outra pessoa continua não achando', () => {
+    expect(matchesSearch(semNono, '5548977777777')).toBe(false);
+  });
+});

@@ -1,4 +1,4 @@
-import { searchKey } from '@expedition/domain';
+import { phoneVariants, searchKey } from '@expedition/domain';
 
 /**
  * AT-07 — achar um contato na caixa, por nome ou por telefone.
@@ -24,10 +24,18 @@ export function matchesSearch(
 
   const porNome = conversa.displayName !== null && searchKey(conversa.displayName).includes(chave);
 
-  // Só dígitos dos dois lados: quem procura digita o que vê — "(48) 99999-8877" — e o que
-  // está guardado é `5548999998877`. `includes` porque o pedaço decorado é o fim do número.
+  /*
+   * Só dígitos dos dois lados: quem procura digita o que vê — "(48) 99999-8877" — e o que
+   * está guardado é `5548999998877`. `includes` porque o pedaço decorado é o fim do número.
+   *
+   * E pelas **duas grafias do nono dígito** (AT-06): quem procura digita o número como está na
+   * ficha, com o nono, e a conversa pode estar guardada como a instância mandou, sem ele.
+   */
   const digitos = termo.replace(/\D/g, '');
-  const porTelefone = digitos !== '' && conversa.phone !== null && conversa.phone.includes(digitos);
+  const porTelefone =
+    digitos !== '' &&
+    conversa.phone !== null &&
+    phoneVariants(conversa.phone).some((forma) => forma.includes(digitos));
 
   return porNome || porTelefone;
 }

@@ -93,10 +93,9 @@ describe('AT-03..AT-05: a mensagem vira conversa', () => {
     });
 
     expect(r).toEqual({ handled: true });
-    const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', {
-      channelUserId: '5548999998877',
-      phone: '5548999998877',
-    });
+    const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', [
+      '5548999998877',
+    ]);
     expect(conversa).toMatchObject({ displayName: 'Ana Prado', unreadCount: 1 });
     const mensagens = await d.conversations.listMessages('tenant-a', conversa!.id);
     expect(mensagens.map((m) => m.body)).toEqual(['Quanto custa a Coxilha Rica?']);
@@ -119,10 +118,9 @@ describe('AT-03..AT-05: a mensagem vira conversa', () => {
     });
 
     expect(r).toEqual({ handled: false });
-    const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', {
-      channelUserId: '5548999998877',
-      phone: '5548999998877',
-    });
+    const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', [
+      '5548999998877',
+    ]);
     expect(await d.conversations.listMessages('tenant-a', conversa!.id)).toHaveLength(1);
   });
 
@@ -142,10 +140,9 @@ describe('AT-03..AT-05: a mensagem vira conversa', () => {
       body: { ...CORPO, data: { ...CORPO.data, key: { ...CORPO.data.key, id: 'MSG-2' } } },
     });
 
-    const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', {
-      channelUserId: '5548999998877',
-      phone: '5548999998877',
-    });
+    const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', [
+      '5548999998877',
+    ]);
     expect(await d.conversations.listMessages('tenant-a', conversa!.id)).toHaveLength(2);
     expect(conversa?.unreadCount).toBe(2);
   });
@@ -177,10 +174,9 @@ describe('AT-03..AT-05: a mensagem vira conversa', () => {
       },
     });
 
-    const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', {
-      channelUserId: '5548999998877',
-      phone: '5548999998877',
-    });
+    const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', [
+      '5548999998877',
+    ]);
     expect(conversa?.unreadCount).toBe(0);
     const mensagens = await d.conversations.listMessages('tenant-a', conversa!.id);
     expect(mensagens[0]).toMatchObject({ direction: 'out', sentByUserId: null });
@@ -215,10 +211,9 @@ describe('AT-06: casar com cliente existente pelo telefone', () => {
       body: CORPO,
     });
 
-    const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', {
-      channelUserId: '5548999998877',
-      phone: '5548999998877',
-    });
+    const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', [
+      '5548999998877',
+    ]);
     expect(conversa?.customerId).not.toBeNull();
   });
 
@@ -232,10 +227,9 @@ describe('AT-06: casar com cliente existente pelo telefone', () => {
       body: CORPO,
     });
 
-    const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', {
-      channelUserId: '5548999998877',
-      phone: '5548999998877',
-    });
+    const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', [
+      '5548999998877',
+    ]);
     expect(conversa?.customerId).toBeNull();
     expect(await d.customers.search('tenant-a', 'Ana Prado', 'name')).toEqual([]);
   });
@@ -255,10 +249,9 @@ describe('AT-06: casar com cliente existente pelo telefone', () => {
       body: CORPO,
     });
 
-    const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', {
-      channelUserId: '5548999998877',
-      phone: '5548999998877',
-    });
+    const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', [
+      '5548999998877',
+    ]);
     expect(conversa?.customerId).toBeNull();
   });
 });
@@ -676,5 +669,108 @@ describe('AT-06: vínculo com a ficha, depois da primeira mensagem', () => {
     await receiveChannelMessage(d, sistema, { ...comando, body: evento('B') });
 
     expect(d.conversations.conversations[0]?.customerId).toBeNull();
+  });
+});
+
+/**
+ * AT-06 — o nono dígito, na prática.
+ *
+ * A Evolution manda `55 48 8888-8888` e a ficha do cliente tem `55 48 98888-8888`. São a mesma
+ * pessoa, e comparando texto não casam. Sem tratar, todo cliente antigo aparece como contato
+ * desconhecido e ninguém vê erro nenhum.
+ */
+describe('AT-06: nono dígito entre a instância e a ficha', () => {
+  const semNono = {
+    event: 'messages.upsert',
+    data: {
+      key: { id: 'MSG-9', fromMe: false, remoteJid: '554888888888@s.whatsapp.net' },
+      pushName: 'Ana Prado',
+      message: { conversation: 'oi' },
+      messageTimestamp: 1788000000,
+    },
+  };
+  const comando = { token: 'segredo-certo', clientIp: '', channel: 'whatsapp' as const };
+
+  async function fichaCom(d: ReturnType<typeof comCanal>, phone: string) {
+    return d.customers.create({
+      tenantId: 'tenant-a',
+      responsibleId: null,
+      fullName: 'Ana Prado',
+      cpf: parseCpf('900.000.100-57'),
+      birthDate: { year: 1990, month: 5, day: 2 },
+      email: null,
+      phone,
+      address: EMPTY,
+    });
+  }
+
+  it('conversa sem o nono casa com a ficha que tem o nono', async () => {
+    const d = comCanal();
+    const cliente = await fichaCom(d, '5548988888888');
+
+    await receiveChannelMessage(d, sistema, { ...comando, body: semNono });
+
+    expect(d.conversations.conversations[0]?.customerId).toBe(cliente.id);
+  });
+
+  it('e o contrário também: conversa com o nono casa com ficha sem ele', async () => {
+    const d = comCanal();
+    const cliente = await fichaCom(d, '554888888888');
+
+    await receiveChannelMessage(d, sistema, {
+      ...comando,
+      body: {
+        ...semNono,
+        data: {
+          ...semNono.data,
+          key: { ...semNono.data.key, remoteJid: '5548988888888@s.whatsapp.net' },
+        },
+      },
+    });
+
+    expect(d.conversations.conversations[0]?.customerId).toBe(cliente.id);
+  });
+
+  /**
+   * Duas fichas, uma em cada grafia, são duas pessoas diferentes até que alguém diga o
+   * contrário. Escolher uma seria adivinhar, e adivinhar joga a conversa na pessoa errada.
+   */
+  it('as duas grafias em fichas diferentes continuam sendo dúvida', async () => {
+    const d = comCanal();
+    await fichaCom(d, '5548988888888');
+    await d.customers.create({
+      tenantId: 'tenant-a',
+      responsibleId: null,
+      fullName: 'Outra Pessoa',
+      cpf: parseCpf('111.444.777-35'),
+      birthDate: { year: 1980, month: 1, day: 1 },
+      email: null,
+      phone: '554888888888',
+      address: EMPTY,
+    });
+
+    await receiveChannelMessage(d, sistema, { ...comando, body: semNono });
+
+    expect(d.conversations.conversations[0]?.customerId).toBeNull();
+  });
+
+  /** A mesma pessoa escrevendo nas duas grafias é **uma** conversa, não duas. */
+  it('as duas grafias caem na mesma conversa', async () => {
+    const d = comCanal();
+    await receiveChannelMessage(d, sistema, { ...comando, body: semNono });
+
+    await receiveChannelMessage(d, sistema, {
+      ...comando,
+      body: {
+        ...semNono,
+        data: {
+          ...semNono.data,
+          key: { ...semNono.data.key, id: 'MSG-10', remoteJid: '5548988888888@s.whatsapp.net' },
+        },
+      },
+    });
+
+    expect(d.conversations.conversations).toHaveLength(1);
+    expect(d.conversations.messages).toHaveLength(2);
   });
 });

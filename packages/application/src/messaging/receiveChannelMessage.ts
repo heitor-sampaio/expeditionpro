@@ -1,4 +1,4 @@
-import { ipIsAllowed, mapEvolutionEvent, stripMediaBytes } from '@expedition/domain';
+import { ipIsAllowed, mapEvolutionEvent, phoneVariants, stripMediaBytes } from '@expedition/domain';
 import { UnauthorizedError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { CustomerRepository } from '../customers/customerRepository.js';
@@ -69,10 +69,19 @@ export async function receiveChannelMessage(
   if (jaTemos) return IGNORADO;
 
   const identidade = { channelUserId: evento.channelUserId, phone: evento.phone };
+  /*
+   * Todas as maneiras de escrever este contato: o LID, o telefone e — no Brasil — o telefone
+   * na outra grafia do nono dígito (AT-06). A instância manda `55 48 8888-8888` onde a ficha
+   * tem `55 48 98888-8888`, e comparando texto nada casa.
+   */
+  const formas = [
+    identidade.channelUserId,
+    ...(identidade.phone === null ? [] : phoneVariants(identidade.phone)),
+  ];
   const existente = await deps.conversations.findByChannelUser(
     ctx.tenantId,
     integration.channel,
-    identidade,
+    formas,
   );
 
   const conversa =
@@ -227,6 +236,12 @@ async function clientePeloTelefone(
   // Pelo telefone, nunca pelo LID: o LID não é número e não existe em cadastro nenhum, então
   // procurar cliente por ele não acharia nunca — e o silêncio pareceria "não é cliente".
   if (channel !== 'whatsapp' || phone === null) return null;
-  const candidatos = await deps.customers.listByPhone(ctx.tenantId, phone);
+
+  // As duas grafias, e a dúvida continua sendo dúvida: se cada uma achar uma ficha diferente,
+  // são dois candidatos e nenhum é escolhido.
+  const listas = await Promise.all(
+    phoneVariants(phone).map((forma) => deps.customers.listByPhone(ctx.tenantId, forma)),
+  );
+  const candidatos = [...new Map(listas.flat().map((ficha) => [ficha.id, ficha])).values()];
   return candidatos.length === 1 ? (candidatos[0]?.id ?? null) : null;
 }

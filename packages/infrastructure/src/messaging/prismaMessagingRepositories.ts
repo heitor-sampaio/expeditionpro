@@ -134,17 +134,14 @@ export function prismaConversationRepository(base: PrismaClient): ConversationRe
     async findByChannelUser(
       tenantId: string,
       channel: Channel,
-      identidade: { channelUserId: string; phone: string | null },
+      formas: readonly string[],
     ): Promise<ConversationRecord | null> {
-      // AT-05: as duas formas de endereçamento do mesmo contato. Procurar só por uma abriria
-      // um segundo fio no meio da migração do WhatsApp para o LID.
-      const formas = [identidade.channelUserId, identidade.phone].filter(
-        (forma): forma is string => forma !== null,
-      );
+      // AT-05 · AT-06: todas as maneiras de escrever este contato — LID, telefone, e o
+      // telefone na outra grafia do nono dígito. Quem monta a lista é o caso de uso.
       const row = await tenantClient(base, tenantId).conversation.findFirst({
         where: {
           channel,
-          OR: [{ channelUserId: { in: formas } }, { phone: { in: formas } }],
+          OR: [{ channelUserId: { in: [...formas] } }, { phone: { in: [...formas] } }],
         },
       });
       return row ? toConversation(row) : null;
