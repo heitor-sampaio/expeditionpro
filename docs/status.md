@@ -60,6 +60,57 @@ Critério de pronto da Fase 0 (§7): tenancy, auth, RLS, Prisma extension, schem
    `pnpm install` pular as `devDependencies` — e o `vite` é uma delas. Por isso o
    `sirv-cli` está em `dependencies`: ele é dependência de execução do serviço publicado.
 
+## Pendências da revisão de segurança — fechadas em 2026-09-02
+
+| Item | Como ficou |
+|---|---|
+| `typecheck:tests` fora do CI | **Ligado.** Eram 72 erros em três pacotes, não 56 — o `pnpm -r` parava no primeiro que falhava, e cada pacote limpo revelava o próximo |
+| Trilha em cashback e moderação | **Feito, e menor do que o relatório dizia.** Ver abaixo |
+| Assimetria de papel (M5) | **`registerSupplierPayment` subiu para owner/admin.** Lançar gasto e liberar cashback ficam com o operador, por decisão do dono |
+| Revogação por `memberships` (M7) | **Feito** — SEC-17: lista de quem tem acesso, remoção, e papel lido do banco a cada requisição |
+| `FORCE ROW LEVEL SECURITY` (M10) | **Não ligado, deliberadamente.** Ver abaixo |
+
+### Por que a trilha ficou menor que o pedido
+
+O relatório pedia trilha em "cashback inteiro e moderação". Olhando de perto, quase tudo já
+tinha registro **melhor** que uma linha de auditoria: o ledger de cashback é append-only e
+grava `createdBy` em cada lançamento, e `resolveReport` já grava quem decidiu na própria
+denúncia. Duplicar seria escrituração em dobro, e trilha com ruído não é lida.
+
+Sobraram três, todas **sobrescritas** — o que some sem deixar história:
+
+- `updateCashbackConfig`: troca a regra de todo mundo numa linha só.
+- `moderatePost`: guardava o motivo e não quem decidiu.
+- `updateSupplier`: **achado novo**, encontrado pelo próprio typecheck. Trocar a chave PIX
+  de um fornecedor redireciona pagamento e não deixava rastro. A chave entra mascarada na
+  trilha, porque costuma ser um CPF ou telefone.
+
+### Por que o `FORCE RLS` não foi ligado
+
+As 39 tabelas pertencem ao `postgres` e o app conecta como `postgres`. Ligar hoje faria toda
+consulta voltar vazia — as policies leem claims de JWT que uma conexão direta não tem. Fazer
+direito exige um role de aplicação sem posse das tabelas **e** injetar as claims a cada
+transação: mudança de arquitetura de conexão, provável só no CI, com risco de derrubar tudo.
+
+O que foi feito no lugar, e que cobre a mesma ameaça de forma verificável: auditei os três
+caminhos que o servidor tem para o banco. **Modelos** — cobertos pelo `tenantScopeCoverage`,
+que compara a lista da extension com o `schema.prisma`. **Operações** — as 16 do Prisma usadas
+na infraestrutura estão todas tratadas, e o `default` do `switch` passou a lançar, então
+operação nova falha fechada. **SQL cru** — não existia nenhum, e agora `check:raw-sql` no CI
+mantém assim. Era o único caminho sem portão: `$queryRaw` não passa pela extension nem pela
+RLS.
+
+O `FORCE RLS` continua valendo como defesa em profundidade contra um bug **dentro** da
+extension. Fica como trabalho próprio, não como remendo no fim de uma lista.
+
+### O que sobrou aberto, e por quê
+
+- **Trocar o papel de quem já está na equipe** não tem caminho. Convidar de novo não resolve:
+  o Supabase recusa criar usuário com e-mail existente (409/422). Tirar o acesso e reconvidar
+  também não, porque o login continua lá. Precisa de uma rota que atualize o papel na linha de
+  acesso e no `app_metadata` — pequena, mas é feature.
+- **`FORCE RLS`**, pelo motivo acima.
+
 ## Fase 1 — em progresso
 
 Vertical de cadastro de cliente (CL-01) descendo as camadas, por TDD:
