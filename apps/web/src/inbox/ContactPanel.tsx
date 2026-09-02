@@ -60,7 +60,13 @@ export function ContactPanel({
 
       <dl className="inbox-facts">
         {conversation.channel === 'whatsapp' && (
-          <Fato rotulo="Telefone" valor={formatPhone(conversation.channelUserId)} mono />
+          <Fato
+            rotulo="Telefone"
+            valor={
+              conversation.phone === null ? 'Ainda não informado' : formatPhone(conversation.phone)
+            }
+            mono
+          />
         )}
         <Fato
           rotulo="Cadastro"
@@ -103,9 +109,7 @@ export function ContactPanel({
                 void onCriar({
                   conversationId: conversation.id,
                   contactName: titulo,
-                  ...(conversation.channel === 'whatsapp'
-                    ? { phone: conversation.channelUserId }
-                    : {}),
+                  ...(conversation.phone === null ? {} : { phone: conversation.phone }),
                   source: conversation.channel,
                 })
               }

@@ -13,7 +13,10 @@ export type MessageDirection = 'in' | 'out';
 export interface ConversationRecord {
   readonly id: string;
   readonly channel: Channel;
+  /** A identidade no canal: LID quando existe, senão o telefone (AT-05). */
   readonly channelUserId: string;
+  /** O telefone, quando conhecido. É o que disca e o que casa com a ficha (AT-06). */
+  readonly phone: string | null;
   readonly displayName: string | null;
   readonly customerId: string | null;
   readonly opportunityId: string | null;
@@ -25,6 +28,7 @@ export interface NewConversation {
   readonly tenantId: string;
   readonly channel: Channel;
   readonly channelUserId: string;
+  readonly phone: string | null;
   readonly displayName: string | null;
   readonly customerId: string | null;
 }
@@ -53,11 +57,26 @@ export interface NewMessage {
 }
 
 export interface ConversationRepository {
+  /**
+   * AT-05 — procura pelas **duas** formas de endereçamento do mesmo contato.
+   *
+   * Durante a migração do WhatsApp para o LID a mesma pessoa chega ora por telefone, ora por
+   * LID. Procurar só por uma abriria um segundo fio, e o histórico ficaria partido ao meio.
+   */
   findByChannelUser(
     tenantId: string,
     channel: Channel,
-    channelUserId: string,
+    identidade: { channelUserId: string; phone: string | null },
   ): Promise<ConversationRecord | null>;
+  /**
+   * AT-05 — a conversa converge para o LID assim que ele aparece: é a identidade que não
+   * muda, enquanto telefone o cliente troca.
+   */
+  updateIdentity(
+    tenantId: string,
+    conversationId: string,
+    identidade: { channelUserId: string; phone: string | null },
+  ): Promise<ConversationRecord>;
   findConversationById(tenantId: string, id: string): Promise<ConversationRecord | null>;
   /** Mais recente primeiro: a caixa é lida de cima para baixo. */
   listConversations(tenantId: string): Promise<ConversationRecord[]>;

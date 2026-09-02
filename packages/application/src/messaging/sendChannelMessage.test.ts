@@ -36,7 +36,8 @@ async function cenario(comCanal = true) {
   const conversa = await conversations.createConversation({
     tenantId: 'tenant-a',
     channel: 'whatsapp',
-    channelUserId: '5548999998877',
+    channelUserId: '187654321098765',
+    phone: '5548999998877',
     displayName: 'Ana Prado',
     customerId: null,
   });
@@ -210,5 +211,38 @@ describe('AT-08: enviar mensagem pela caixa', () => {
     await expect(
       sendChannelMessage(d, ctxCom('operator'), { conversationId: d.conversa.id, body: 'oi' }),
     ).rejects.toThrow(/número não existe no WhatsApp/);
+  });
+});
+
+/**
+ * AT-05 — para **quem** a mensagem sai, quando a conversa é identificada por LID.
+ *
+ * O LID identifica a conta, mas quem a Evolution disca é o número. Mandar o LID no lugar do
+ * telefone é uma mensagem que não chega, e o erro voltaria como recusa do provedor sem dizer
+ * o motivo real.
+ */
+describe('AT-05: envio usa o telefone, não o LID', () => {
+  it('manda para o número quando a conversa tem os dois', async () => {
+    const d = await cenario();
+
+    await sendChannelMessage(d, ctxCom('operator'), {
+      conversationId: d.conversa.id,
+      body: 'oi',
+    });
+
+    expect(d.gateway.enviadas[0]?.to).toBe('5548999998877');
+  });
+
+  it('sem telefone, recusa em vez de mandar para o LID', async () => {
+    const d = await cenario();
+    await d.conversations.updateIdentity('tenant-a', d.conversa.id, {
+      channelUserId: '187654321098765',
+      phone: null,
+    });
+
+    await expect(
+      sendChannelMessage(d, ctxCom('operator'), { conversationId: d.conversa.id, body: 'oi' }),
+    ).rejects.toMatchObject({ code: 'no_phone' });
+    expect(d.gateway.enviadas).toHaveLength(0);
   });
 });

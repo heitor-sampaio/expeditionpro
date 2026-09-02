@@ -1101,7 +1101,12 @@ model Conversation {
   id            String    @id @default(uuid()) @db.Uuid
   tenantId      String    @map("tenant_id") @db.Uuid
   channel       String
+  // AT-05 — a identidade no canal: LID quando existe, senão o telefone. No Instagram e no
+  // Messenger é o id opaco por aplicativo (PSID/IGSID).
   channelUserId String    @map("channel_user_id")
+  // O número, quando conhecido. Continua existindo porque é o que disca, o que casa com a
+  // ficha do cliente (AT-06) e o único dos dois que uma pessoa reconhece.
+  phone         String?
   displayName   String?   @map("display_name")
   // Vínculos opcionais: a conversa existe sozinha, e a equipe liga quando souber quem é.
   customerId    String?   @map("customer_id") @db.Uuid
@@ -1116,6 +1121,7 @@ model Conversation {
   messages    Message[]
 
   @@unique([tenantId, channel, channelUserId])
+  @@index([tenantId, channel, phone])
   @@index([tenantId, lastMessageAt])
   @@map("conversations")
 }

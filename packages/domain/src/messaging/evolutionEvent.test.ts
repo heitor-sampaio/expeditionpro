@@ -34,6 +34,7 @@ describe('AT-03: mapeamento do evento da Evolution', () => {
       kind: 'message',
       externalId: '3EB0C767D26A1D9B6F3A',
       channelUserId: '5548999998877',
+      phone: '5548999998877',
       direction: 'in',
       body: 'Bom dia! Quanto custa a Coxilha Rica?',
       displayName: 'Ana Prado',
@@ -146,5 +147,80 @@ describe('AT-05: nome do perfil só vale quando é da outra pessoa', () => {
     });
 
     expect(evento).toMatchObject({ direction: 'in', displayName: 'Ana Prado' });
+  });
+});
+
+/**
+ * AT-05 — a identidade do contato no WhatsApp está no meio de uma migração.
+ *
+ * O WhatsApp está trocando o endereçamento por telefone (`@s.whatsapp.net`) pelo **LID**
+ * (`@lid`), um id da conta que não é o número. A instância já anuncia isso em
+ * `key.addressingMode`, e manda os dois endereços: um em `remoteJid`, o outro em
+ * `remoteJidAlt`. Qual vai em qual **varia**.
+ *
+ * Dois riscos, e os dois apareceriam sem aviso:
+ *
+ * - mensagem endereçada por `@lid` era **descartada em silêncio**, porque o mapeador só
+ *   aceitava `@s.whatsapp.net`. A caixa simplesmente pararia de receber;
+ * - o mesmo contato chegando ora por um, ora por outro viraria **duas conversas**.
+ *
+ * Daí o mapeador devolver os dois: o LID é a identidade (é o que não muda), e o telefone
+ * continua existindo porque é o que disca, o que casa com a ficha do cliente (AT-06) e o
+ * único dos dois que uma pessoa reconhece na tela.
+ */
+describe('AT-05: LID e telefone são a mesma pessoa', () => {
+  const evento = (key: Record<string, unknown>) => ({
+    event: 'messages.upsert',
+    data: {
+      key: { id: 'MSG-1', fromMe: false, ...key },
+      pushName: 'Ana Prado',
+      message: { conversation: 'oi' },
+      messageTimestamp: 1788000000,
+    },
+  });
+
+  it('só telefone: a identidade é o telefone', () => {
+    const r = mapEvolutionEvent(
+      evento({
+        remoteJid: '5548999998877@s.whatsapp.net',
+        remoteJidAlt: '5548999998877@s.whatsapp.net',
+      }),
+    );
+
+    expect(r).toMatchObject({ channelUserId: '5548999998877', phone: '5548999998877' });
+  });
+
+  it('LID no remoteJid: a identidade é o LID, e o telefone vem do alternativo', () => {
+    const r = mapEvolutionEvent(
+      evento({ remoteJid: '187654321098765@lid', remoteJidAlt: '5548999998877@s.whatsapp.net' }),
+    );
+
+    expect(r).toMatchObject({ channelUserId: '187654321098765', phone: '5548999998877' });
+  });
+
+  it('LID no alternativo: a ordem dos campos não decide nada', () => {
+    const r = mapEvolutionEvent(
+      evento({ remoteJid: '5548999998877@s.whatsapp.net', remoteJidAlt: '187654321098765@lid' }),
+    );
+
+    expect(r).toMatchObject({ channelUserId: '187654321098765', phone: '5548999998877' });
+  });
+
+  it('só LID: entra sem telefone — e continua sendo uma conversa', () => {
+    const r = mapEvolutionEvent(evento({ remoteJid: '187654321098765@lid' }));
+
+    expect(r).toMatchObject({ channelUserId: '187654321098765', phone: null });
+  });
+
+  it('grupo continua fora: muitos autores, nenhum dono', () => {
+    expect(mapEvolutionEvent(evento({ remoteJid: '120363000000000000@g.us' }))).toEqual({
+      kind: 'ignored',
+    });
+  });
+
+  it('endereço de tipo desconhecido é ignorado, não vira contato torto', () => {
+    expect(mapEvolutionEvent(evento({ remoteJid: 'algo@broadcast' }))).toEqual({
+      kind: 'ignored',
+    });
   });
 });

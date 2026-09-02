@@ -15,8 +15,16 @@ export type EvolutionEvent =
       readonly kind: 'message';
       /** Id da mensagem no provedor: é a chave de idempotência (AT-03). */
       readonly externalId: string;
-      /** Só os dígitos do JID — `5548999998877@s.whatsapp.net` vira `5548999998877`. */
+      /**
+       * A identidade do contato no canal: o **LID** quando existe, senão o telefone. Só os
+       * dígitos — `5548999998877@s.whatsapp.net` vira `5548999998877`.
+       */
       readonly channelUserId: string;
+      /**
+       * O telefone, quando o evento traz um. É o que disca, o que casa com a ficha do cliente
+       * (AT-06) e o único dos dois que alguém reconhece na tela. `null` quando só há LID.
+       */
+      readonly phone: string | null;
       readonly direction: 'in' | 'out';
       readonly body: string;
       readonly displayName: string | null;
@@ -46,7 +54,13 @@ export function mapEvolutionEvent(body: unknown): EvolutionEvent {
 
   const data = envelope.data as
     | {
-        key?: { remoteJid?: unknown; fromMe?: unknown; id?: unknown };
+        key?: {
+          remoteJid?: unknown;
+          /** O outro endereçamento do mesmo contato: LID quando `remoteJid` é telefone, e vice-versa. */
+          remoteJidAlt?: unknown;
+          fromMe?: unknown;
+          id?: unknown;
+        };
         pushName?: unknown;
         message?: Record<string, unknown>;
         messageTimestamp?: unknown;
@@ -59,12 +73,8 @@ export function mapEvolutionEvent(body: unknown): EvolutionEvent {
   const remoteJid = typeof data.key?.remoteJid === 'string' ? data.key.remoteJid : null;
   if (!externalId || !remoteJid) return IGNORED;
 
-  // `@g.us` é grupo. Atendimento é conversa de um para um; grupo tem muitos autores e
-  // nenhum dono, e tratá-lo como conversa criaria um fio que ninguém consegue responder.
-  if (!remoteJid.endsWith('@s.whatsapp.net')) return IGNORED;
-
-  const channelUserId = remoteJid.split('@')[0] ?? '';
-  if (channelUserId === '') return IGNORED;
+  const identidade = identidadeDe(remoteJid, data.key?.remoteJidAlt);
+  if (identidade === null) return IGNORED;
 
   const texto = textoDe(data.message);
   if (texto === null) return IGNORED;
@@ -76,7 +86,8 @@ export function mapEvolutionEvent(body: unknown): EvolutionEvent {
   return {
     kind: 'message',
     externalId,
-    channelUserId,
+    channelUserId: identidade.channelUserId,
+    phone: identidade.phone,
     direction: saindo ? 'out' : 'in',
     body: texto,
     /*
@@ -89,6 +100,40 @@ export function mapEvolutionEvent(body: unknown): EvolutionEvent {
       !saindo && typeof data.pushName === 'string' && data.pushName !== '' ? data.pushName : null,
     sentAt: horarioDe(data.messageTimestamp),
   };
+}
+
+/**
+ * AT-05 — quem é o contato, no meio da migração do WhatsApp para o LID.
+ *
+ * O evento traz os dois endereçamentos do mesmo contato, e **qual vai em qual campo varia**:
+ * ora o LID está em `remoteJid` e o telefone em `remoteJidAlt`, ora o contrário. Por isso a
+ * escolha é pelo sufixo do JID, não pela posição.
+ *
+ * O LID é a identidade quando existe porque é o que não muda — telefone o cliente troca. O
+ * telefone é guardado do lado porque é o que disca e o que casa com a ficha (AT-06).
+ *
+ * `@g.us` é grupo, e grupo fica fora: tem muitos autores e nenhum dono, e viraria um fio que
+ * ninguém consegue responder. Qualquer outro sufixo (transmissão, status) também sai.
+ */
+function identidadeDe(
+  remoteJid: string,
+  alt: unknown,
+): { channelUserId: string; phone: string | null } | null {
+  const jids = [remoteJid, typeof alt === 'string' ? alt : null].filter(
+    (jid): jid is string => jid !== null,
+  );
+  if (jids.some((jid) => jid.endsWith('@g.us'))) return null;
+
+  const digitos = (sufixo: string): string | null => {
+    const achado = jids.find((jid) => jid.endsWith(sufixo));
+    const parte = achado?.slice(0, achado.length - sufixo.length) ?? '';
+    return parte === '' ? null : parte;
+  };
+
+  const lid = digitos('@lid');
+  const phone = digitos('@s.whatsapp.net');
+  const channelUserId = lid ?? phone;
+  return channelUserId === null ? null : { channelUserId, phone };
 }
 
 function textoDe(message: Record<string, unknown> | undefined): string | null {

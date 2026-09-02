@@ -23,13 +23,25 @@ export function fakeConversationRepository(): ConversationRepository & {
     conversations,
     messages,
 
-    findByChannelUser: (tenantId, channel: Channel, channelUserId) =>
-      Promise.resolve(
+    findByChannelUser: (tenantId, channel: Channel, identidade) => {
+      const formas = [identidade.channelUserId, identidade.phone].filter(
+        (forma): forma is string => forma !== null,
+      );
+      return Promise.resolve(
         conversations.find(
           (c) =>
-            c.tenantId === tenantId && c.channel === channel && c.channelUserId === channelUserId,
+            c.tenantId === tenantId &&
+            c.channel === channel &&
+            (formas.includes(c.channelUserId) || (c.phone !== null && formas.includes(c.phone))),
         ) ?? null,
-      ),
+      );
+    },
+
+    updateIdentity(tenantId, conversationId, identidade) {
+      const i = conversations.findIndex((c) => c.tenantId === tenantId && c.id === conversationId);
+      conversations[i] = { ...conversations[i]!, ...identidade };
+      return Promise.resolve(conversations[i]!);
+    },
 
     findConversationById: (tenantId, id) =>
       Promise.resolve(conversations.find((c) => c.tenantId === tenantId && c.id === id) ?? null),
@@ -48,6 +60,7 @@ export function fakeConversationRepository(): ConversationRepository & {
         id: `conv-${seq}`,
         channel: conversation.channel,
         channelUserId: conversation.channelUserId,
+        phone: conversation.phone,
         displayName: conversation.displayName,
         customerId: conversation.customerId,
         opportunityId: null,

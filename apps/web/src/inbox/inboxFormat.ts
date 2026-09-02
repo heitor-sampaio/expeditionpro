@@ -20,14 +20,24 @@ export function channelLabel(channel: Channel): string {
  * (PSID/IGSID) — não é telefone, não é arroba, não abre nada —, então mostrá-lo fingiria que
  * significa alguma coisa. Melhor dizer que a pessoa não se identificou e deixar a equipe
  * batizar o contato pela conversa.
+ *
+ * O mesmo vale para o LID do WhatsApp (AT-05): é id de conta, não número.
  */
 export function contactTitle(conversation: {
   channel: Channel;
-  channelUserId: string;
+  phone: string | null;
   displayName: string | null;
 }): string {
   if (conversation.displayName) return conversation.displayName;
-  if (conversation.channel === 'whatsapp') return formatPhone(conversation.channelUserId);
+  /*
+   * AT-05 — o telefone, e **nunca** o id do canal.
+   *
+   * A conversa passou a ser identificada pelo LID, que é um id de conta com cara de número:
+   * formatá-lo daria algo como `+18 (76)54321-0987` — um telefone que não existe, na cara de
+   * quem atende. Sem número, o honesto é dizer que não temos.
+   */
+  if (conversation.phone !== null) return formatPhone(conversation.phone);
+  if (conversation.channel === 'whatsapp') return 'Contato sem número';
   return `Contato do ${channelLabel(conversation.channel)}`;
 }
 

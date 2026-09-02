@@ -319,6 +319,7 @@ function conversationDto(conversation: ConversationRecord) {
     id: conversation.id,
     channel: conversation.channel,
     channelUserId: conversation.channelUserId,
+    phone: conversation.phone,
     displayName: conversation.displayName,
     customerId: conversation.customerId,
     opportunityId: conversation.opportunityId,

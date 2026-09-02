@@ -24,6 +24,7 @@ async function comConversa() {
     tenantId: 'tenant-a',
     channel: 'whatsapp',
     channelUserId: '5548999998877',
+    phone: '5548999998877',
     displayName: 'Ana Prado',
     customerId: null,
   });

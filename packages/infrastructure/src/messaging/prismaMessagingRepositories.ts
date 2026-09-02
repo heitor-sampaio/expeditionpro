@@ -133,12 +133,32 @@ export function prismaConversationRepository(base: PrismaClient): ConversationRe
     async findByChannelUser(
       tenantId: string,
       channel: Channel,
-      channelUserId: string,
+      identidade: { channelUserId: string; phone: string | null },
     ): Promise<ConversationRecord | null> {
+      // AT-05: as duas formas de endereçamento do mesmo contato. Procurar só por uma abriria
+      // um segundo fio no meio da migração do WhatsApp para o LID.
+      const formas = [identidade.channelUserId, identidade.phone].filter(
+        (forma): forma is string => forma !== null,
+      );
       const row = await tenantClient(base, tenantId).conversation.findFirst({
-        where: { channel, channelUserId },
+        where: {
+          channel,
+          OR: [{ channelUserId: { in: formas } }, { phone: { in: formas } }],
+        },
       });
       return row ? toConversation(row) : null;
+    },
+
+    async updateIdentity(
+      tenantId: string,
+      conversationId: string,
+      identidade: { channelUserId: string; phone: string | null },
+    ): Promise<ConversationRecord> {
+      const row = await tenantClient(base, tenantId).conversation.update({
+        where: { id: conversationId },
+        data: identidade,
+      });
+      return toConversation(row);
     },
 
     async findConversationById(tenantId: string, id: string): Promise<ConversationRecord | null> {
@@ -160,6 +180,7 @@ export function prismaConversationRepository(base: PrismaClient): ConversationRe
           tenantId: conversation.tenantId,
           channel: conversation.channel,
           channelUserId: conversation.channelUserId,
+          phone: conversation.phone,
           displayName: conversation.displayName,
           customerId: conversation.customerId,
         },
@@ -242,6 +263,7 @@ function toConversation(row: PrismaConversation): ConversationRecord {
     id: row.id,
     channel: row.channel as Channel,
     channelUserId: row.channelUserId,
+    phone: row.phone,
     displayName: row.displayName,
     customerId: row.customerId,
     opportunityId: row.opportunityId,

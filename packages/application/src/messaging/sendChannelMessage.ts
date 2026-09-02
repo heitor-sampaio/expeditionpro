@@ -55,11 +55,22 @@ export async function sendChannelMessage(
     );
   }
 
-  const enviado = await deps.gateway.sendText({
-    integration,
-    to: conversa.channelUserId,
-    text: body,
-  });
+  /*
+   * AT-05 — quem o provedor disca é o **número**, não o LID.
+   *
+   * A conversa é identificada pelo LID quando ele existe, porque é o que não muda. Mas o LID
+   * é o id da conta: mandar por ele é mensagem que não chega, e a recusa voltaria sem dizer
+   * o motivo de verdade. Sem número, o certo é falar isso em vez de tentar.
+   */
+  const destino = conversa.phone;
+  if (destino === null) {
+    throw new BusinessRuleError(
+      'no_phone',
+      'Esta conversa ainda não tem o telefone do contato. Ela aparece quando ele mandar uma mensagem.',
+    );
+  }
+
+  const enviado = await deps.gateway.sendText({ integration, to: destino, text: body });
   if (!enviado.ok) {
     // O motivo do provedor sobe junto: sem ele a tela diz "não foi possível enviar" e não há
     // o que fazer com isso. É a diferença entre "número não existe" e "instância desconectada".

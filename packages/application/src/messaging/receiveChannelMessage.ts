@@ -3,7 +3,11 @@ import { UnauthorizedError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { CustomerRepository } from '../customers/customerRepository.js';
 import type { ChannelIntegrationRepository } from './channelIntegrationRepository.js';
-import type { Channel, ConversationRepository } from './conversationRepository.js';
+import type {
+  Channel,
+  ConversationRecord,
+  ConversationRepository,
+} from './conversationRepository.js';
 
 export interface ReceiveChannelMessageDeps {
   readonly integrations: ChannelIntegrationRepository;
@@ -61,19 +65,25 @@ export async function receiveChannelMessage(
   const jaTemos = await deps.conversations.findMessageByExternalId(ctx.tenantId, evento.externalId);
   if (jaTemos) return IGNORADO;
 
+  const identidade = { channelUserId: evento.channelUserId, phone: evento.phone };
+  const existente = await deps.conversations.findByChannelUser(
+    ctx.tenantId,
+    integration.channel,
+    identidade,
+  );
+
   const conversa =
-    (await deps.conversations.findByChannelUser(
-      ctx.tenantId,
-      integration.channel,
-      evento.channelUserId,
-    )) ??
-    (await deps.conversations.createConversation({
-      tenantId: ctx.tenantId,
-      channel: integration.channel,
-      channelUserId: evento.channelUserId,
-      displayName: evento.displayName,
-      customerId: await clientePeloTelefone(deps, ctx, integration.channel, evento.channelUserId),
-    }));
+    existente === null
+      ? await deps.conversations.createConversation({
+          tenantId: ctx.tenantId,
+          channel: integration.channel,
+          ...identidade,
+          displayName: evento.displayName,
+          customerId: await clientePeloTelefone(deps, ctx, integration.channel, evento.phone),
+        })
+      : // AT-05: o mesmo contato chegou pela outra forma de endereçamento. A conversa é a
+        // mesma, e passa a ser identificada pelo LID assim que ele aparece.
+        await converger(deps, ctx, existente, identidade);
 
   await deps.conversations.addMessage({
     tenantId: ctx.tenantId,
@@ -128,6 +138,30 @@ async function autenticar(
 }
 
 /**
+ * AT-05 — mantém a conversa com a identidade mais recente, sem abrir outra.
+ *
+ * Só escreve quando algo mudou: a maioria esmagadora das mensagens chega com a mesma
+ * identidade que já está lá, e uma escrita por mensagem recebida seria desperdício puro.
+ */
+async function converger(
+  deps: ReceiveChannelMessageDeps,
+  ctx: RequestContext,
+  conversa: ConversationRecord,
+  identidade: { channelUserId: string; phone: string | null },
+): Promise<ConversationRecord> {
+  const mudou =
+    conversa.channelUserId !== identidade.channelUserId ||
+    (identidade.phone !== null && conversa.phone !== identidade.phone);
+  if (!mudou) return conversa;
+
+  return deps.conversations.updateIdentity(ctx.tenantId, conversa.id, {
+    channelUserId: identidade.channelUserId,
+    // Telefone conhecido não é apagado por um evento que só trouxe LID.
+    phone: identidade.phone ?? conversa.phone,
+  });
+}
+
+/**
  * AT-06 — casa com um cliente existente, e **só quando não há dúvida**.
  *
  * Telefone repetido em duas fichas é comum aqui: o número do responsável costuma estar em
@@ -139,9 +173,11 @@ async function clientePeloTelefone(
   deps: ReceiveChannelMessageDeps,
   ctx: RequestContext,
   channel: string,
-  channelUserId: string,
+  phone: string | null,
 ): Promise<string | null> {
-  if (channel !== 'whatsapp') return null;
-  const candidatos = await deps.customers.listByPhone(ctx.tenantId, channelUserId);
+  // Pelo telefone, nunca pelo LID: o LID não é número e não existe em cadastro nenhum, então
+  // procurar cliente por ele não acharia nunca — e o silêncio pareceria "não é cliente".
+  if (channel !== 'whatsapp' || phone === null) return null;
+  const candidatos = await deps.customers.listByPhone(ctx.tenantId, phone);
   return candidatos.length === 1 ? (candidatos[0]?.id ?? null) : null;
 }

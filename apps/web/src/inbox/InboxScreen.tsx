@@ -306,14 +306,15 @@ function Thread({
         >
           Detalhes
         </button>
-        {conversation.channel === 'whatsapp' && (
+        {/* Sem número não há link: `wa.me` com um LID abre uma conversa com ninguém. */}
+        {conversation.channel === 'whatsapp' && conversation.phone !== null && (
           <a
             className="btn btn-secondary btn-sm"
-            href={whatsappLink(conversation.channelUserId, '')}
+            href={whatsappLink(conversation.phone, '')}
             target="_blank"
             rel="noreferrer"
           >
-            Responder no WhatsApp
+            Abrir no WhatsApp
           </a>
         )}
       </div>

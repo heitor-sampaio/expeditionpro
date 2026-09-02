@@ -14,7 +14,10 @@ import type { Channel } from './inboxFormat.js';
 export interface Conversation {
   id: string;
   channel: Channel;
+  /** AT-05: a identidade no canal — LID quando existe. Não serve para discar nem para ler. */
   channelUserId: string;
+  /** O número, quando conhecido. É o que a tela mostra e o que abre o WhatsApp. */
+  phone: string | null;
   displayName: string | null;
   customerId: string | null;
   opportunityId: string | null;
