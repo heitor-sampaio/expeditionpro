@@ -84,7 +84,7 @@ const escritas: readonly [string, () => Promise<unknown>][] = [
   ['addSupplierExpense', () => addSupplierExpense(semDeps, viewer, semDeps)],
   ['registerSupplierPayment', () => registerSupplierPayment(semDeps, viewer, semDeps)],
   ['accrueCashback', () => accrueCashback(semDeps, viewer, semDeps)],
-  ['expireCashback', () => expireCashback(semDeps, viewer, semDeps)],
+  ['expireCashback', () => expireCashback(semDeps, viewer)],
   ['allocateFromQueue', () => allocateFromQueue(semDeps, viewer, semDeps)],
   ['discardIntake', () => discardIntake(semDeps, viewer, semDeps)],
   ['reprocessIntake', () => reprocessIntake(semDeps, viewer, semDeps)],

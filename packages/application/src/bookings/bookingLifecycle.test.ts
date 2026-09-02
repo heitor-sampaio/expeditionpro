@@ -31,6 +31,7 @@ function seed(status = 'pending') {
     status,
     source: 'manual',
     invoiceChecked: false,
+    checkedInAt: null,
     participants: [],
   };
   bookings.rows.push(booking);
@@ -260,7 +261,7 @@ describe('IN-11: excluir o único pagamento não reverte o status', () => {
     const { bookings, payments, payment } = await seedConfirmedWithPayment();
     await expect(
       deletePayment(
-        { payments, bookings },
+        { payments, bookings, audit: fakeAuditLogRepository() },
         ctxWith({ kind: 'team', userId: 'u2', role: 'operator' }),
         { paymentId: payment.id },
       ),

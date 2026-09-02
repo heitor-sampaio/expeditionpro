@@ -21,6 +21,7 @@ function seed() {
     status: 'confirmed',
     source: 'manual',
     invoiceChecked: false,
+    checkedInAt: null,
     participants: [],
   };
   bookings.rows.push(booking);

@@ -63,6 +63,7 @@ async function seed() {
       status,
       source,
       invoiceChecked: false,
+      checkedInAt: null,
       participants: [
         {
           id: `${id}-p0`,

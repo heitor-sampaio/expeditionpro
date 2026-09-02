@@ -63,6 +63,7 @@ function pushBooking(
     status,
     source: 'manual',
     invoiceChecked: false,
+    checkedInAt: null,
     participants: [
       {
         id: `${id}-p`,
@@ -109,6 +110,7 @@ describe('Dashboard — visão geral operacional', () => {
       submittedAt: null,
       status: 'needs_allocation',
       error: null,
+      itineraryId: null,
       isTest: false,
     });
 

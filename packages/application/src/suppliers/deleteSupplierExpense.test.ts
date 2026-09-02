@@ -75,11 +75,7 @@ describe('GR-18: excluir gasto', () => {
 
     await deleteSupplierExpense(s.deps, ctx, { expenseId: s.expense.id });
 
-    const rows = await listGroupExpenses(
-      { suppliers: s.suppliers, audit: fakeAuditLogRepository() },
-      ctx,
-      { groupId: s.group.id },
-    );
+    const rows = await listGroupExpenses({ suppliers: s.suppliers }, ctx, { groupId: s.group.id });
     expect(rows).toEqual([]);
   });
 

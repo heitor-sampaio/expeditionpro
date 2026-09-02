@@ -3,7 +3,7 @@ import { ForbiddenError, NotFoundError } from '../errors.js';
 import { fakeSupplierRepository } from './supplierRepository.fake.js';
 import { fakeAuditLogRepository } from '../audit/auditLogRepository.fake.js';
 import { deleteSupplierPayment } from './deleteSupplierPayment.js';
-import { cents } from '@expedition/domain';
+import { cents, parseLocalDate } from '@expedition/domain';
 import type { RequestContext } from '../context.js';
 
 /**
@@ -52,7 +52,7 @@ async function comPagamento() {
   const pagamento = await suppliers.addPayment({
     tenantId: 'tenant-a',
     supplierExpenseId: gasto.id,
-    paidAt: '2026-05-10',
+    paidAt: parseLocalDate('2026-05-10'),
     amountCents: cents(60000),
     method: 'pix',
     reference: null,

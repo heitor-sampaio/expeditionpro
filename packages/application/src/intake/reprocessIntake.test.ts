@@ -35,6 +35,7 @@ async function seedErrorRow(intake: ReturnType<typeof fakeIntakeRepository>, pay
     submittedAt: null,
     status: 'error',
     error: 'resp_cpf: invalid_check_digit',
+    itineraryId: null,
     isTest: false,
   });
   return row.id;
@@ -80,6 +81,7 @@ describe('IN-05: reprocessar inscrição em erro', () => {
       submittedAt: null,
       status: 'needs_allocation',
       error: null,
+      itineraryId: null,
       isTest: false,
     });
     await expect(

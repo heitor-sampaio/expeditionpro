@@ -73,14 +73,10 @@ async function gasto(
   categoryId: string | null,
   totalCents: number,
 ) {
-  const forn = await createSupplier(
-    { suppliers: d.suppliers, audit: fakeAuditLogRepository() },
-    ctx,
-    {
-      name: nome,
-      ...(categoryId === null ? {} : { categoryId }),
-    },
-  );
+  const forn = await createSupplier({ suppliers: d.suppliers }, ctx, {
+    name: nome,
+    ...(categoryId === null ? {} : { categoryId }),
+  });
   return addSupplierExpense(
     { suppliers: d.suppliers, schedule: d.schedule, audit: fakeAuditLogRepository() },
     ctx,
@@ -232,14 +228,10 @@ describe('FO-06: a categoria é do fornecedor', () => {
     const alim = await createSupplierCategory({ suppliers: d.suppliers, audit: d.audit }, ctx, {
       name: 'Alimentação',
     });
-    const forn = await createSupplier(
-      { suppliers: d.suppliers, audit: fakeAuditLogRepository() },
-      ctx,
-      {
-        name: 'Fazenda',
-        categoryId: hosp.id,
-      },
-    );
+    const forn = await createSupplier({ suppliers: d.suppliers }, ctx, {
+      name: 'Fazenda',
+      categoryId: hosp.id,
+    });
     await addSupplierExpense(
       { suppliers: d.suppliers, schedule: d.schedule, audit: fakeAuditLogRepository() },
       ctx,

@@ -96,6 +96,7 @@ function pushBooking(
     status,
     source: 'manual',
     invoiceChecked: false,
+    checkedInAt: null,
     participants: [],
   };
   bookings.rows.push(record);
@@ -200,6 +201,8 @@ describe('AG-05: gasto contratado não bloqueia; gasto pago bloqueia', () => {
       docType: null,
       phone: null,
       email: null,
+      pixKey: null,
+      pixKeyType: null,
       notes: null,
       categoryId: null,
     });
@@ -230,6 +233,8 @@ describe('AG-05: gasto contratado não bloqueia; gasto pago bloqueia', () => {
       docType: null,
       phone: null,
       email: null,
+      pixKey: null,
+      pixKeyType: null,
       notes: null,
       categoryId: null,
     });
@@ -391,6 +396,7 @@ describe('AG-05: excluir a saída descarta os pedidos feitos para ela', () => {
       submittedAt: null,
       status: 'needs_allocation',
       error: null,
+      itineraryId: null,
       isTest: false,
     });
 

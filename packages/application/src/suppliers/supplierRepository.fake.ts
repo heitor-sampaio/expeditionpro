@@ -16,6 +16,9 @@ export function fakeSupplierRepository(): SupplierRepository & {
   suppliers: (SupplierRecord & { tenantId: string })[];
   expenses: (SupplierExpenseRecord & { tenantId: string })[];
   payments: (SupplierPaymentRecord & { tenantId: string })[];
+  /** Ids marcados como excluídos: o teste de exclusão lógica precisa vê-los. */
+  deletedExpenses: Set<string>;
+  deletedPayments: Set<string>;
 } {
   const suppliers: (SupplierRecord & { tenantId: string })[] = [];
   const expenses: (SupplierExpenseRecord & { tenantId: string })[] = [];

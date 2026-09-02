@@ -91,7 +91,8 @@ describe('SEC-01: escrita no catálogo de roteiros é da equipe', () => {
     await expect(
       addItineraryPriceVersion({ itineraries }, cliente, {
         itineraryId: vitrine.id,
-        prices: { ...PRICE, validFrom: '2026-01-01' },
+        ...PRICE,
+        validFrom: '2026-01-01',
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });

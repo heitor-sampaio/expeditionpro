@@ -70,7 +70,8 @@ async function seed(opts: {
     status: opts.status ?? 'confirmed',
     source: 'manual',
     invoiceChecked: false,
-    cashbackRuleSnapshot: opts.snapshot,
+    checkedInAt: null,
+    ...(opts.snapshot === undefined ? {} : { cashbackRuleSnapshot: opts.snapshot }),
     participants: [
       {
         id: 'p1',

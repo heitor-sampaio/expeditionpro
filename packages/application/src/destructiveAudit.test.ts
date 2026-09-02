@@ -106,6 +106,8 @@ describe('A09: criar obrigação financeira grava, como apagar já gravava', () 
         startDate: parseLocalDate('2026-10-10'),
         endDate: parseLocalDate('2026-10-12'),
         title: null,
+        notes: null,
+        status: 'scheduled',
       },
       {
         name: 'Saída',
@@ -173,6 +175,8 @@ describe('A09: apagar saída da agenda deixa trilha', () => {
         startDate: parseLocalDate('2026-11-01'),
         endDate: parseLocalDate('2026-11-03'),
         title: null,
+        notes: null,
+        status: 'scheduled',
       },
       {
         name: 'Saída a apagar',

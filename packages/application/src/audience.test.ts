@@ -63,7 +63,7 @@ const casos: readonly [string, () => Promise<unknown>][] = [
   ['getGroupBoard', () => getGroupBoard(semDeps, cliente, semDeps)],
   ['updatePaymentFees', () => updatePaymentFees(semDeps, cliente, semDeps)],
   ['disconnectPaymentProvider', () => disconnectPaymentProvider(semDeps, cliente, semDeps)],
-  ['getTermEditorState', () => getTermEditorState(semDeps, cliente, semDeps)],
+  ['getTermEditorState', () => getTermEditorState(semDeps, cliente)],
 ];
 
 describe('SEC-01: o cliente não alcança o back-office', () => {

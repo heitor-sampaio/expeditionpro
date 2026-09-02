@@ -251,7 +251,7 @@ export function fakeCommunityRepository(
             createdAt: r.createdAt,
             postId: r.postId,
             commentId: r.commentId,
-            postAuthorName: post ? nameOf(post.authorCustomerId) : null,
+            postAuthorName: post?.authorCustomerId ? nameOf(post.authorCustomerId) : null,
             postBody: post ? post.body : null,
             postStatus: post ? post.status : null,
           } satisfies ReportQueueItem;

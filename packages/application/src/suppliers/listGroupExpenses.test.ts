@@ -19,7 +19,10 @@ describe('GR-08/GR-09: despesas do grupo com pago e em aberto derivados', () => 
       docType: null,
       phone: null,
       email: null,
+      pixKey: null,
+      pixKeyType: null,
       notes: null,
+      categoryId: null,
     });
     const expense = await suppliers.addExpense({
       tenantId: ctx.tenantId,

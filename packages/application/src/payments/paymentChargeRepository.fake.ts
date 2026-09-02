@@ -75,7 +75,16 @@ export function fakePaymentChargeRepository(): PaymentChargeRepository & {
       return Promise.resolve(rows.find((r) => r.id === chargeId) ?? null);
     },
     saveSettlement(_tenantId: string, chargeId: string, settlement: ChargeSettlement) {
-      return replace(chargeId, settlement);
+      /*
+       * PG-07: `installmentExternalId` é opcional e pode chegar como `undefined` — que
+       * significa "não informado", não "apague". Repassá-lo cru sobrescreveria o id do
+       * parcelamento já guardado, que é justamente o que aquele campo veio consertar.
+       */
+      const { installmentExternalId, ...resto } = settlement;
+      return replace(chargeId, {
+        ...resto,
+        ...(installmentExternalId === undefined ? {} : { installmentExternalId }),
+      });
     },
     listRecent(_tenantId: string, limit: number) {
       return Promise.resolve([...rows].reverse().slice(0, limit));

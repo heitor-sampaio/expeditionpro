@@ -56,6 +56,7 @@ async function seed(over: { email?: string | null } = {}) {
     status: 'pending',
     source: 'manual',
     invoiceChecked: false,
+    checkedInAt: null,
     participants: [
       {
         id: 'p1',

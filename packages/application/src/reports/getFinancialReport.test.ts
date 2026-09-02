@@ -66,6 +66,7 @@ function pushBooking(
     status,
     source: 'manual',
     invoiceChecked: false,
+    checkedInAt: null,
     participants: [
       {
         id: `${id}-p`,
@@ -101,11 +102,7 @@ describe('Relatório de fechamento por saída (consolidado GR-10)', () => {
       },
       null,
     );
-    const sup = await createSupplier(
-      { suppliers: d.suppliers, audit: fakeAuditLogRepository() },
-      ctx,
-      { name: 'Fornecedor' },
-    );
+    const sup = await createSupplier({ suppliers: d.suppliers }, ctx, { name: 'Fornecedor' });
     await addSupplierExpense(
       { suppliers: d.suppliers, schedule: d.schedule, audit: fakeAuditLogRepository() },
       ctx,

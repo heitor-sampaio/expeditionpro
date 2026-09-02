@@ -66,6 +66,7 @@ function pushBooking(
     status: 'confirmed',
     source: 'manual',
     invoiceChecked: false,
+    checkedInAt: null,
     participants: [
       {
         id: 'bk-1-p0',
@@ -120,6 +121,7 @@ describe('CL-03: remover acompanhante', () => {
       availableFrom: null,
       expiresAt: null,
       notes: null,
+      createdBy: null,
     });
 
     await expect(

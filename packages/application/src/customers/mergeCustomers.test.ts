@@ -47,8 +47,6 @@ async function setup() {
     modelOther: null,
     needsCatalogReview: false,
     plate: parsePlate('ABC1234'),
-    year: null,
-    color: null,
   });
   return { customers, vehicles, survivor, duplicate, dupCompanion, dupVehicle };
 }

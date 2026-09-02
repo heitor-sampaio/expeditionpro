@@ -57,7 +57,7 @@ describe('A09: mudança de identidade aprovada deixa trilha', () => {
     const s = await comCliente();
     const identityRequests = fakeIdentityChangeRepository();
     const pedido = await requestIdentityChange(
-      { customers: s.customers, identityRequests, clock },
+      { customers: s.customers, identityRequests },
       { tenantId: 'tenant-a', actor: { kind: 'customer', userId: 'a', customerId: s.cliente.id } },
       { customerId: s.cliente.id, fullName: 'Ana Prado Gonçalves' },
     );
@@ -77,7 +77,7 @@ describe('A09: mudança de identidade aprovada deixa trilha', () => {
     const s = await comCliente();
     const identityRequests = fakeIdentityChangeRepository();
     const pedido = await requestIdentityChange(
-      { customers: s.customers, identityRequests, clock },
+      { customers: s.customers, identityRequests },
       { tenantId: 'tenant-a', actor: { kind: 'customer', userId: 'a', customerId: s.cliente.id } },
       { customerId: s.cliente.id, fullName: 'Nome Falso' },
     );

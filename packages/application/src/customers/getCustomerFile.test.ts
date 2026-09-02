@@ -130,6 +130,7 @@ describe('CL-06: ficha do cliente (expedições, financeiro, cashback)', () => {
       availableFrom: parseLocalDate('2025-11-15'),
       expiresAt: null,
       notes: null,
+      createdBy: null,
     });
 
     const file = await getCustomerFile({ customers, bookings, schedule, payments, cashback }, ctx, {

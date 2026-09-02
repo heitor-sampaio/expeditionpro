@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { NotFoundError, BusinessRuleError, DuplicateCpfError } from '../errors.js';
+import { NotFoundError, BusinessRuleError } from '../errors.js';
+import { DuplicateCpfError } from './errors.js';
 import { registerCustomer } from './registerCustomer.js';
 import { registerCompanion } from './registerCompanion.js';
 import { fakeCustomerRepository } from './customerRepository.fake.js';

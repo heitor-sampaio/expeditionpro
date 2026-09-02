@@ -115,13 +115,19 @@ async function setup() {
     submittedAt: null,
     status: 'needs_allocation',
     error: null,
+    itineraryId: null,
     isTest: false,
   });
 
   const cashback = fakeCashbackRepository();
   const documents = fakeLegalDocumentRepository();
   const identityRequests = fakeIdentityChangeRepository();
-  const tenants = fakeTenantRepository({ name: 'Drakkar Expedições', cnpj: '12345678000199' });
+  const tenants = fakeTenantRepository({
+    name: 'Drakkar Expedições',
+    cnpj: '12345678000199',
+    slug: 'drk',
+    logo: null,
+  });
   const uow = passthroughUnitOfWork({
     customers,
     bookings,
@@ -209,7 +215,7 @@ describe('IN-18/§5.7.2: alocação a partir da fila', () => {
 
   it('recusa intake que não está na fila', async () => {
     const { deps, intake, group, intakeId } = await setup();
-    intake.rows[0]!.status = 'allocated';
+    intake.rows[0] = { ...intake.rows[0]!, status: 'allocated' };
     await expect(
       allocateFromQueue(deps, ctx, { intakeId, groupId: group.id }),
     ).rejects.toMatchObject({ code: 'not_allocatable' });
@@ -237,7 +243,7 @@ describe('IN-18/§5.7.2: alocação a partir da fila', () => {
 
   it('IN-19: intake já fora da fila não descarta', async () => {
     const { intake, intakeId } = await setup();
-    intake.rows[0]!.status = 'discarded';
+    intake.rows[0] = { ...intake.rows[0]!, status: 'discarded' };
     await expect(discardIntake({ intake }, ctx, { intakeId, reason: 'x' })).rejects.toBeInstanceOf(
       BusinessRuleError,
     );
@@ -398,6 +404,7 @@ describe('DOC-04/§5.7.1: aceite do Termo capturado na alocação da inscrição
       ip: null,
       userAgent: null,
       pdfPath: null,
+      variables: {},
     });
 
     await allocateFromQueue(deps, ctx, { intakeId, groupId: group.id });
@@ -451,6 +458,7 @@ describe('§5.8: aprovação do pedido feito no portal', () => {
       submittedAt: null,
       status: 'needs_allocation',
       error: null,
+      itineraryId: null,
       isTest: false,
     });
 

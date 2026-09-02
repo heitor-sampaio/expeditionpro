@@ -66,6 +66,8 @@ async function setup() {
       startDate: parseLocalDate('2026-10-10'),
       endDate: parseLocalDate('2026-10-12'),
       title: null,
+      notes: null,
+      status: 'scheduled',
     },
     {
       name: 'Coxilha Rica · 10/10/2026',

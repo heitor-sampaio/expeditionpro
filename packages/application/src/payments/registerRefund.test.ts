@@ -40,6 +40,7 @@ async function seed(receivedCents = 200000) {
     status: 'pending',
     source: 'manual',
     invoiceChecked: false,
+    checkedInAt: null,
     participants: [
       {
         id: 'bk-1-p0',
@@ -272,6 +273,7 @@ describe('§3.6: guardas da devolução', () => {
       status: 'pending',
       source: 'manual',
       invoiceChecked: false,
+      checkedInAt: null,
       participants: [],
     });
 

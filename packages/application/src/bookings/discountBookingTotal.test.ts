@@ -84,6 +84,8 @@ async function boardOf(s: ReturnType<typeof seed>) {
       startDate: { year: 2026, month: 10, day: 10 },
       endDate: { year: 2026, month: 10, day: 12 },
       title: null,
+      notes: null,
+      status: 'scheduled',
     },
     {
       name: 'g',

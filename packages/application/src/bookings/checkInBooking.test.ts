@@ -78,7 +78,7 @@ async function seed(status = 'confirmed') {
     source: 'portal',
     participants: [],
   });
-  bookings.rows[0] = { ...bookings.rows[0], status };
+  bookings.rows[0] = { ...bookings.rows[0]!, status };
 
   const cliente: RequestContext = {
     tenantId: 'tenant-a',
@@ -88,7 +88,7 @@ async function seed(status = 'confirmed') {
   return { bookings, customers, schedule, audit, booking, cliente, head };
 }
 
-const deps = (s, clock) => ({
+const deps = (s: Awaited<ReturnType<typeof seed>>, clock: Date) => ({
   bookings: s.bookings,
   customers: s.customers,
   schedule: s.schedule,
@@ -101,7 +101,7 @@ describe('GR-14: check-in da inscrição', () => {
     const s = await seed();
     const result = await checkInBooking(deps(s, NO_DIA), s.cliente, { bookingId: s.booking.id });
     expect(result.checkedInAt).toEqual(NO_DIA);
-    expect(s.bookings.rows[0].checkedInAt).toEqual(NO_DIA);
+    expect(s.bookings.rows[0]!.checkedInAt).toEqual(NO_DIA);
   });
 
   it('não deixa fazer antes do dia da saída', async () => {

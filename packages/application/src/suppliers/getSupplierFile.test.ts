@@ -22,7 +22,10 @@ async function seed() {
     docType: 'cnpj',
     phone: '4833334444',
     email: 'contato@pousada.com',
+    pixKey: null,
+    pixKeyType: null,
     notes: null,
+    categoryId: null,
   });
 
   const { group } = await schedule.createEventWithGroup(

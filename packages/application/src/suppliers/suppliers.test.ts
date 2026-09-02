@@ -301,7 +301,7 @@ describe('GR-09: pagamento a fornecedor', () => {
     const suppliers = fakeSupplierRepository();
     await expect(
       registerSupplierPayment(
-        { suppliers },
+        { suppliers, audit: fakeAuditLogRepository() },
         { tenantId: 'tenant-a', actor: { kind: 'customer', customerId: 'c1', userId: 'u2' } },
         { expenseId: 'e1', amountCents: 1000, method: 'pix', paidAt: '2025-11-01' },
       ),
@@ -324,6 +324,7 @@ describe('GR-10: resultado do grupo (receita − gastos, margem)', () => {
       status,
       source: 'manual',
       invoiceChecked: false,
+      checkedInAt: null,
       participants: [
         {
           id: `${id}-p`,
@@ -512,7 +513,7 @@ describe('SEC-01: fornecedor e gasto são da equipe', () => {
     const group = await seedGroup(schedule);
 
     await expect(
-      listGroupExpenses({ suppliers, schedule, audit: fakeAuditLogRepository() }, cliente, {
+      listGroupExpenses({ suppliers }, cliente, {
         groupId: group.id,
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
