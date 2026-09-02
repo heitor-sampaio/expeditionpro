@@ -60,6 +60,72 @@ Critério de pronto da Fase 0 (§7): tenancy, auth, RLS, Prisma extension, schem
    `pnpm install` pular as `devDependencies` — e o `vite` é uma delas. Por isso o
    `sirv-cli` está em `dependencies`: ele é dependência de execução do serviço publicado.
 
+## CRM: funil e atendimento (§5.16, §5.17) — em andamento
+
+Escopo novo, decidido em 2026-09-02. Plano em quatro fatias que funcionam de pé; a fatia 1
+está entregue e no ar, menos um requisito adiado pelo dono.
+
+O PRD foi para **v1.10.0** com 24 requisitos novos (`OP-01..11`, `AT-01..13`), vocabulário no
+§3.1 e tabelas no §4. Ele **negava** o CRM na linha 14 ("sistema financeiro antes de ser um
+CRM"); a linha continua lá e ganhou o parágrafo que diz o que fazer quando funil e ledger
+discordam — o funil vive antes do dinheiro e não encosta nele.
+
+### Fatia 1 — o quadro ✅ (menos OP-08)
+
+| Camada | Estado |
+|---|---|
+| PRD, vocabulário, schema | ✅ |
+| Aplicação: 7 casos de uso, 30 testes | ✅ |
+| Persistência: 2 tabelas, RLS provada, etapas padrão semeadas | ✅ |
+| Rotas: 7 endpoints em `/v1/crm`, 13 testes | ✅ |
+| Tela: quadro em colunas, arrastar próprio, `dropTarget` com 6 testes | ✅ |
+| **OP-08 — fechar gerando a inscrição** | ⏸️ **adiado pelo dono**: quer pensar numa forma melhor |
+
+**Consequência do adiamento, e é visível:** mover cartão para etapa de ganho é recusado
+apontando para o fechamento que não existe. Enquanto OP-08 não vier, **nenhum cartão chega
+numa coluna de ganho** e a coluna "Fechado" fica inalcançável. Foi escolha consciente —
+abrir o movimento criaria venda que o financeiro não conhece, contra o §1.
+
+**Não verificado por gente:** o layout do quadro e o arrastar no celular. O gesto usa pointer
+events com `touch-action: none`; o raciocínio está testado, o dedo não.
+
+### O que falta nas outras fatias
+
+**Fatia 2 — WhatsApp recebendo.** `channel_integrations` + tela em Configurações →
+Integrações; webhook `POST /v1/webhooks/evolution/:tenantSlug` no molde do ASAAS (401 uniforme,
+rate limit por chave, idempotência por id do provedor, corpo cru guardado); caixa de conversas
+(o CSS de duas colunas já existe em `.post-card`, o composer é `.inline-form`/`.inline-send`);
+tempo real com `useLiveRefresh`, que exige `REPLICA IDENTITY FULL` + `ALTER PUBLICATION` dentro
+de bloco `DO $` guardado.
+**Precisa de você:** URL e chave da instância Evolution.
+
+**Fatia 3 — WhatsApp enviando.** Port `MessagingGateway` + adapter no molde do `asaasGateway`
+(`fetchImpl` injetável, `AbortSignal.timeout`); composer ligado, `sentByUserId` gravado. Mídia
+entra aqui, não antes: exige baixar do provedor **no servidor**, caminho diferente do upload
+pelo navegador.
+
+**Fatia 4 — Instagram e Messenger.** Um webhook Meta para os dois (`object: instagram | page`),
+autenticado por **HMAC `X-Hub-Signature-256`** com comparação em tempo constante — mecanismo
+diferente do token no cabeçalho. Janela de 24h da Meta vira regra visível na tela (AT-12).
+**Precisa de você:** app Meta com `pages_messaging` e `instagram_manage_messages`, e o token da
+página. Página e conta profissional já estão vinculadas.
+
+### Decisões tomadas, para não rediscutir
+
+- **Cartão = oportunidade**, entidade própria. `customers` exige CPF com unique por tenant, e
+  quem pergunta o preço no WhatsApp não tem — não é preferência, é impedimento.
+- **Etapas configuráveis** desde o começo, com `kind` (`open|won|lost`). Sem `kind`, "Fechado"
+  é só um nome e não dá para calcular conversão.
+- **Caixa compartilhada**: toda a equipe vê e responde; quem respondeu fica gravado.
+- **Ganho não se alcança arrastando** (OP-08 é o caminho); **perda exige motivo** (OP-07).
+- **Sem biblioteca de arrastar.** `@dnd-kit` está 21 meses sem lançamento, e o CI roda
+  `pnpm audit`. Pointer events cobrem mouse, toque e caneta na mesma API.
+- **`position` sem unique**: etapa arquivada guarda a posição, e unique impediria a ativa
+  seguinte de ocupar o número. Daí a reordenação exigir a lista inteira.
+- **Sem policy de cliente** nas duas tabelas (OP-11). O portal não ganha nada disso nesta fase.
+
+---
+
 ## Pendências da revisão de segurança — fechadas em 2026-09-02
 
 | Item | Como ficou |
