@@ -31,6 +31,10 @@ export function inMemoryCustomers(): CustomerRepository {
       const wanted = new Set(ids);
       return Promise.resolve(rows.filter((r) => r.tenantId === tenantId && wanted.has(r.id)));
     },
+    // AT-06: telefone exato, para a chegada de mensagem casar com cliente existente.
+    listByPhone(tenantId, phone) {
+      return Promise.resolve(rows.filter((r) => r.tenantId === tenantId && r.phone === phone));
+    },
     search(tenantId, query, sort) {
       const q = norm(query.trim());
       const digits = query.replace(/\D/g, '');

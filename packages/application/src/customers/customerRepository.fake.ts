@@ -48,6 +48,9 @@ export function fakeCustomerRepository(): CustomerRepository & { rows: CustomerR
       const wanted = new Set(ids);
       return Promise.resolve(rows.filter((r) => r.tenantId === tenantId && wanted.has(r.id)));
     },
+    listByPhone(tenantId: string, phone: string) {
+      return Promise.resolve(rows.filter((r) => r.tenantId === tenantId && r.phone === phone));
+    },
     search(tenantId: string, query: string, sort: CustomerSort) {
       const q = norm(query.trim());
       const digits = query.replace(/\D/g, '');

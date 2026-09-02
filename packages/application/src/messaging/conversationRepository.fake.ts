@@ -1,0 +1,114 @@
+import type {
+  Channel,
+  ConversationRecord,
+  ConversationRepository,
+  MessageRecord,
+  NewConversation,
+  NewMessage,
+} from './conversationRepository.js';
+
+type ConversationRow = ConversationRecord & { tenantId: string };
+type MessageRow = MessageRecord & { tenantId: string };
+
+/** Fake in-memory das conversas (§5.17). Fora do build. */
+export function fakeConversationRepository(): ConversationRepository & {
+  conversations: ConversationRow[];
+  messages: MessageRow[];
+} {
+  const conversations: ConversationRow[] = [];
+  const messages: MessageRow[] = [];
+  let seq = 0;
+
+  return {
+    conversations,
+    messages,
+
+    findByChannelUser: (tenantId, channel: Channel, channelUserId) =>
+      Promise.resolve(
+        conversations.find(
+          (c) =>
+            c.tenantId === tenantId && c.channel === channel && c.channelUserId === channelUserId,
+        ) ?? null,
+      ),
+
+    findConversationById: (tenantId, id) =>
+      Promise.resolve(conversations.find((c) => c.tenantId === tenantId && c.id === id) ?? null),
+
+    listConversations: (tenantId) =>
+      Promise.resolve(
+        conversations
+          .filter((c) => c.tenantId === tenantId)
+          .sort((a, b) => (b.lastMessageAt?.getTime() ?? 0) - (a.lastMessageAt?.getTime() ?? 0)),
+      ),
+
+    createConversation(conversation: NewConversation) {
+      seq += 1;
+      const record: ConversationRow = {
+        tenantId: conversation.tenantId,
+        id: `conv-${seq}`,
+        channel: conversation.channel,
+        channelUserId: conversation.channelUserId,
+        displayName: conversation.displayName,
+        customerId: conversation.customerId,
+        opportunityId: null,
+        lastMessageAt: null,
+        unreadCount: 0,
+      };
+      conversations.push(record);
+      return Promise.resolve(record);
+    },
+
+    findMessageByExternalId: (tenantId, externalId) =>
+      Promise.resolve(
+        messages.find((m) => m.tenantId === tenantId && m.externalId === externalId) ?? null,
+      ),
+
+    addMessage(message: NewMessage) {
+      seq += 1;
+      const record: MessageRow = {
+        tenantId: message.tenantId,
+        id: `msg-${seq}`,
+        conversationId: message.conversationId,
+        externalId: message.externalId,
+        direction: message.direction,
+        body: message.body,
+        sentByUserId: message.sentByUserId,
+        sentAt: message.sentAt,
+      };
+      messages.push(record);
+      return Promise.resolve(record);
+    },
+
+    listMessages: (tenantId, conversationId) =>
+      Promise.resolve(
+        messages
+          .filter((m) => m.tenantId === tenantId && m.conversationId === conversationId)
+          .sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime()),
+      ),
+
+    touchConversation(tenantId, conversationId, patch) {
+      const i = conversations.findIndex((c) => c.tenantId === tenantId && c.id === conversationId);
+      if (i < 0) return Promise.resolve();
+      const atual = conversations[i]!;
+      conversations[i] = {
+        ...atual,
+        lastMessageAt: patch.lastMessageAt,
+        unreadCount: patch.incrementUnread ? atual.unreadCount + 1 : atual.unreadCount,
+        ...(patch.displayName === undefined ? {} : { displayName: patch.displayName }),
+      };
+      return Promise.resolve();
+    },
+
+    markRead(tenantId, conversationId) {
+      const i = conversations.findIndex((c) => c.tenantId === tenantId && c.id === conversationId);
+      if (i >= 0) conversations[i] = { ...conversations[i]!, unreadCount: 0 };
+      return Promise.resolve();
+    },
+
+    attachToOpportunity(tenantId, conversationId, opportunityId) {
+      const i = conversations.findIndex((c) => c.tenantId === tenantId && c.id === conversationId);
+      conversations[i] = { ...conversations[i]!, opportunityId };
+      return Promise.resolve(conversations[i]!);
+    },
+  };
+}

@@ -55,6 +55,13 @@ export interface CustomerRepository {
    * por id. Ids de outro tenant simplesmente não voltam.
    */
   listByIds(tenantId: string, ids: readonly string[]): Promise<CustomerRecord[]>;
+  /**
+   * AT-06: fichas com **exatamente** este telefone (E.164), para a chegada de mensagem
+   * casar com um cliente existente. Devolve lista, não um: família compartilhando número é
+   * comum, e quem chama decide o que fazer com o empate — adivinhar joga a conversa na
+   * pessoa errada.
+   */
+  listByPhone(tenantId: string, phone: string): Promise<CustomerRecord[]>;
   /** Busca por nome (substring, sem acento/caixa), CPF (dígitos) ou telefone — CL-04. */
   search(tenantId: string, query: string, sort: CustomerSort): Promise<CustomerRecord[]>;
   /** Responsáveis (chefes de família) ordenados — para listar todos os clientes (CL-04). */

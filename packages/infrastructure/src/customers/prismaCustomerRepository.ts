@@ -44,6 +44,22 @@ export function prismaCustomerRepository(base: PrismaClient): CustomerRepository
       return rows.map(toRecord);
     },
 
+    /**
+     * AT-06 — fichas com exatamente este telefone. Índice `(tenant_id, phone)` já existe
+     * para a busca de cliente (CL-04), então é uma consulta barata no caminho do webhook.
+     *
+     * Não filtra por `deletedAt`: cliente excluído logicamente não deve receber conversa
+     * nova, e devolvê-lo aqui só faria o chamador ver empate e desistir do vínculo — que é
+     * o comportamento certo.
+     */
+    async listByPhone(tenantId: string, phone: string): Promise<CustomerRecord[]> {
+      const rows = await tenantClient(base, tenantId).customer.findMany({
+        where: { phone, deletedAt: null },
+        orderBy: { createdAt: 'asc' },
+      });
+      return rows.map(toRecord);
+    },
+
     async search(tenantId: string, query: string, sort: CustomerSort): Promise<CustomerRecord[]> {
       const trimmed = query.trim();
       const digits = query.replace(/\D/g, '');

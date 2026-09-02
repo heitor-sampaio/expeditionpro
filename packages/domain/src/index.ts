@@ -250,3 +250,6 @@ export {
   type PostLayout,
 } from './community/post.js';
 export { searchKey } from './text/searchKey.js';
+
+// §5.17 — atendimento
+export { mapEvolutionEvent, type EvolutionEvent } from './messaging/evolutionEvent.js';
