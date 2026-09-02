@@ -74,7 +74,7 @@ export function registerCashbackRoutes(app: FastifyInstance, deps: ServerDeps): 
   // CB-02 — leitura da config de cashback da empresa
   typed.get('/v1/cashback/config', async (request, reply) => {
     const ctx = await deps.resolveContext(request);
-    const config = await getCashbackConfig({ cashback: deps.cashback }, ctx);
+    const config = await getCashbackConfig({ cashback: deps.cashback, audit: deps.audit }, ctx);
     return reply.send(config);
   });
 
@@ -82,7 +82,7 @@ export function registerCashbackRoutes(app: FastifyInstance, deps: ServerDeps): 
   typed.put('/v1/cashback/config', { schema: { body: configBody } }, async (request, reply) => {
     const ctx = await deps.resolveContext(request);
     const saved = await updateCashbackConfig(
-      { cashback: deps.cashback },
+      { cashback: deps.cashback, audit: deps.audit },
       ctx,
       request.body as CashbackConfig,
     );

@@ -220,7 +220,7 @@ export function registerCommunityRoutes(app: FastifyInstance, deps: ServerDeps):
     },
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
-      await moderatePost({ community: deps.community }, ctx, {
+      await moderatePost({ community: deps.community, audit: deps.audit }, ctx, {
         postId: request.params.postId,
         action: request.body.action,
         reason: request.body.reason,

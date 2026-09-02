@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fakeAuditLogRepository } from '../audit/auditLogRepository.fake.js';
 import { PostValidationError } from '@expedition/domain';
 import { fakeCommunityRepository } from './communityRepository.fake.js';
 import { createPost } from './createPost.js';
@@ -25,7 +26,10 @@ const customer = (id: string): RequestContext => ({
 });
 
 function deps() {
-  return { community: fakeCommunityRepository({ ana: 'Ana Prado', rui: 'Rui Alves' }) };
+  return {
+    community: fakeCommunityRepository({ ana: 'Ana Prado', rui: 'Rui Alves' }),
+    audit: fakeAuditLogRepository(),
+  };
 }
 
 const media = [{ storagePath: 'p/1.webp', alt: null }];

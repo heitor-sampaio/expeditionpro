@@ -1,4 +1,5 @@
 import type { CashbackConfig } from '@expedition/domain';
+import { actorUserId, type AuditLogRepository } from '../audit/auditLogRepository.js';
 import { BusinessRuleError, ForbiddenError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { CashbackRepository } from './cashbackRepository.js';
@@ -12,6 +13,7 @@ import type { CashbackRepository } from './cashbackRepository.js';
 
 export interface CashbackConfigDeps {
   readonly cashback: CashbackRepository;
+  readonly audit: AuditLogRepository;
 }
 
 export async function getCashbackConfig(
@@ -34,8 +36,39 @@ export async function updateCashbackConfig(
     throw new ForbiddenError('Alterar a config de cashback exige owner ou admin');
   }
   validate(config);
+
+  /*
+   * A09 — a config é uma sobrescrita: uma linha por tenant, sem histórico. Trocar o
+   * percentual de 5 para 50, ou desligar o cashback na véspera da liberação, não deixava
+   * nenhum rastro. É a única operação de cashback nessa situação — os lançamentos vivem
+   * num ledger append-only que já grava `createdBy`.
+   */
+  const anterior = await deps.cashback.getConfig(ctx.tenantId);
   await deps.cashback.saveConfig(ctx.tenantId, config);
+
+  const diff = diffConfig(anterior, config);
+  if (Object.keys(diff).length > 0) {
+    await deps.audit.record({
+      tenantId: ctx.tenantId,
+      actorUserId: actorUserId(actor),
+      entity: 'cashback_config',
+      // Uma config por tenant: o próprio tenant é a entidade.
+      entityId: ctx.tenantId,
+      action: 'cashback_config.update',
+      diff,
+    });
+  }
+
   return config;
+}
+
+/** Nenhum campo da config é dado pessoal: entram todos com valor, do jeito que se lê. */
+function diffConfig(antes: CashbackConfig, depois: CashbackConfig): Record<string, unknown> {
+  const diff: Record<string, unknown> = {};
+  for (const campo of Object.keys(depois) as (keyof CashbackConfig)[]) {
+    if (antes[campo] !== depois[campo]) diff[campo] = { from: antes[campo], to: depois[campo] };
+  }
+  return diff;
 }
 
 function validate(config: CashbackConfig): void {

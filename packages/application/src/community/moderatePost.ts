@@ -1,4 +1,5 @@
 import { requireWriter } from '../audience.js';
+import { actorUserId, type AuditLogRepository } from '../audit/auditLogRepository.js';
 import { BusinessRuleError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { CommunityRepository } from './communityRepository.js';
@@ -10,6 +11,7 @@ import type { CommunityRepository } from './communityRepository.js';
 
 export interface ModeratePostDeps {
   readonly community: CommunityRepository;
+  readonly audit: AuditLogRepository;
 }
 
 export type ModerationAction = 'hide' | 'remove' | 'restore';
@@ -41,4 +43,22 @@ export async function moderatePost(
     STATUS[command.action],
     command.reason,
   );
+
+  /*
+   * A09 — tirar do ar o post de um cliente é decisão de autoridade sobre a fala de outra
+   * pessoa, e até aqui só o **motivo** ficava guardado, na própria linha do post: quem
+   * decidiu, não. `resolveReport` já grava o decisor na denúncia; a moderação do conteúdo
+   * é caminho separado (a equipe decide caso a caso) e não tinha o equivalente.
+   *
+   * Depois da escrita, de propósito: moderação recusada por falta de motivo não aconteceu,
+   * e não vira linha.
+   */
+  await deps.audit.record({
+    tenantId: ctx.tenantId,
+    actorUserId: actorUserId(ctx.actor),
+    entity: 'community_post',
+    entityId: command.postId,
+    action: 'community_post.moderate',
+    diff: { action: command.action, status: STATUS[command.action], reason: command.reason },
+  });
 }
