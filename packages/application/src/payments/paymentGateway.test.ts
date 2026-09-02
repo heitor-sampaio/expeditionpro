@@ -14,7 +14,7 @@ import { disconnectPaymentProvider } from './disconnectPaymentProvider.js';
 import { createBookingCharge } from './createBookingCharge.js';
 import { updatePaymentFees } from './updatePaymentFees.js';
 import { settleChargeFromWebhook } from './settleChargeFromWebhook.js';
-import { BusinessRuleError, ForbiddenError, NotFoundError } from '../errors.js';
+import { BusinessRuleError, ForbiddenError, NotFoundError, UnauthorizedError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 
 /**
@@ -400,6 +400,11 @@ describe('PG-03: o webhook do ASAAS lança o recebimento', () => {
     expect(await s.payments.listByBooking('tenant-a', s.booking.id)).toHaveLength(1);
   });
 
+  /*
+   * SEC: 401, não 403. O endereço do webhook é público e traz o slug do tenant na URL;
+   * 403 confirmaria que aquele tenant existe e tem gateway conectado, e um chute por vez
+   * enumeraria os clientes da plataforma. Ver a guarda em settleChargeFromWebhook.
+   */
   it('token errado é recusado — é ele que autentica o provedor', async () => {
     const { s, charge } = await comCobranca();
     await expect(
@@ -407,7 +412,7 @@ describe('PG-03: o webhook do ASAAS lança o recebimento', () => {
         token: 'outro-token',
         body: evento(charge.externalId, 1200),
       }),
-    ).rejects.toBeInstanceOf(ForbiddenError);
+    ).rejects.toBeInstanceOf(UnauthorizedError);
   });
 
   it('evento de cobrança que não é nossa passa em branco, sem erro', async () => {

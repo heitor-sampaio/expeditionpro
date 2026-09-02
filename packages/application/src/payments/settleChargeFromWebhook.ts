@@ -1,5 +1,5 @@
 import { cents, mapAsaasEvent } from '@expedition/domain';
-import { ForbiddenError } from '../errors.js';
+import { UnauthorizedError } from '../errors.js';
 import { ASAAS } from './connectPaymentProvider.js';
 import type { RequestContext } from '../context.js';
 import type { AuditLogRepository } from '../audit/auditLogRepository.js';
@@ -68,7 +68,19 @@ export async function settleChargeFromWebhook(
 ): Promise<WebhookOutcome> {
   const integration = await deps.integrations.findByWebhookToken(ctx.tenantId, command.token);
   if (!integration) {
-    throw new ForbiddenError('Webhook não autenticado');
+    /*
+     * SEC — **401, não 403**, e o motivo é enumeração.
+     *
+     * O endereço do webhook é público por natureza (o ASAAS precisa alcançá-lo sem sessão) e
+     * traz o slug do tenant na URL. A rota já respondia 401 para slug inexistente; aqui,
+     * com slug válido e token errado, respondia 403. Quem sondasse a URL com um token
+     * qualquer separava os dois grupos na hora: 403 significava "este tenant existe e tem
+     * gateway conectado" — a lista de clientes da plataforma, um chute por vez.
+     *
+     * 403 diz "sei quem você é e você não pode"; 401 diz "não sei quem você é". Aqui a
+     * segunda é a verdade **e** a que não conta nada.
+     */
+    throw new UnauthorizedError('Webhook não autenticado');
   }
 
   const event = mapAsaasEvent(command.body);

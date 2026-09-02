@@ -1,4 +1,5 @@
 import { supabase } from '../auth/supabaseClient.js';
+import { SIGNED_URL_TTL_SECONDS } from './signedUrlTtl.js';
 
 /**
  * Pipeline de imagem compartilhado (comunidade CO-09, galeria de roteiro RO-01). Comprime
@@ -58,7 +59,9 @@ export function thumbPathOf(storagePath: string): string {
 
 /** URL assinada de curta validade para exibir uma mídia de um bucket privado. */
 export async function signedUrlFor(storagePath: string, bucket: string): Promise<string | null> {
-  const { data } = await supabase.storage.from(bucket).createSignedUrl(storagePath, 3600);
+  const { data } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS);
   return data?.signedUrl ?? null;
 }
 
@@ -83,7 +86,9 @@ export async function signedUrlsFor(
 ): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (storagePaths.length === 0) return out;
-  const { data } = await supabase.storage.from(bucket).createSignedUrls([...storagePaths], 3600);
+  const { data } = await supabase.storage
+    .from(bucket)
+    .createSignedUrls([...storagePaths], SIGNED_URL_TTL_SECONDS);
   for (const row of data ?? []) {
     if (row.path && row.signedUrl) out.set(row.path, row.signedUrl);
   }

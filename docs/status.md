@@ -128,6 +128,44 @@ ninguém abaixo dele alcança.
 o papel **dentro** da equipe vem do banco desde o SEC-17. São coisas diferentes e a troca de
 papel mexe só na segunda — por isso ela não chama a Admin API do Supabase.
 
+### Fim da lista da auditoria (2026-09-02)
+
+Os três últimos itens de baixa severidade. Dois eram o que o relatório dizia; o terceiro
+escondia coisa maior.
+
+**Enumeração pelo webhook — era real.** Slug inexistente respondia 401 (a rota parava ali),
+slug existente com token errado chegava ao caso de uso e voltava 403. Uma requisição por
+chute separava os dois grupos: 403 significava "este tenant existe e tem gateway conectado".
+Num SaaS multi-tenant, a lista de quem usa o sistema é informação comercial. As duas recusas
+passam a ser 401 com o mesmo corpo.
+
+**URL assinada de Storage: 1 h → 5 min.** Escrita à mão em dois lugares, sob um comentário
+que dizia "curta validade". Ela é credencial portátil — quem a tem abre a foto do bucket
+privado sem sessão nenhuma — e escapa por histórico, `Referer`, log de proxy e print de
+tela. Só precisa durar o carregamento da imagem. O teto virou teste, porque aumentar o prazo
+é a primeira ideia de quem estiver depurando imagem que não carrega.
+
+**Policies de Storage fora do CI — e um furo dentro delas.** As seis viviam só no painel:
+sem diff, sem revisão, sem `check:rls` (que lê migrations). Ao trazê-las para uma migration
+apareceu o problema de verdade: `DELETE` era `TO authenticated` com apenas a checagem de
+tenant, e **cliente é `authenticated`**. Com a própria sessão, chamando a API de Storage
+direto, um cliente apagava qualquer foto do tenant — capa de roteiro, fotos de outras
+famílias. Ninguém no aplicativo precisa disso: só a tela de roteiros apaga arquivo, e é
+back-office.
+
+A checagem nova lê `memberships`, não `app_metadata`: desde o SEC-17 o papel vigente está no
+banco, e quem foi rebaixado continua com o papel antigo no token. Uma policy que confiasse no
+token daria a essa pessoa o direito de apagar arquivo depois de perdê-lo no resto do sistema.
+
+### O que continua aberto
+
+- **`FORCE ROW LEVEL SECURITY`**, por decisão registrada acima.
+- **Verificação de navegador** do pipeline de mídia (compressão, HEIC, URL assinada) —
+  nunca foi executado num navegador real aqui.
+- **O limite estrutural:** quem auditou foi quem escreveu. Só nesta rodada isso produziu
+  três achados que o relatório original não tinha: o admin que removia o dono, o `directUrl`
+  que o Prisma descartava em silêncio, e o cliente que apagava mídia do tenant.
+
 ### O que sobrou aberto, e por quê
 
 - ~~Trocar o papel de quem já está na equipe~~ — **feito** (SEC-18, acima). Ficava assim: convidar de novo não resolve,
