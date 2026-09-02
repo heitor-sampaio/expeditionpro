@@ -135,6 +135,19 @@ export function prismaScheduleRepository(base: PrismaClient): ScheduleRepository
           visibility: 'public',
           deletedAt: null,
           scheduleEvent: { isNot: null },
+          /*
+           * IN-24 · SEC — o roteiro também precisa estar publicável, não só o grupo.
+           *
+           * Este é o único endereço do sistema que responde sem autenticação nenhuma. O
+           * filtro conferia o grupo e nunca o roteiro: um `draft` — em preparação, preço
+           * ainda não fechado — aparecia na vitrine se alguém abrisse um grupo público
+           * nele, e um `archived` seguia anunciado depois de a empresa decidir não vender
+           * mais. `custom` é saída negociada; vitrine é `catalog`.
+           *
+           * Mesmo par que a RLS da galeria já errou uma vez (`app.active_itinerary_ids`
+           * olhava o status e esquecia o `kind`): status e kind andam juntos.
+           */
+          itinerary: { status: 'active', kind: 'catalog' },
         },
         include: { itinerary: true, scheduleEvent: true },
         orderBy: { scheduleEvent: { startDate: 'asc' } },

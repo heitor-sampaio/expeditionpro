@@ -72,8 +72,13 @@ export function registerPaymentGatewayRoutes(app: FastifyInstance, deps: ServerD
         request.body,
       );
       // O segredo do webhook sai **uma vez**, aqui: é o que a equipe cola no painel do
-      // ASAAS. A listagem nunca o devolve.
-      return reply.status(201).send({ ...toDto(connected), webhookToken: connected.webhookToken });
+      // ASAAS. A listagem nunca o devolve — no banco só existe o hash. `no-store` pela
+      // mesma razão do link de convite: credencial em corpo de resposta não pode ficar em
+      // cache de proxy, de CDN ou do navegador.
+      return reply
+        .status(201)
+        .header('cache-control', 'no-store')
+        .send({ ...toDto(connected), webhookToken: connected.webhookToken });
     },
   );
 

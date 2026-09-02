@@ -1,4 +1,4 @@
-import { ForbiddenError, NotFoundError } from '../errors.js';
+import { requireVisiblePost } from './postAccess.js';
 import type { RequestContext } from '../context.js';
 import type { CommentRecord, CommunityRepository } from './communityRepository.js';
 
@@ -31,15 +31,7 @@ export async function listPostComments(
   ctx: RequestContext,
   command: ListPostCommentsCommand,
 ): Promise<CommentRecord[]> {
-  const { actor } = ctx;
-  if (actor.kind !== 'customer' && actor.kind !== 'team') {
-    throw new ForbiddenError('Comentários da comunidade');
-  }
-
-  const viewerCustomerId = actor.kind === 'customer' ? actor.customerId : actor.userId;
-  const post = await deps.community.getPost(ctx.tenantId, command.postId, viewerCustomerId);
-  if (!post) throw new NotFoundError('post');
-  if (actor.kind === 'customer' && post.status !== 'published') throw new NotFoundError('post');
+  await requireVisiblePost(deps.community, ctx, command.postId);
 
   return deps.community.listComments(ctx.tenantId, command.postId);
 }
