@@ -267,6 +267,17 @@ describe('AT-02: cerca de origem pelo HTTP', () => {
     await app.close();
   });
 
+  /**
+   * De onde vem a garantia de que este endereço não é forjado: **da borda**, não daqui.
+   *
+   * Medido em 2026-09-02 contra a API em produção — uma requisição enviada com
+   * `x-forwarded-for: 203.0.113.77` chegou registrada com o IP real de quem chamou. A Railway
+   * sobrescreve o cabeçalho em vez de acrescentar.
+   *
+   * Um teste não consegue provar isso: em `inject` não existe proxy nenhum, e o cabeçalho vale
+   * o que o teste escrever. O que se cobra aqui é o lado de cá — que a cerca use o endereço que
+   * o servidor resolveu. Trocar de hospedagem obriga a refazer a medida.
+   */
   it('endereço de fora não entra', async () => {
     const { app, conversations } = await comCerca();
 
@@ -274,23 +285,6 @@ describe('AT-02: cerca de origem pelo HTTP', () => {
       method: 'POST',
       url: '/v1/webhooks/evolution/dev',
       headers: { 'x-forwarded-for': '203.0.113.9' },
-      payload: evento('MSG-1', 'oi'),
-    });
-
-    expect(res.statusCode).toBe(401);
-    expect(conversations.messages).toHaveLength(0);
-    await app.close();
-  });
-
-  /** O ataque: escrever o endereço permitido no cabeçalho e esperar que o servidor acredite. */
-  it('cabeçalho forjado pelo chamador não abre a cerca', async () => {
-    const { app, conversations } = await comCerca();
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/v1/webhooks/evolution/dev',
-      // O primeiro é o que o invasor escreveu; o último é o que o proxy viu.
-      headers: { 'x-forwarded-for': `${DO_SERVIDOR}, 203.0.113.9` },
       payload: evento('MSG-1', 'oi'),
     });
 

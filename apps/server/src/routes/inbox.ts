@@ -9,7 +9,6 @@ import {
   receiveChannelMessage,
 } from '@expedition/application';
 import { UnauthorizedError } from '@expedition/application';
-import { clientIp } from '../log/clientIp.js';
 import { z } from 'zod';
 import type {
   ChannelIntegrationView,
@@ -130,13 +129,19 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
         {
           token,
           /*
-           * AT-02 — o último salto, e **não** o `request.ip`.
+           * AT-02 — o endereço que o proxy resolveu.
            *
-           * Com `trustProxy` ligado, `request.ip` devolve o primeiro `x-forwarded-for` — um
-           * cabeçalho que o próprio chamador escreve. Uma cerca por origem lida assim seria
-           * contornada mandando o endereço permitido nesse cabeçalho.
+           * A pergunta é se dá para forjar isto. **Medido em 2026-09-02**, não: uma requisição
+           * enviada com `x-forwarded-for: 203.0.113.77` chegou registrada com o IP real de
+           * quem chamou. A borda da Railway sobrescreve o cabeçalho em vez de acrescentar,
+           * então o valor aqui é dela, não de quem bateu na porta.
+           *
+           * **A cerca depende disso.** Se um dia o sistema sair da Railway, ou ela mudar esse
+           * comportamento, o endereço volta a ser texto de quem chama e a cerca abre sozinha.
+           * A medida é refazível: mande a mesma requisição com o cabeçalho forjado e confira
+           * no log qual endereço apareceu.
            */
-          clientIp: clientIp(request.headers['x-forwarded-for'], request.socket.remoteAddress),
+          clientIp: request.ip,
           channel: 'whatsapp',
           body: request.body,
         },
