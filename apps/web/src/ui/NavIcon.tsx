@@ -43,6 +43,14 @@ const PATHS: Record<string, React.JSX.Element> = {
       <circle cx="8" cy="5" r="0.4" fill="currentColor" />
     </>
   ),
+  // Três colunas de alturas diferentes: o desenho de um quadro visto de longe.
+  funil: (
+    <>
+      <rect x="3.5" y="4.5" width="4.5" height="15" rx="1.2" />
+      <rect x="9.75" y="4.5" width="4.5" height="10.5" rx="1.2" />
+      <rect x="16" y="4.5" width="4.5" height="6.5" rx="1.2" />
+    </>
+  ),
   clientes: (
     <>
       <circle cx="9" cy="8" r="3.2" />

@@ -4313,3 +4313,107 @@
   width: 17px;
   height: 17px;
 }
+
+/* Funil de oportunidades — quadro em colunas (§5.16, OP-01/OP-05) ------------------------ */
+
+/*
+ * Primeiro layout de colunas do projeto. A técnica de rolagem horizontal é a mesma já usada
+ * nas miniaturas da galeria de roteiro: `grid-auto-flow: column` com `overflow-x: auto`.
+ *
+ * Nenhuma coluna tem cor. Cor é dado neste sistema — verde é pago, vermelho é cancelado —, e
+ * etapa de funil não é estado financeiro. Ganho e perda se distinguem pelo rótulo.
+ */
+.board {
+  margin-top: 16px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 300px;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  align-items: start;
+}
+.board-col {
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card-lg);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 160px;
+}
+/* Coluna sob o ponteiro durante o arrasto: realce de interface, por isso o accent do tenant. */
+.board-col.is-target {
+  border-color: var(--o);
+  background: var(--o-soft);
+}
+.board-col-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.board-col-name {
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.board-col-count {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--ink-2);
+  background: var(--relief);
+  border-radius: var(--r-pill);
+  min-width: 22px;
+  height: 19px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+/* OP-09: previsão, nunca caixa — daí a palavra "previsto" colada ao número, sempre. */
+.board-col-sum {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.board-col-sum-label {
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.board-col-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.board-card {
+  cursor: grab;
+  /* Sem isto o navegador rola a página e rouba o gesto antes do pointermove chegar. */
+  touch-action: none;
+  user-select: none;
+}
+.board-card.is-dragging {
+  cursor: grabbing;
+  opacity: 0.5;
+  border-color: var(--o);
+}
+.board-card-value {
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}

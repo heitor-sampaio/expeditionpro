@@ -12,6 +12,7 @@ import { ConfiguracoesScreen } from './settings/ConfiguracoesScreen.js';
 import { ComunidadeScreen } from './community/ComunidadeScreen.js';
 import { RelatoriosScreen } from './reports/RelatoriosScreen.js';
 import { DashboardScreen } from './reports/DashboardScreen.js';
+import { CrmScreen } from './crm/CrmScreen.js';
 import { PortalApp } from './portal/PortalApp.js';
 import { LoginScreen } from './auth/LoginScreen.js';
 import { useAuth } from './auth/useAuth.js';
@@ -34,6 +35,7 @@ type View =
   | 'visao'
   | 'agenda'
   | 'fila'
+  | 'funil'
   | 'clientes'
   | 'fornecedores'
   | 'roteiros'
@@ -57,6 +59,7 @@ const NAV: readonly NavSection[] = [
       { id: 'visao', label: 'Visão geral' },
       { id: 'agenda', label: 'Agenda' },
       { id: 'fila', label: 'Inscrições' },
+      { id: 'funil', label: 'Funil' },
       { id: 'clientes', label: 'Clientes' },
       { id: 'fornecedores', label: 'Fornecedores' },
       { id: 'roteiros', label: 'Roteiros' },
@@ -79,6 +82,7 @@ const TITLES: Record<View, string> = {
   visao: 'Visão geral',
   agenda: 'Agenda',
   fila: 'Inscrições',
+  funil: 'Funil',
   clientes: 'Clientes',
   fornecedores: 'Fornecedores',
   roteiros: 'Roteiros',
@@ -361,6 +365,8 @@ function Shell({
               <AgendaScreen onOpenGroup={openGroup} />
             ) : view === 'fila' ? (
               <QueueScreen />
+            ) : view === 'funil' ? (
+              <CrmScreen />
             ) : view === 'fornecedores' ? (
               <FornecedoresScreen onOpenFile={openSupplierFile} />
             ) : view === 'roteiros' ? (
