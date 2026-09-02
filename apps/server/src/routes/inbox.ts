@@ -376,6 +376,8 @@ function conversationDto(conversation: ConversationRecord) {
     customerId: conversation.customerId,
     opportunityId: conversation.opportunityId,
     lastMessageAt: conversation.lastMessageAt ? conversation.lastMessageAt.toISOString() : null,
+    lastInboundAt: conversation.lastInboundAt ? conversation.lastInboundAt.toISOString() : null,
+    lastOutboundAt: conversation.lastOutboundAt ? conversation.lastOutboundAt.toISOString() : null,
     unreadCount: conversation.unreadCount,
   };
 }

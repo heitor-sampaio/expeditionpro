@@ -158,9 +158,8 @@ export async function sendChannelMessage(
   });
 
   await deps.conversations.touchConversation(ctx.tenantId, conversa.id, {
-    lastMessageAt: sentAt,
-    // O que sai já foi visto por quem escreveu.
-    incrementUnread: false,
+    at: sentAt,
+    direction: 'out',
   });
 
   return mensagem;

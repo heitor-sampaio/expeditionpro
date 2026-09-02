@@ -229,15 +229,17 @@ export function prismaConversationRepository(base: PrismaClient): ConversationRe
     async touchConversation(
       tenantId: string,
       conversationId: string,
-      patch: { lastMessageAt: Date; incrementUnread: boolean; displayName?: string | null },
+      patch: { at: Date; direction: MessageDirection; displayName?: string | null },
     ): Promise<void> {
+      const entrando = patch.direction === 'in';
       await tenantClient(base, tenantId).conversation.update({
         where: { id: conversationId },
         data: {
-          lastMessageAt: patch.lastMessageAt,
+          lastMessageAt: patch.at,
+          ...(entrando ? { lastInboundAt: patch.at } : { lastOutboundAt: patch.at }),
           // `increment` e não leitura-e-soma: duas mensagens chegando juntas somariam 1 se
           // cada uma lesse o mesmo valor antes de gravar.
-          ...(patch.incrementUnread ? { unreadCount: { increment: 1 } } : {}),
+          ...(entrando ? { unreadCount: { increment: 1 } } : {}),
           ...(patch.displayName === undefined ? {} : { displayName: patch.displayName }),
         },
       });
@@ -274,6 +276,8 @@ function toConversation(row: PrismaConversation): ConversationRecord {
     customerId: row.customerId,
     opportunityId: row.opportunityId,
     lastMessageAt: row.lastMessageAt,
+    lastInboundAt: row.lastInboundAt,
+    lastOutboundAt: row.lastOutboundAt,
     unreadCount: row.unreadCount,
   };
 }

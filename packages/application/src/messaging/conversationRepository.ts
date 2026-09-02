@@ -20,7 +20,17 @@ export interface ConversationRecord {
   readonly displayName: string | null;
   readonly customerId: string | null;
   readonly opportunityId: string | null;
+  /**
+   * AT-07 — a **última atividade**, de qualquer lado. É por onde a caixa ordena.
+   *
+   * Existe junto dos dois de baixo, e não no lugar deles, porque ordenar por "o maior entre
+   * dois" não usa índice: a lista é lida a cada mensagem que chega.
+   */
   readonly lastMessageAt: Date | null;
+  /** Quando o contato falou pela última vez. Responde "ele já respondeu?". */
+  readonly lastInboundAt: Date | null;
+  /** Quando nós falamos pela última vez. Responde "nós já respondemos?". */
+  readonly lastOutboundAt: Date | null;
   readonly unreadCount: number;
 }
 
@@ -99,11 +109,17 @@ export interface ConversationRepository {
   findMessageByExternalId(tenantId: string, externalId: string): Promise<MessageRecord | null>;
   addMessage(message: NewMessage): Promise<MessageRecord>;
   listMessages(tenantId: string, conversationId: string): Promise<MessageRecord[]>;
-  /** Carimba o horário da última mensagem e soma ao não lido quando ela é de entrada. */
+  /**
+   * Carimba os horários da conversa a partir de uma mensagem.
+   *
+   * A **direção decide tudo**: qual dos dois carimbos anda e se o não lido sobe. Passar as
+   * duas coisas separadas abriria espaço para elas discordarem — e discordando, uma conversa
+   * respondida pela equipe apareceria como não lida para sempre.
+   */
   touchConversation(
     tenantId: string,
     conversationId: string,
-    patch: { lastMessageAt: Date; incrementUnread: boolean; displayName?: string | null },
+    patch: { at: Date; direction: MessageDirection; displayName?: string | null },
   ): Promise<void>;
   markRead(tenantId: string, conversationId: string): Promise<void>;
   attachToOpportunity(

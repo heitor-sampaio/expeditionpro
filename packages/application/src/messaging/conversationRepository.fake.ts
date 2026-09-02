@@ -69,6 +69,8 @@ export function fakeConversationRepository(): ConversationRepository & {
         customerId: conversation.customerId,
         opportunityId: null,
         lastMessageAt: null,
+        lastInboundAt: null,
+        lastOutboundAt: null,
         unreadCount: 0,
       };
       conversations.push(record);
@@ -109,10 +111,12 @@ export function fakeConversationRepository(): ConversationRepository & {
       const i = conversations.findIndex((c) => c.tenantId === tenantId && c.id === conversationId);
       if (i < 0) return Promise.resolve();
       const atual = conversations[i]!;
+      const entrando = patch.direction === 'in';
       conversations[i] = {
         ...atual,
-        lastMessageAt: patch.lastMessageAt,
-        unreadCount: patch.incrementUnread ? atual.unreadCount + 1 : atual.unreadCount,
+        lastMessageAt: patch.at,
+        ...(entrando ? { lastInboundAt: patch.at } : { lastOutboundAt: patch.at }),
+        unreadCount: entrando ? atual.unreadCount + 1 : atual.unreadCount,
         ...(patch.displayName === undefined ? {} : { displayName: patch.displayName }),
       };
       return Promise.resolve();

@@ -132,9 +132,10 @@ export async function receiveChannelMessage(
   });
 
   await deps.conversations.touchConversation(ctx.tenantId, conversa.id, {
-    lastMessageAt: evento.sentAt,
-    // Só o que entra conta como não lido: o que sai já foi visto por quem escreveu.
-    incrementUnread: evento.direction === 'in',
+    at: evento.sentAt,
+    // A direção decide qual carimbo anda e se o não lido sobe: o que sai já foi visto por
+    // quem escreveu, inclusive quando foi digitado no celular pareado.
+    direction: evento.direction,
     // O nome do WhatsApp muda quando a pessoa troca o perfil; vale sempre o mais recente.
     ...(evento.displayName === null ? {} : { displayName: evento.displayName }),
   });

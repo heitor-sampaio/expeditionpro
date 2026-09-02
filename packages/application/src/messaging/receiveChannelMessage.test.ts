@@ -553,3 +553,58 @@ describe('AT-13: mídia recebida entra na conversa', () => {
     expect(d.media.arquivos).toHaveLength(0);
   });
 });
+
+/**
+ * AT-07 — dois horários, porque são duas perguntas diferentes.
+ *
+ * "Ele já respondeu?" e "nós já respondemos?" não se respondem com o mesmo carimbo. Com um
+ * horário só, uma conversa em que a equipe acabou de escrever parece igual a uma em que o
+ * cliente acabou de cobrar — e é justamente a segunda que precisa de alguém.
+ *
+ * `lastMessageAt` continua existindo como "última atividade", que é por onde a lista ordena.
+ */
+describe('AT-07: horário do que entra e do que sai', () => {
+  const evento = (id: string, fromMe: boolean, segundos: number) => ({
+    event: 'messages.upsert',
+    data: {
+      key: { id, fromMe, remoteJid: '5548999998877@s.whatsapp.net' },
+      pushName: 'Ana Prado',
+      message: { conversation: 'oi' },
+      messageTimestamp: segundos,
+    },
+  });
+  const comando = { token: 'segredo-certo', clientIp: '', channel: 'whatsapp' as const };
+
+  it('mensagem do contato carimba o horário do que entrou', async () => {
+    const d = comCanal();
+
+    await receiveChannelMessage(d, sistema, { ...comando, body: evento('A', false, 1788000000) });
+
+    expect(d.conversations.conversations[0]).toMatchObject({
+      lastInboundAt: new Date(1788000000 * 1000),
+      lastOutboundAt: null,
+    });
+  });
+
+  /** A resposta digitada no celular pareado é nossa, e conta como nossa (AT-08). */
+  it('mensagem que sai carimba o horário do que saiu, e não mexe no outro', async () => {
+    const d = comCanal();
+    await receiveChannelMessage(d, sistema, { ...comando, body: evento('A', false, 1788000000) });
+
+    await receiveChannelMessage(d, sistema, { ...comando, body: evento('B', true, 1788000600) });
+
+    expect(d.conversations.conversations[0]).toMatchObject({
+      lastInboundAt: new Date(1788000000 * 1000),
+      lastOutboundAt: new Date(1788000600 * 1000),
+    });
+  });
+
+  it('a última atividade continua sendo a mais recente das duas', async () => {
+    const d = comCanal();
+    await receiveChannelMessage(d, sistema, { ...comando, body: evento('A', false, 1788000000) });
+
+    await receiveChannelMessage(d, sistema, { ...comando, body: evento('B', true, 1788000600) });
+
+    expect(d.conversations.conversations[0]?.lastMessageAt).toEqual(new Date(1788000600 * 1000));
+  });
+});

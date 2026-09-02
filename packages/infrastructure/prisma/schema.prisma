@@ -1111,7 +1111,12 @@ model Conversation {
   // Vínculos opcionais: a conversa existe sozinha, e a equipe liga quando souber quem é.
   customerId    String?   @map("customer_id") @db.Uuid
   opportunityId String?   @map("opportunity_id") @db.Uuid
+  // AT-07 — última atividade, por onde a caixa ordena.
   lastMessageAt DateTime? @map("last_message_at")
+  // E os dois lados separados: "ele já respondeu?" e "nós já respondemos?" são perguntas
+  // diferentes, e um carimbo só não responde as duas.
+  lastInboundAt  DateTime? @map("last_inbound_at")
+  lastOutboundAt DateTime? @map("last_outbound_at")
   unreadCount   Int       @default(0) @map("unread_count")
   createdAt     DateTime  @default(now()) @map("created_at")
 

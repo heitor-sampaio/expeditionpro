@@ -42,8 +42,8 @@ async function comConversa() {
     sentAt: new Date('2026-09-01T10:00:00Z'),
   });
   await conversations.touchConversation('tenant-a', conversa.id, {
-    lastMessageAt: new Date('2026-09-01T10:00:00Z'),
-    incrementUnread: true,
+    at: new Date('2026-09-01T10:00:00Z'),
+    direction: 'in',
   });
   return { conversations, media, conversa };
 }
