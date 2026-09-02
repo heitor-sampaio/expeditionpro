@@ -46,7 +46,17 @@ AS $$
 $$;
 
 REVOKE ALL ON FUNCTION app.can_manage_media() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION app.can_manage_media() TO authenticated;
+
+-- `authenticated` é role do Supabase e **não existe** num Postgres cru. O CI reaplica todas
+-- as migrations num `postgres:17` limpo, e um GRANT solto aqui derruba a suíte inteira de
+-- integração e RLS — foi o que aconteceu: o bloco do Storage abaixo estava guardado, este
+-- GRANT não, e eu não olhei o CI antes de dizer que estava verde.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    GRANT EXECUTE ON FUNCTION app.can_manage_media() TO authenticated;
+  END IF;
+END $$;
 
 -- As policies de Storage só existem onde existe Storage. No CI o banco é um `postgres:17`
 -- cru, sem o schema `storage`, e este bloco vira no-op — mesma regra do backfill do SEC-17.

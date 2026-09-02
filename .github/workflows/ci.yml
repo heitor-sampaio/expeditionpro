@@ -83,9 +83,10 @@ jobs:
       - name: Typecheck dos testes
         run: pnpm typecheck:tests
 
-      - name: Guardas de política (RLS em toda tabela · sem SQL cru · sem TODO)
+      - name: Guardas de política (RLS · migration portável · sem SQL cru · sem TODO)
         run: |
           pnpm check:rls
+          pnpm check:migrations
           pnpm check:raw-sql
           pnpm check:markers
 
