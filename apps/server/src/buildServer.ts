@@ -222,6 +222,17 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
   await app.register(cors, {
     origin:
       options.corsOrigins && options.corsOrigins.length > 0 ? [...options.corsOrigins] : false,
+    /*
+     * SEC-16 — os métodos precisam ser **declarados**.
+     *
+     * O padrão do `@fastify/cors` é `GET,HEAD,POST`, e o navegador não manda o que o
+     * preflight não liberar: todo `PATCH`, `PUT` e `DELETE` do back-office voltava como
+     * "sem conexão com o servidor", sem erro no servidor porque a requisição nunca chegava.
+     *
+     * Editar cliente, remover etapa do funil, salvar taxas e desconectar canal ficaram
+     * quebrados desde que a API ganhou host próprio. Ver `routes/cors.test.ts`.
+     */
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE'],
   });
   await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
 
