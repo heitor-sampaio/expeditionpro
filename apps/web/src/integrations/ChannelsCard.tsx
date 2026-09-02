@@ -226,27 +226,37 @@ function ChannelBlock({
 
       {webhookToken && (
         <div className="key-fresh">
-          <span className="field-label">Configure o webhook na Evolution</span>
+          <span className="field-label">Cole esta URL no webhook da Evolution</span>
           <p className="field-help">
-            URL: <code>{webhookUrl()}</code>
+            <code className="mono">{webhookUrl(webhookToken)}</code>
           </p>
           <p className="field-help">
-            Cabeçalho: <code className="mono">x-webhook-token: {webhookToken}</code>
+            Marque o evento <code>messages.upsert</code> e deixe <em>webhook by events</em>{' '}
+            desligado.
+          </p>
+          {/*
+            O segredo está dentro da URL, então o aviso não é sobre "um token": é sobre o
+            endereço inteiro. Quem tiver esta linha manda mensagem para dentro do sistema.
+          */}
+          <p className="field-help">
+            <strong>Esta URL é uma senha.</strong> Ela aparece uma única vez — o sistema guarda só
+            um resumo dela, nunca o valor. Copie agora, e não cole em lugar público.
           </p>
           <p className="field-help">
-            Marque o evento <code>messages.upsert</code>. Este token aparece uma única vez — o
-            sistema guarda só um resumo dele, nunca o valor. Guarde agora.
+            Se a sua Evolution tiver campo de cabeçalho, prefira ele: cadastre a URL sem o último
+            trecho e mande <code className="mono">x-webhook-token: {webhookToken}</code>. Cabeçalho
+            não passa por log de proxy nem por histórico de navegador.
           </p>
         </div>
       )}
 
       {connected && !webhookToken && (
         <p className="field-help">
-          Na Evolution, o webhook aponta para <code>{webhookUrl()}</code>, com o evento{' '}
-          <code>messages.upsert</code>. O token do cabeçalho foi mostrado ao conectar e não pode ser
-          lido de novo. Trocar a chave <strong>mantém o mesmo token</strong>, para a mensagem não
-          parar de chegar. Se ele se perdeu, desconecte e conecte de novo: aí nasce um novo, e ele
-          precisa ser atualizado lá.
+          Na Evolution, o webhook aponta para <code>{webhookUrl()}</code> seguido do segredo, com o
+          evento <code>messages.upsert</code>. O segredo foi mostrado ao conectar e não pode ser
+          lido de novo. Trocar a chave <strong>mantém o mesmo segredo</strong>, para a mensagem não
+          parar de chegar. Se ele se perdeu, desconecte e conecte de novo: aí nasce outro, e a URL
+          precisa ser atualizada lá.
         </p>
       )}
 
@@ -260,8 +270,8 @@ function ChannelBlock({
   );
 }
 
-function webhookUrl(): string {
-  return evolutionWebhookUrl(import.meta.env['VITE_PUBLIC_API_URL'], API_BASE);
+function webhookUrl(token?: string): string {
+  return evolutionWebhookUrl(import.meta.env['VITE_PUBLIC_API_URL'], API_BASE, token);
 }
 
 function formatDate(iso: string): string {

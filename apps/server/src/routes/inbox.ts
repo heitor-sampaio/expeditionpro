@@ -15,7 +15,7 @@ import type {
   ConversationRecord,
   MessageRecord,
 } from '@expedition/application';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { ServerDeps } from '../buildServer.js';
 
@@ -39,67 +39,104 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
 
   const inbox = () => ({ conversations: deps.conversations });
 
-  // AT-02 — webhook da Evolution. Público, autenticado pelo segredo no cabeçalho.
+  /*
+   * AT-02 — webhook da Evolution. Público, autenticado pelo segredo.
+   *
+   * Duas formas de apresentar o mesmo segredo, e o provedor escolhe pela que conseguir:
+   *
+   * - **cabeçalho** `x-webhook-token`, que é o certo — segredo em cabeçalho não passa por log
+   *   de proxy, histórico nem print de tela;
+   * - **último segmento do caminho**, para quem não tem campo de cabeçalho nenhum. A Evolution
+   *   instalada aqui é desse tipo, e sem esta forma a integração simplesmente não existe para
+   *   quem está nessa versão.
+   *
+   * O preço da segunda é real e assumido: a URL inteira vira credencial, e credencial em URL
+   * vaza pelos lugares acima. Por isso ela é a mesma coisa revogável do cabeçalho — desconectar
+   * e conectar gera outra — e sai apagada do nosso log pelo serializador (SEC-01).
+   */
+  const rotaWebhook = {
+    max: 600,
+    timeWindow: '1 minute',
+  };
+
+  typed.post(
+    '/v1/webhooks/evolution/:tenantSlug/:token',
+    {
+      schema: {
+        params: z.object({ tenantSlug: z.string().min(1), token: z.string().min(1) }),
+      },
+      config: { rateLimit: { ...rotaWebhook, keyGenerator: chaveDoLimite } },
+    },
+    (request, reply) => receber(request, reply, request.params.tenantSlug, request.params.token),
+  );
+
   typed.post(
     '/v1/webhooks/evolution/:tenantSlug',
     {
       schema: { params: z.object({ tenantSlug: z.string().min(1) }) },
-      config: {
-        rateLimit: {
-          max: 600,
-          timeWindow: '1 minute',
-          keyGenerator: (request) =>
-            (request.headers[WEBHOOK_HEADER] as string | undefined) ?? request.ip,
-        },
-      },
+      config: { rateLimit: { ...rotaWebhook, keyGenerator: chaveDoLimite } },
     },
-    async (request, reply) => {
-      /*
-       * A recusa é **uma só** para quem chama e **duas** para quem opera.
-       *
-       * Quem chama recebe sempre o mesmo 401: a diferença entre "este tenant não existe" e
-       * "o segredo está errado" enumeraria os clientes da plataforma, um chute por vez.
-       *
-       * Quem opera precisa do contrário. "A Evolution não manda o cabeçalho" e "o segredo
-       * colado lá é outro" têm conserto diferente — configuração do provedor num caso,
-       * reconectar no outro — e sem essa distinção o diagnóstico vira adivinhação. Ela fica
-       * no log, que é nosso, e **sem o valor apresentado**: segredo não entra em log nem
-       * quando ajudaria a depurar.
-       */
-      const recusar = (motivo: string) => {
-        request.log.warn(
-          { motivo, tenantSlug: request.params.tenantSlug },
-          'webhook evolution recusado',
-        );
-        return reply.status(401).send({ error: 'unauthorized' });
-      };
-
-      const tenantId = await deps.tenants.findIdBySlug(request.params.tenantSlug);
-      if (!tenantId) return recusar('slug_desconhecido');
-
-      const cabecalho = request.headers[WEBHOOK_HEADER];
-      const token = typeof cabecalho === 'string' ? cabecalho : '';
-      if (token === '') return recusar('sem_cabecalho');
-
-      try {
-        const outcome = await receiveChannelMessage(
-          {
-            integrations: deps.channelIntegrations,
-            conversations: deps.conversations,
-            customers: deps.customers,
-          },
-          { tenantId, actor: { kind: 'system' } },
-          { token, body: request.body },
-        );
-        return reply.send({ handled: outcome.handled });
-      } catch (error) {
-        // Só o caso de segredo errado ganha linha própria; o resto segue para o tratador
-        // global, que já sabe traduzir erro de negócio e falha inesperada.
-        if (error instanceof UnauthorizedError) return recusar('token_nao_confere');
-        throw error;
-      }
-    },
+    (request, reply) => receber(request, reply, request.params.tenantSlug, ''),
   );
+
+  /** Um balde por segredo apresentado; sem segredo, por IP. */
+  function chaveDoLimite(request: FastifyRequest): string {
+    const cabecalho = request.headers[WEBHOOK_HEADER];
+    if (typeof cabecalho === 'string' && cabecalho !== '') return cabecalho;
+    const { token } = (request.params ?? {}) as { token?: string };
+    return token ?? request.ip;
+  }
+
+  async function receber(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    tenantSlug: string,
+    tokenDoCaminho: string,
+  ) {
+    /*
+     * A recusa é **uma só** para quem chama e **duas** para quem opera.
+     *
+     * Quem chama recebe sempre o mesmo 401: a diferença entre "este tenant não existe" e
+     * "o segredo está errado" enumeraria os clientes da plataforma, um chute por vez.
+     *
+     * Quem opera precisa do contrário. "A Evolution não manda o cabeçalho" e "o segredo
+     * colado lá é outro" têm conserto diferente — configuração do provedor num caso,
+     * reconectar no outro — e sem essa distinção o diagnóstico vira adivinhação. Ela fica
+     * no log, que é nosso, e **sem o valor apresentado**: segredo não entra em log nem
+     * quando ajudaria a depurar.
+     */
+    const recusar = (motivo: string) => {
+      request.log.warn({ motivo, tenantSlug }, 'webhook evolution recusado');
+      return reply.status(401).send({ error: 'unauthorized' });
+    };
+
+    const tenantId = await deps.tenants.findIdBySlug(tenantSlug);
+    if (!tenantId) return recusar('slug_desconhecido');
+
+    // O cabeçalho ganha do caminho: quem conseguiu configurá-lo está na forma boa, e é ela
+    // que vale mesmo que a URL antiga com segredo ainda esteja cadastrada em algum lugar.
+    const cabecalho = request.headers[WEBHOOK_HEADER];
+    const token = typeof cabecalho === 'string' && cabecalho !== '' ? cabecalho : tokenDoCaminho;
+    if (token === '') return recusar('sem_segredo');
+
+    try {
+      const outcome = await receiveChannelMessage(
+        {
+          integrations: deps.channelIntegrations,
+          conversations: deps.conversations,
+          customers: deps.customers,
+        },
+        { tenantId, actor: { kind: 'system' } },
+        { token, body: request.body },
+      );
+      return reply.send({ handled: outcome.handled });
+    } catch (error) {
+      // Só o caso de segredo errado ganha linha própria; o resto segue para o tratador
+      // global, que já sabe traduzir erro de negócio e falha inesperada.
+      if (error instanceof UnauthorizedError) return recusar('token_nao_confere');
+      throw error;
+    }
+  }
 
   typed.get('/v1/inbox/conversations', async (request, reply) => {
     const ctx = await deps.resolveContext(request);

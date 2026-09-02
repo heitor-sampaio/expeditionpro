@@ -1,11 +1,7 @@
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
-import Fastify, {
-  type FastifyInstance,
-  type FastifyRequest,
-  type FastifyServerOptions,
-} from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import {
   serializerCompiler,
   validatorCompiler,
@@ -64,6 +60,7 @@ import { registerCommunityRoutes } from './routes/community.js';
 import { registerCouponRoutes } from './routes/coupons.js';
 import { registerCrmRoutes } from './routes/crm.js';
 import { registerInboxRoutes } from './routes/inbox.js';
+import { redactUrl } from './log/redactUrl.js';
 import { registerCompanyRoutes, registerCrewRoutes } from './routes/company.js';
 
 /**
@@ -132,28 +129,43 @@ export interface ServerDeps {
 export interface ServerOptions {
   /** Origens permitidas no CORS (domínios do tenant, IN-24). Vazio = nega tudo. */
   readonly corsOrigins?: readonly string[];
+  /** Logger do Fastify. Desligue nos testes para saída limpa. Default: ligado. */
+  readonly logger?: boolean;
   /**
-   * Logger do Fastify. `false` desliga (saída limpa nos testes); um objeto de opções
-   * substitui a configuração padrão — é como um teste captura o que foi registrado.
+   * Para onde as linhas de log vão. Existe para o teste **ler o que foi registrado sem
+   * trocar a configuração**: passar um logger inteiro substituiria serializador e redação —
+   * justamente o que precisa ser exercitado — e o teste passaria a provar outra coisa.
    */
-  readonly logger?: FastifyServerOptions['logger'];
+  readonly logStream?: { write(linha: string): void };
   /** Casos de uso e resolução de contexto. Sem isso, só o health check sobe. */
   readonly deps?: ServerDeps;
 }
 
 /**
  * SEC-01 — o log de acesso do Fastify inclui a query string, e a busca de cliente aceita
- * **nome, CPF ou telefone** em `?q=`. Sem redação, `?q=90000010057` ficava em claro num
- * agregador de log, que costuma ter retenção longa e público mais amplo que o back-office.
+ * **nome, CPF ou telefone** em `?q=`.
  *
- * Também apaga os cabeçalhos de credencial: nenhum deles é logado por padrão hoje, mas
- * depender de um padrão para não vazar segredo é depender de sorte.
+ * A defesa é o **serializador**, não a lista de redação. A lista nomeava `req.query.q` e não
+ * fazia efeito nenhum: o serializador padrão do Fastify não emite `query`, emite `url` — com
+ * a query string dentro. Redação por caminho só apaga o que foi serializado, e ninguém percebe
+ * quando o caminho não existe, porque não há erro: o campo simplesmente segue em claro.
+ *
+ * A lista continua, para os cabeçalhos: nenhum deles é serializado hoje, e é exatamente por
+ * isso que ela fica — se um dia passarem a ser, já estão cobertos. Depender de um padrão para
+ * não vazar segredo é depender de sorte.
  */
 function loggerConfig() {
   return {
+    serializers: {
+      req: (request: FastifyRequest) => ({
+        method: request.method,
+        url: redactUrl(request.url),
+        host: request.host,
+        remoteAddress: request.ip,
+      }),
+    },
     redact: {
       paths: [
-        'req.query.q',
         'req.headers.authorization',
         'req.headers.cookie',
         'req.headers["api_token"]',
@@ -167,7 +179,10 @@ function loggerConfig() {
 
 export async function buildServer(options: ServerOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: options.logger ?? loggerConfig(),
+    logger: options.logger ?? {
+      ...loggerConfig(),
+      ...(options.logStream ? { stream: options.logStream } : {}),
+    },
     genReqId: () => crypto.randomUUID(),
     /*
      * SEC-01 — atrás do proxy do Railway toda conexão chega do IP do proxy. Sem isto:

@@ -121,6 +121,92 @@ describe('AT-02: POST /v1/webhooks/evolution/:tenantSlug', () => {
   });
 });
 
+/**
+ * AT-02 — o segredo também pode vir **no caminho**.
+ *
+ * Nem todo provedor deixa configurar cabeçalho no webhook: a Evolution instalada aqui só tem
+ * campo de URL. Sem esta forma, a integração não existe para quem está nessa versão — e um
+ * webhook público sem autenticação nenhuma não é alternativa.
+ *
+ * O preço é real e assumido: URL com segredo dentro passa por log de proxy, histórico de
+ * navegador e print de tela. Daí o segredo do caminho ser o mesmo do cabeçalho, revogável
+ * desconectando e conectando de novo, e apagado do nosso log pelo serializador (SEC-01).
+ */
+describe('AT-02: segredo no caminho, para provedor sem cabeçalho', () => {
+  it('recebe a mensagem quando o segredo vem no caminho', async () => {
+    const { app, conversations } = await servidor();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev/SEGREDO',
+      payload: evento('MSG-1', 'Quanto custa a Coxilha Rica?'),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ handled: true });
+    expect(conversations.messages).toHaveLength(1);
+    await app.close();
+  });
+
+  it('segredo errado no caminho responde 401 sem tocar em nada', async () => {
+    const { app, conversations } = await servidor();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev/CHUTE',
+      payload: evento('MSG-1', 'oi'),
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(conversations.messages).toHaveLength(0);
+    await app.close();
+  });
+
+  it('slug desconhecido com segredo certo responde 401 igual', async () => {
+    const { app } = await servidor();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/nao-existe/SEGREDO',
+      payload: evento('MSG-1', 'oi'),
+    });
+
+    expect(res.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it('AT-03: reenvio pelo caminho também não duplica', async () => {
+    const { app, conversations } = await servidor();
+    const chamada = {
+      method: 'POST' as const,
+      url: '/v1/webhooks/evolution/dev/SEGREDO',
+      payload: evento('MSG-1', 'oi'),
+    };
+    await app.inject(chamada);
+
+    const res = await app.inject(chamada);
+
+    expect(res.json()).toEqual({ handled: false });
+    expect(conversations.messages).toHaveLength(1);
+    await app.close();
+  });
+
+  it('o cabeçalho continua valendo, e ganha do caminho quando os dois vêm', async () => {
+    const { app, conversations } = await servidor();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev/CHUTE',
+      headers: { 'x-webhook-token': 'SEGREDO' },
+      payload: evento('MSG-1', 'oi'),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(conversations.messages).toHaveLength(1);
+    await app.close();
+  });
+});
+
 describe('AT-07: a caixa pelo HTTP', () => {
   async function comConversa(role: 'owner' | 'viewer' = 'owner') {
     const tudo = await servidor(role);
@@ -300,12 +386,9 @@ describe('AT-02: a recusa do webhook é diagnosticável pelo log', () => {
     ]);
     const ctx: RequestContext = { tenantId: TENANT, actor: { kind: 'team', userId: 'u1', role } };
     const app = await buildServer({
-      logger: {
-        level: 'warn',
-        stream: {
-          write: (linha: string) => {
-            linhas.push(linha);
-          },
+      logStream: {
+        write: (linha: string) => {
+          linhas.push(linha);
         },
       },
       deps: inMemoryServerDeps({
@@ -318,7 +401,7 @@ describe('AT-02: a recusa do webhook é diagnosticável pelo log', () => {
     return { app, linhas };
   }
 
-  it('sem cabeçalho nenhum, o log diz que faltou o cabeçalho', async () => {
+  it('sem segredo nenhum, o log diz que não veio segredo', async () => {
     const { app, linhas } = await servidorComLog();
 
     const res = await app.inject({
@@ -328,7 +411,7 @@ describe('AT-02: a recusa do webhook é diagnosticável pelo log', () => {
     });
 
     expect(res.statusCode).toBe(401);
-    expect(linhas.join(' ')).toContain('sem_cabecalho');
+    expect(linhas.join(' ')).toContain('sem_segredo');
     await app.close();
   });
 

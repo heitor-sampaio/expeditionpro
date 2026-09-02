@@ -53,3 +53,28 @@ describe('AT-02: URL do webhook da Evolution', () => {
     );
   });
 });
+
+/**
+ * AT-02 — a Evolution instalada aqui não tem campo de cabeçalho no webhook: só URL. Então o
+ * segredo vai no último segmento do caminho, e **a URL inteira vira credencial** — é ela que a
+ * tela manda copiar, com o aviso que isso merece.
+ */
+describe('AT-02: URL do webhook com o segredo dentro', () => {
+  it('põe o segredo como último segmento', () => {
+    expect(evolutionWebhookUrl(undefined, 'https://api.exemplo.app', 'S3GR3D0')).toBe(
+      'https://api.exemplo.app/v1/webhooks/evolution/drk/S3GR3D0',
+    );
+  });
+
+  it('sem segredo, devolve o endereço sem segmento sobrando', () => {
+    expect(evolutionWebhookUrl(undefined, 'https://api.exemplo.app')).toBe(
+      'https://api.exemplo.app/v1/webhooks/evolution/drk',
+    );
+  });
+
+  it('segredo com caractere de URL é escapado — senão o caminho quebra', () => {
+    expect(evolutionWebhookUrl(undefined, 'https://api.exemplo.app', 'a/b?c')).toBe(
+      'https://api.exemplo.app/v1/webhooks/evolution/drk/a%2Fb%3Fc',
+    );
+  });
+});
