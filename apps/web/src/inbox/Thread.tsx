@@ -97,7 +97,9 @@ export function Thread({
           <span className="card-title">{titulo}</span>
           <span className="member-cpf">
             {channelLabel(conversation.channel)}
-            {conversation.customerId ? ' · cliente cadastrado' : ' · contato solto'}
+            {conversation.customer === null
+              ? ' · contato solto'
+              : ` · cliente: ${conversation.customer.name}`}
           </span>
         </div>
         <button

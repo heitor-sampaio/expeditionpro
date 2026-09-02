@@ -608,3 +608,73 @@ describe('AT-07: horário do que entra e do que sai', () => {
     expect(d.conversations.conversations[0]?.lastMessageAt).toEqual(new Date(1788000600 * 1000));
   });
 });
+
+/**
+ * AT-06 — o vínculo com a ficha é tentado **a cada mensagem**, não só ao abrir a conversa.
+ *
+ * O caso real: alguém chama no WhatsApp antes de existir cadastro, vira inscrição dias depois,
+ * e a conversa fica para sempre marcada como contato solto. Quem atende continua sem saber que
+ * ali tem ficha, histórico e talvez uma inscrição em aberto.
+ *
+ * Tentar de novo é barato e a regra não muda: casa só quando **não há dúvida** — um telefone,
+ * uma ficha. E vínculo que já existe não é mexido, porque pode ter sido a equipe que o fez.
+ */
+describe('AT-06: vínculo com a ficha, depois da primeira mensagem', () => {
+  const evento = (id: string) => ({
+    event: 'messages.upsert',
+    data: {
+      key: { id, fromMe: false, remoteJid: '5548999998877@s.whatsapp.net' },
+      pushName: 'Ana Prado',
+      message: { conversation: 'oi' },
+      messageTimestamp: 1788000000,
+    },
+  });
+  const comando = { token: 'segredo-certo', clientIp: '', channel: 'whatsapp' as const };
+
+  async function cadastrar(d: ReturnType<typeof comCanal>, phone: string, cpf: string) {
+    return d.customers.create({
+      tenantId: 'tenant-a',
+      responsibleId: null,
+      fullName: 'Ana Prado',
+      cpf: parseCpf(cpf),
+      birthDate: { year: 1990, month: 5, day: 2 },
+      email: null,
+      phone,
+      address: EMPTY,
+    });
+  }
+
+  it('cliente cadastrado depois da conversa passa a aparecer nela', async () => {
+    const d = comCanal();
+    await receiveChannelMessage(d, sistema, { ...comando, body: evento('A') });
+    expect(d.conversations.conversations[0]?.customerId).toBeNull();
+
+    const cliente = await cadastrar(d, '5548999998877', '900.000.100-57');
+    await receiveChannelMessage(d, sistema, { ...comando, body: evento('B') });
+
+    expect(d.conversations.conversations[0]?.customerId).toBe(cliente.id);
+  });
+
+  it('vínculo que já existe não é trocado — pode ter sido a equipe que fez', async () => {
+    const d = comCanal();
+    const outro = await cadastrar(d, '5511900000000', '111.444.777-35');
+    await receiveChannelMessage(d, sistema, { ...comando, body: evento('A') });
+    await d.conversations.linkCustomer('tenant-a', d.conversations.conversations[0]!.id, outro.id);
+
+    await cadastrar(d, '5548999998877', '900.000.100-57');
+    await receiveChannelMessage(d, sistema, { ...comando, body: evento('B') });
+
+    expect(d.conversations.conversations[0]?.customerId).toBe(outro.id);
+  });
+
+  it('telefone em duas fichas continua sem casar com nenhuma', async () => {
+    const d = comCanal();
+    await receiveChannelMessage(d, sistema, { ...comando, body: evento('A') });
+    await cadastrar(d, '5548999998877', '900.000.100-57');
+    await cadastrar(d, '5548999998877', '111.444.777-35');
+
+    await receiveChannelMessage(d, sistema, { ...comando, body: evento('B') });
+
+    expect(d.conversations.conversations[0]?.customerId).toBeNull();
+  });
+});

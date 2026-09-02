@@ -261,7 +261,14 @@ function ConversationRow({
       <span className="avatar">{iniciais(titulo)}</span>
       <span className="inbox-row-text">
         <span className="member-name">{titulo}</span>
-        <span className="member-cpf">{channelLabel(conversation.channel)}</span>
+        <span className="member-cpf">
+          {channelLabel(conversation.channel)}
+          {/*
+            Cinza, e não verde: cor é dado neste sistema, e verde é pago. "Já é cliente" é
+            informação de cadastro, não estado financeiro.
+          */}
+          {conversation.customer !== null && <span className="inbox-tag">cliente</span>}
+        </span>
       </span>
       <span className="inbox-row-meta">
         <span className="inbox-time">{quando(conversation.lastMessageAt)}</span>

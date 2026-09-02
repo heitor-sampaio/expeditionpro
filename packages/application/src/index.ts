@@ -934,7 +934,11 @@ export {
   type ChannelIntegrationView,
 } from './messaging/listChannelIntegrations.js';
 export { disconnectChannel, type DisconnectChannelCommand } from './messaging/disconnectChannel.js';
-export { listConversations, type InboxDeps } from './messaging/listConversations.js';
+export {
+  listConversations,
+  type InboxDeps,
+  type ConversationView,
+} from './messaging/listConversations.js';
 export {
   sendChannelMessage,
   type SendChannelMessageDeps,

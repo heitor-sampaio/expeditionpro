@@ -68,9 +68,10 @@ export function ContactPanel({
             mono
           />
         )}
+        {/* O nome, não um "sim": saber que existe ficha sem saber qual não resolve nada. */}
         <Fato
           rotulo="Cadastro"
-          valor={conversation.customerId ? 'Cliente cadastrado' : 'Contato solto'}
+          valor={conversation.customer === null ? 'Contato solto' : conversation.customer.name}
         />
         <Fato rotulo="Mensagens" valor={String(totalMensagens)} mono />
         {/*

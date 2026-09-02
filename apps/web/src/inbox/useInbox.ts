@@ -20,6 +20,8 @@ export interface Conversation {
   phone: string | null;
   displayName: string | null;
   customerId: string | null;
+  /** AT-06: quem é o contato, quando já tem ficha. `null` quando é contato solto. */
+  customer: { id: string; name: string } | null;
   opportunityId: string | null;
   /** Última atividade, de qualquer lado: é por onde a lista ordena. */
   lastMessageAt: string | null;

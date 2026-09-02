@@ -4938,3 +4938,22 @@
 .inbox-msgs::-webkit-scrollbar-thumb:hover {
   background: var(--ink-3);
 }
+
+/*
+ * AT-06 — marca de "já é cliente" na linha da conversa.
+ *
+ * Cinza, e não verde: neste sistema cor é dado, e verde é pago. Ser cliente é informação de
+ * cadastro, não estado financeiro — pintar de verde faria a lista mentir sobre dinheiro.
+ */
+.inbox-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--relief);
+  color: var(--ink-2);
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

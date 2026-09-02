@@ -13,7 +13,7 @@ import { BusinessRuleError, UnauthorizedError } from '@expedition/application';
 import { z } from 'zod';
 import type {
   ChannelIntegrationView,
-  ConversationRecord,
+  ConversationView,
   ThreadMessage,
 } from '@expedition/application';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -41,7 +41,7 @@ const WEBHOOK_HEADER = 'x-webhook-token';
 export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
-  const inbox = () => ({ conversations: deps.conversations });
+  const inbox = () => ({ conversations: deps.conversations, customers: deps.customers });
 
   /*
    * AT-02 — webhook da Evolution. Público, autenticado pelo segredo.
@@ -297,6 +297,7 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
         {
           conversations: deps.conversations,
           opportunities: deps.opportunities,
+          customers: deps.customers,
           audit: deps.audit,
         },
         ctx,
@@ -366,7 +367,7 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
 }
 
 /** O que a caixa mostra de uma conversa. Datas em ISO, como todo DTO daqui. */
-function conversationDto(conversation: ConversationRecord) {
+function conversationDto(conversation: ConversationView) {
   return {
     id: conversation.id,
     channel: conversation.channel,
@@ -374,6 +375,9 @@ function conversationDto(conversation: ConversationRecord) {
     phone: conversation.phone,
     displayName: conversation.displayName,
     customerId: conversation.customerId,
+    // AT-06: quem é o contato, quando ele já tem ficha. Só id e nome — o resto da ficha tem
+    // tela própria, e CPF não passeia por DTO de conversa.
+    customer: conversation.customer,
     opportunityId: conversation.opportunityId,
     lastMessageAt: conversation.lastMessageAt ? conversation.lastMessageAt.toISOString() : null,
     lastInboundAt: conversation.lastInboundAt ? conversation.lastInboundAt.toISOString() : null,

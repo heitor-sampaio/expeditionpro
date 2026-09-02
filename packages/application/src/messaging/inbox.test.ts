@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { parseCpf } from '@expedition/domain';
+import { fakeCustomerRepository } from '../customers/customerRepository.fake.js';
 import { fakeConversationRepository } from './conversationRepository.fake.js';
 import { fakeMediaStore } from './mediaStore.fake.js';
 import { fakeOpportunityRepository } from '../crm/opportunityRepository.fake.js';
@@ -9,6 +11,15 @@ import { markConversationRead } from './markConversationRead.js';
 import { attachConversationToOpportunity } from './attachConversationToOpportunity.js';
 import { ForbiddenError, NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
+
+const EMPTY = {
+  street: null,
+  number: null,
+  district: null,
+  city: null,
+  state: null,
+  zip: null,
+};
 
 function ctxCom(role: 'owner' | 'operator' | 'viewer'): RequestContext {
   return { tenantId: 'tenant-a', actor: { kind: 'team', userId: 'u1', role } };
@@ -21,6 +32,7 @@ const cliente: RequestContext = {
 
 async function comConversa() {
   const conversations = fakeConversationRepository();
+  const customers = fakeCustomerRepository();
   const media = fakeMediaStore();
   const conversa = await conversations.createConversation({
     tenantId: 'tenant-a',
@@ -45,7 +57,7 @@ async function comConversa() {
     at: new Date('2026-09-01T10:00:00Z'),
     direction: 'in',
   });
-  return { conversations, media, conversa };
+  return { conversations, customers, media, conversa };
 }
 
 /**
@@ -57,29 +69,29 @@ async function comConversa() {
  */
 describe('AT-07: ler a caixa', () => {
   it('lista as conversas do tenant', async () => {
-    const { conversations } = await comConversa();
+    const { conversations, customers } = await comConversa();
 
-    const lista = await listConversations({ conversations }, ctxCom('operator'));
+    const lista = await listConversations({ conversations, customers }, ctxCom('operator'));
 
     expect(lista.map((c) => c.displayName)).toEqual(['Ana Prado']);
   });
 
   it('viewer lê a caixa — somente leitura não é cegueira', async () => {
-    const { conversations } = await comConversa();
+    const { conversations, customers } = await comConversa();
 
-    expect(await listConversations({ conversations }, ctxCom('viewer'))).toHaveLength(1);
+    expect(await listConversations({ conversations, customers }, ctxCom('viewer'))).toHaveLength(1);
   });
 
   it('cliente não lê a caixa — o portal não tem chat (AT-11)', async () => {
-    const { conversations } = await comConversa();
+    const { conversations, customers } = await comConversa();
 
-    await expect(listConversations({ conversations }, cliente)).rejects.toBeInstanceOf(
+    await expect(listConversations({ conversations, customers }, cliente)).rejects.toBeInstanceOf(
       ForbiddenError,
     );
   });
 
   it('abrir uma conversa traz o fio inteiro, em ordem', async () => {
-    const { conversations, media, conversa } = await comConversa();
+    const { conversations, customers, media, conversa } = await comConversa();
     await conversations.addMessage({
       tenantId: 'tenant-a',
       conversationId: conversa.id,
@@ -92,7 +104,7 @@ describe('AT-07: ler a caixa', () => {
       sentAt: new Date('2026-09-01T10:05:00Z'),
     });
 
-    const fio = await getConversation({ conversations, media }, ctxCom('operator'), {
+    const fio = await getConversation({ conversations, customers, media }, ctxCom('operator'), {
       conversationId: conversa.id,
     });
 
@@ -104,11 +116,11 @@ describe('AT-07: ler a caixa', () => {
   });
 
   it('conversa de outro tenant responde como se não existisse', async () => {
-    const { conversations, media, conversa } = await comConversa();
+    const { conversations, customers, media, conversa } = await comConversa();
 
     await expect(
       getConversation(
-        { conversations, media },
+        { conversations, customers, media },
         { ...ctxCom('operator'), tenantId: 'tenant-b' },
         {
           conversationId: conversa.id,
@@ -120,9 +132,9 @@ describe('AT-07: ler a caixa', () => {
 
 describe('AT-07: marcar como lida', () => {
   it('zera o não lido', async () => {
-    const { conversations, conversa } = await comConversa();
+    const { conversations, customers, conversa } = await comConversa();
 
-    await markConversationRead({ conversations }, ctxCom('operator'), {
+    await markConversationRead({ conversations, customers }, ctxCom('operator'), {
       conversationId: conversa.id,
     });
 
@@ -131,10 +143,12 @@ describe('AT-07: marcar como lida', () => {
   });
 
   it('viewer não marca como lida — esconderia o não lido de quem vai responder', async () => {
-    const { conversations, conversa } = await comConversa();
+    const { conversations, customers, conversa } = await comConversa();
 
     await expect(
-      markConversationRead({ conversations }, ctxCom('viewer'), { conversationId: conversa.id }),
+      markConversationRead({ conversations, customers }, ctxCom('viewer'), {
+        conversationId: conversa.id,
+      }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
@@ -180,14 +194,20 @@ describe('AT-10: anexar conversa a uma oportunidade', () => {
         },
       ],
     });
-    return { conversations, conversa, opportunities, audit: fakeAuditLogRepository() };
+    return {
+      conversations,
+      customers: fakeCustomerRepository(),
+      conversa,
+      opportunities,
+      audit: fakeAuditLogRepository(),
+    };
   }
 
   it('anexa e a conversa passa a apontar para o cartão', async () => {
-    const { conversations, conversa, opportunities, audit } = await comFunil();
+    const { conversations, customers, conversa, opportunities, audit } = await comFunil();
 
     const atualizada = await attachConversationToOpportunity(
-      { conversations, opportunities, audit },
+      { conversations, opportunities, customers, audit },
       ctxCom('operator'),
       { conversationId: conversa.id, opportunityId: 'opp-1' },
     );
@@ -196,15 +216,15 @@ describe('AT-10: anexar conversa a uma oportunidade', () => {
   });
 
   it('desanexar é permitido — vincular na pessoa errada acontece', async () => {
-    const { conversations, conversa, opportunities, audit } = await comFunil();
+    const { conversations, customers, conversa, opportunities, audit } = await comFunil();
     await attachConversationToOpportunity(
-      { conversations, opportunities, audit },
+      { conversations, opportunities, customers, audit },
       ctxCom('operator'),
       { conversationId: conversa.id, opportunityId: 'opp-1' },
     );
 
     const solta = await attachConversationToOpportunity(
-      { conversations, opportunities, audit },
+      { conversations, opportunities, customers, audit },
       ctxCom('operator'),
       { conversationId: conversa.id, opportunityId: null },
     );
@@ -213,24 +233,32 @@ describe('AT-10: anexar conversa a uma oportunidade', () => {
   });
 
   it('oportunidade de outro tenant responde como se não existisse', async () => {
-    const { conversations, conversa, opportunities, audit } = await comFunil();
+    const { conversations, customers, conversa, opportunities, audit } = await comFunil();
 
     await expect(
-      attachConversationToOpportunity({ conversations, opportunities, audit }, ctxCom('operator'), {
-        conversationId: conversa.id,
-        opportunityId: 'de-outro-tenant',
-      }),
+      attachConversationToOpportunity(
+        { conversations, opportunities, customers, audit },
+        ctxCom('operator'),
+        {
+          conversationId: conversa.id,
+          opportunityId: 'de-outro-tenant',
+        },
+      ),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it('viewer não anexa', async () => {
-    const { conversations, conversa, opportunities, audit } = await comFunil();
+    const { conversations, customers, conversa, opportunities, audit } = await comFunil();
 
     await expect(
-      attachConversationToOpportunity({ conversations, opportunities, audit }, ctxCom('viewer'), {
-        conversationId: conversa.id,
-        opportunityId: 'opp-1',
-      }),
+      attachConversationToOpportunity(
+        { conversations, opportunities, customers, audit },
+        ctxCom('viewer'),
+        {
+          conversationId: conversa.id,
+          opportunityId: 'opp-1',
+        },
+      ),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
@@ -245,6 +273,7 @@ describe('AT-10: anexar conversa a uma oportunidade', () => {
 describe('AT-13: mídia no fio', () => {
   async function comAnexo() {
     const conversations = fakeConversationRepository();
+    const customers = fakeCustomerRepository();
     const media = fakeMediaStore();
     const conversa = await conversations.createConversation({
       tenantId: 'tenant-a',
@@ -271,7 +300,7 @@ describe('AT-13: mídia no fio', () => {
       payload: {},
       sentAt: new Date('2026-09-03T10:00:00Z'),
     });
-    return { conversations, media, conversa };
+    return { conversations, customers, media, conversa };
   }
 
   it('a mensagem com anexo vem com a URL para mostrar', async () => {
@@ -302,5 +331,89 @@ describe('AT-13: mídia no fio', () => {
     const fio = await getConversation(d, ctxCom('operator'), { conversationId: d.conversa.id });
 
     expect(fio.messages[1]?.media).toBeNull();
+  });
+});
+
+/**
+ * AT-06 — a caixa diz quando o contato **já é cliente**, e quem é.
+ *
+ * Sem isso, quem atende trata um cliente antigo como desconhecido: não sabe que existe ficha,
+ * histórico de saídas e talvez uma inscrição em aberto. O vínculo já existia no banco desde a
+ * primeira mensagem; o que faltava era mostrá-lo com nome, em vez de um "cliente cadastrado"
+ * que não diz qual.
+ *
+ * O nome vem em lote, e não um por conversa: uma caixa com trinta conversas faria trinta
+ * consultas ao abrir.
+ */
+describe('AT-06: contato que já é cliente', () => {
+  async function comCliente() {
+    const conversations = fakeConversationRepository();
+    const customers = fakeCustomerRepository();
+    const media = fakeMediaStore();
+    const cliente = await customers.create({
+      tenantId: 'tenant-a',
+      responsibleId: null,
+      fullName: 'Ana Prado',
+      cpf: parseCpf('900.000.100-57'),
+      birthDate: { year: 1990, month: 5, day: 2 },
+      email: null,
+      phone: '5548999998877',
+      address: EMPTY,
+    });
+    const conversa = await conversations.createConversation({
+      tenantId: 'tenant-a',
+      channel: 'whatsapp',
+      channelUserId: '187654321098765',
+      phone: '5548999998877',
+      displayName: 'Ana',
+      customerId: cliente.id,
+    });
+    return { conversations, customers, media, cliente, conversa };
+  }
+
+  it('a lista marca a conversa com o nome do cliente', async () => {
+    const d = await comCliente();
+
+    const lista = await listConversations(d, ctxCom('operator'));
+
+    expect(lista[0]?.customer).toEqual({ id: d.cliente.id, name: 'Ana Prado' });
+  });
+
+  it('contato sem ficha continua sem cliente, e isso não é erro', async () => {
+    const d = await comCliente();
+    await d.conversations.createConversation({
+      tenantId: 'tenant-a',
+      channel: 'whatsapp',
+      channelUserId: '5511900000000',
+      phone: '5511900000000',
+      displayName: 'Desconhecido',
+      customerId: null,
+    });
+
+    const lista = await listConversations(d, ctxCom('operator'));
+
+    expect(lista.find((c) => c.displayName === 'Desconhecido')?.customer).toBeNull();
+  });
+
+  it('o fio também traz o cliente — é lá que se responde sabendo com quem se fala', async () => {
+    const d = await comCliente();
+
+    const fio = await getConversation(d, ctxCom('operator'), { conversationId: d.conversa.id });
+
+    expect(fio.conversation.customer).toEqual({ id: d.cliente.id, name: 'Ana Prado' });
+  });
+
+  /**
+   * Ficha apagada depois de a conversa ter sido vinculada: o vínculo aponta para o vazio. A
+   * caixa mostra o contato como solto em vez de quebrar — a conversa continua legível.
+   */
+  it('vínculo para ficha que não existe mais não derruba a caixa', async () => {
+    const d = await comCliente();
+    await d.conversations.attachToOpportunity('tenant-a', d.conversa.id, null);
+    d.customers.rows.length = 0;
+
+    const lista = await listConversations(d, ctxCom('operator'));
+
+    expect(lista[0]?.customer).toBeNull();
   });
 });

@@ -245,6 +245,17 @@ export function prismaConversationRepository(base: PrismaClient): ConversationRe
       });
     },
 
+    async linkCustomer(
+      tenantId: string,
+      conversationId: string,
+      customerId: string,
+    ): Promise<void> {
+      await tenantClient(base, tenantId).conversation.update({
+        where: { id: conversationId },
+        data: { customerId },
+      });
+    },
+
     async markRead(tenantId: string, conversationId: string): Promise<void> {
       await tenantClient(base, tenantId).conversation.update({
         where: { id: conversationId },

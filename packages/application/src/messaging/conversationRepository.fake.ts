@@ -122,6 +122,12 @@ export function fakeConversationRepository(): ConversationRepository & {
       return Promise.resolve();
     },
 
+    linkCustomer(tenantId, conversationId, customerId) {
+      const i = conversations.findIndex((c) => c.tenantId === tenantId && c.id === conversationId);
+      if (i >= 0) conversations[i] = { ...conversations[i]!, customerId };
+      return Promise.resolve();
+    },
+
     markRead(tenantId, conversationId) {
       const i = conversations.findIndex((c) => c.tenantId === tenantId && c.id === conversationId);
       if (i >= 0) conversations[i] = { ...conversations[i]!, unreadCount: 0 };

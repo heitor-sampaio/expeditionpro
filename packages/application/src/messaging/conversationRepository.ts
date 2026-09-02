@@ -121,6 +121,8 @@ export interface ConversationRepository {
     conversationId: string,
     patch: { at: Date; direction: MessageDirection; displayName?: string | null },
   ): Promise<void>;
+  /** AT-06: liga a conversa a uma ficha de cliente. */
+  linkCustomer(tenantId: string, conversationId: string, customerId: string): Promise<void>;
   markRead(tenantId: string, conversationId: string): Promise<void>;
   attachToOpportunity(
     tenantId: string,

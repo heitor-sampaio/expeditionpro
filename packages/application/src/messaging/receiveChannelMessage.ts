@@ -89,6 +89,21 @@ export async function receiveChannelMessage(
         await converger(deps, ctx, existente, identidade);
 
   /*
+   * AT-06 — tenta o vínculo com a ficha **a cada mensagem**, não só ao abrir a conversa.
+   *
+   * O caso real: alguém chama antes de existir cadastro e vira inscrição dias depois. Sem
+   * tentar de novo, a conversa fica para sempre como contato solto, e quem atende continua
+   * sem saber que ali tem ficha e histórico.
+   *
+   * Vínculo que já existe não é mexido: pode ter sido a equipe que o fez à mão, e a regra
+   * automática não tem por que discordar de uma pessoa que olhou.
+   */
+  if (conversa.customerId === null) {
+    const ficha = await clientePeloTelefone(deps, ctx, integration.channel, evento.phone);
+    if (ficha !== null) await deps.conversations.linkCustomer(ctx.tenantId, conversa.id, ficha);
+  }
+
+  /*
    * AT-13 — o arquivo vai para o bucket antes de a mensagem ser gravada, para a linha já
    * nascer apontando para ele. Se guardar falhar, `guardada` é `null` e a mensagem entra
    * assim mesmo, com o marcador: um anexo perdido é um problema; a mensagem sumindo do fio,

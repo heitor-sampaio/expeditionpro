@@ -4,11 +4,15 @@ import { NotFoundError } from '../errors.js';
 import type { AuditLogRepository } from '../audit/auditLogRepository.js';
 import type { RequestContext } from '../context.js';
 import type { OpportunityRepository } from '../crm/opportunityRepository.js';
-import type { ConversationRecord, ConversationRepository } from './conversationRepository.js';
+import type { CustomerRepository } from '../customers/customerRepository.js';
+import type { ConversationRepository } from './conversationRepository.js';
+import { comCliente, type ConversationView } from './listConversations.js';
 
 export interface AttachConversationDeps {
   readonly conversations: ConversationRepository;
   readonly opportunities: OpportunityRepository;
+  /** AT-06: toda conversa que sai daqui leva o cliente junto, quando ele existe. */
+  readonly customers: CustomerRepository;
   readonly audit: AuditLogRepository;
 }
 
@@ -33,7 +37,7 @@ export async function attachConversationToOpportunity(
   deps: AttachConversationDeps,
   ctx: RequestContext,
   command: AttachConversationCommand,
-): Promise<ConversationRecord> {
+): Promise<ConversationView> {
   requireWriter(ctx);
 
   const conversa = await deps.conversations.findConversationById(
@@ -74,5 +78,6 @@ export async function attachConversationToOpportunity(
     });
   }
 
-  return atualizada;
+  const [comFicha] = await comCliente(deps, ctx.tenantId, [atualizada]);
+  return comFicha!;
 }

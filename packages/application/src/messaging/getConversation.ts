@@ -2,15 +2,17 @@ import { requireTeam } from '../audience.js';
 import { NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type {
-  ConversationRecord,
   ConversationRepository,
   MessageMedia,
   MessageRecord,
 } from './conversationRepository.js';
+import type { CustomerRepository } from '../customers/customerRepository.js';
 import type { MediaStore } from './mediaStore.js';
+import { comCliente, type ConversationView } from './listConversations.js';
 
 export interface ThreadDeps {
   readonly conversations: ConversationRepository;
+  readonly customers: CustomerRepository;
   readonly media: MediaStore;
 }
 
@@ -30,7 +32,7 @@ export interface ThreadMessage extends Omit<MessageRecord, 'media'> {
 }
 
 export interface ConversationThread {
-  readonly conversation: ConversationRecord;
+  readonly conversation: ConversationView;
   readonly messages: readonly ThreadMessage[];
 }
 
@@ -75,7 +77,8 @@ export async function getConversation(
       ? new Map<string, string>()
       : await deps.media.signedUrls(caminhos, MINUTOS_DA_URL * 60);
 
-  return { conversation, messages: messages.map((m) => comUrl(m, urls)) };
+  const [comFicha] = await comCliente(deps, ctx.tenantId, [conversation]);
+  return { conversation: comFicha!, messages: messages.map((m) => comUrl(m, urls)) };
 }
 
 function comUrl(message: MessageRecord, urls: ReadonlyMap<string, string>): ThreadMessage {

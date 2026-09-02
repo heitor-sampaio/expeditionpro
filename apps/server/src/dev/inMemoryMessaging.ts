@@ -206,6 +206,12 @@ export function inMemoryConversations(): ConversationRepository & {
       return Promise.resolve();
     },
 
+    linkCustomer(tenantId, conversationId, customerId) {
+      const i = indice(tenantId, conversationId);
+      if (i >= 0) conversations[i] = { ...conversations[i]!, customerId };
+      return Promise.resolve();
+    },
+
     markRead(tenantId, conversationId) {
       const i = indice(tenantId, conversationId);
       if (i >= 0) conversations[i] = { ...conversations[i]!, unreadCount: 0 };
