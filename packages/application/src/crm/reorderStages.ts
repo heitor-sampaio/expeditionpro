@@ -11,13 +11,14 @@ export interface ReorderStagesCommand {
 /**
  * OP-01 — reordena as colunas do funil.
  *
- * Exige a **lista completa**, não um movimento ("mova a etapa X para a posição 2"). Posição é
- * única por tenant, e mover uma etapa por vez passaria por estados em que duas ocupam a mesma
- * posição — o banco recusaria no meio, deixando a ordem pela metade. Recebendo tudo, a
- * gravação é uma transação só e não existe passo intermediário inválido.
+ * Exige a **lista completa**, não um movimento ("mova a etapa X para a posição 2").
  *
- * Lista parcial é recusada pelo mesmo motivo: o que ficou de fora manteria a posição antiga e
- * colidiria com alguém.
+ * `position` não tem unique no banco de propósito — etapa arquivada guarda a posição dela, e
+ * um unique impediria a ativa seguinte de ocupar aquele número. O preço disso é que nada
+ * impede duas etapas na mesma posição, e é exatamente por isso que a reordenação recebe a
+ * ordem inteira: recebendo a lista, as posições são reescritas de 0 a n-1 numa transação só e
+ * o resultado é sempre coerente. Um movimento isolado deixaria buraco ou empate, e a ordem do
+ * quadro passaria a depender do desempate por nome — ordem que ninguém pediu.
  */
 export async function reorderStages(
   deps: StageDeps,

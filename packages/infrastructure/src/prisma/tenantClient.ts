@@ -65,6 +65,10 @@ export const SCOPED_BY_TENANT_ID = new Set([
   'SupplierCategory',
   'PaymentIntegration',
   'PaymentCharge',
+  // §5.16 — o funil. Entram na lista como qualquer tabela de negócio: sem isso, a extension
+  // deixa passar cru e o quadro de um tenant mostraria oportunidade de outro.
+  'OpportunityStage',
+  'Opportunity',
 ]);
 export const SCOPED_BY_ID = new Set(['Tenant']);
 

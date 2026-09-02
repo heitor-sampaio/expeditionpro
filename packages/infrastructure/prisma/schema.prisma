@@ -72,6 +72,8 @@ model Tenant {
   mediaConsents          MediaConsent[]
   coupons                Coupon[]
   couponRedemptions      CouponRedemption[]
+  opportunityStages      OpportunityStage[]
+  opportunities          Opportunity[]
 
   @@map("tenants")
 }
@@ -146,6 +148,7 @@ model Customer {
   postReports            PostReport[]
   mediaConsents          MediaConsent[]
   coupons                Coupon[]
+  opportunities          Opportunity[]
   couponRedemptions      CouponRedemption[]
 
   @@unique([tenantId, cpf])
@@ -207,6 +210,7 @@ model Itinerary {
   groups         Group[]
   formMappings   FormMapping[]
   coupons        Coupon[]
+  opportunities  Opportunity[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -367,6 +371,7 @@ model Booking {
   payments     BookingPayment[]
   charges      PaymentCharge[]
   couponRedemptions CouponRedemption[]
+  opportunities     Opportunity[]
 
   @@unique([groupId, responsibleCustomerId])
   @@index([tenantId])
@@ -984,4 +989,69 @@ model PostReport {
 
   @@index([tenantId, status])
   @@map("post_reports")
+}
+
+// §5.16 — o funil de oportunidades.
+//
+// Vive ANTES do dinheiro e não encosta nele (OP-09): nenhum relatório financeiro lê estas
+// duas tabelas. `expected_value_cents` é previsão, e somá-la a valor recebido ou contratado
+// misturaria aposta com fato — o §1 é explícito sobre quem manda quando os dois discordam.
+model OpportunityStage {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  name     String
+  // Sem unique de propósito: etapa arquivada guarda a posição, e um unique impediria a
+  // ativa seguinte de ocupar aquele número. A coerência vem da reordenação, que reescreve
+  // a ordem inteira de uma vez (OP-01).
+  position Int
+  kind     String // open | won | lost
+  // Arquivada some do quadro e continua existindo: a trilha guarda o id da etapa, e
+  // apagar deixaria o histórico apontando para nada (OP-06).
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunities Opportunity[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, position])
+  @@map("opportunity_stages")
+}
+
+// §5.16 — o cartão do quadro: alguém interessado, ANTES de virar inscrição.
+//
+// Não é `booking` em outro estado: inscrição exige grupo (e a maior parte das conversas
+// morre antes de existir data), exige CPF (e pedi-lo para responder um preço afasta a
+// venda) e é o começo do rastro financeiro. `booking_id` preenchido = fechou e parou.
+model Opportunity {
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  stageId     String  @map("stage_id") @db.Uuid
+  contactName String  @map("contact_name")
+  // E.164, normalizado na borda. Sem CPF: quem pergunta o preço ainda não é cliente.
+  phone String?
+  email String?
+
+  itineraryId String? @map("itinerary_id") @db.Uuid
+  customerId  String? @map("customer_id") @db.Uuid
+  bookingId   String? @map("booking_id") @db.Uuid
+
+  expectedValueCents BigInt? @map("expected_value_cents")
+  source             String  @default("manual") // manual|whatsapp|instagram|messenger|site
+  lostReason         String? @map("lost_reason")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  // `Restrict`: etapa não se apaga, se arquiva — e arquivar já é bloqueado com cartão dentro.
+  stage     OpportunityStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  itinerary Itinerary?       @relation(fields: [itineraryId], references: [id], onDelete: SetNull)
+  customer  Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  booking   Booking?         @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, stageId])
+  @@index([tenantId, phone])
+  @@map("opportunities")
 }

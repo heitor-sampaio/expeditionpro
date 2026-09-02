@@ -871,3 +871,26 @@ export {
   type ListPostCommentsDeps,
   type ListPostCommentsCommand,
 } from './community/listPostComments.js';
+
+// §5.16 — funil de oportunidades
+export { createStage, type StageDeps, type CreateStageCommand } from './crm/createStage.js';
+export { renameStage, type RenameStageCommand } from './crm/renameStage.js';
+export { reorderStages, type ReorderStagesCommand } from './crm/reorderStages.js';
+export { archiveStage, type ArchiveStageCommand } from './crm/archiveStage.js';
+export { createOpportunity, type CreateOpportunityCommand } from './crm/createOpportunity.js';
+export { moveOpportunity, type MoveOpportunityCommand } from './crm/moveOpportunity.js';
+export {
+  getOpportunityBoard,
+  type BoardDeps,
+  type BoardColumn,
+} from './crm/getOpportunityBoard.js';
+export type {
+  OpportunityRepository,
+  OpportunityRecord,
+  OpportunityStageRecord,
+  NewOpportunity,
+  NewOpportunityStage,
+  OpportunityPatch,
+  OpportunitySource,
+  StageKind,
+} from './crm/opportunityRepository.js';
