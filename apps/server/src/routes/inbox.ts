@@ -32,6 +32,27 @@ import type { ServerDeps } from '../buildServer.js';
 
 const channel = z.enum(['whatsapp', 'instagram', 'messenger']);
 
+/**
+ * AT-02 — que tipos de evento a instância manda, sem encher o log.
+ *
+ * A Evolution bate no webhook a cada poucos segundos e a maioria não vira mensagem: recibo de
+ * entrega, presença, atualização de conexão. Ignorar está certo — o que faltava era **saber
+ * quais são**, para poder desligá-los na origem e parar de carregar tráfego inútil.
+ *
+ * Registrar todos daria dezenas de milhares de linhas por dia dizendo sempre a mesma coisa. O
+ * primeiro de cada tipo custa uma linha por tipo e responde a pergunta inteira. A memória é do
+ * processo: reiniciou, registra de novo — e é justamente quando se quer ver a lista.
+ */
+const TIPOS_JA_VISTOS = new Set<string>();
+
+function registrarTipoIgnorado(request: FastifyRequest): void {
+  const evento = (request.body as { event?: unknown } | null)?.event;
+  const nome = typeof evento === 'string' && evento !== '' ? evento : 'sem_nome';
+  if (TIPOS_JA_VISTOS.has(nome)) return;
+  TIPOS_JA_VISTOS.add(nome);
+  request.log.info({ evento: nome }, 'webhook evolution ignorado: tipo novo');
+}
+
 /** O mesmo prazo que o fio usa: dez minutos bastam para ver, e um link copiado morre. */
 const URL_DE_MIDIA_SEGUNDOS = 10 * 60;
 
@@ -151,6 +172,8 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
           body: request.body,
         },
       );
+      // Só o que não virou mensagem: é a fatia que se quer conhecer para desligar na origem.
+      if (!outcome.handled) registrarTipoIgnorado(request);
       return reply.send({ handled: outcome.handled });
     } catch (error) {
       // Só o caso de segredo errado ganha linha própria; o resto segue para o tratador

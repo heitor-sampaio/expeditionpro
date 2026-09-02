@@ -751,3 +751,109 @@ describe('AT-13: enviar anexo pelo HTTP', () => {
     await app.close();
   });
 });
+
+/**
+ * AT-02 — que tipos de evento a instância manda, sem encher o log.
+ *
+ * A Evolution bate no webhook a cada poucos segundos, e a maioria não vira mensagem: são
+ * recibos de entrega, presença, atualização de conexão. Responder 200 e ignorar está certo —
+ * o que faltava era **saber quais são**, para poder desligá-los na origem.
+ *
+ * Registrar todos encheria o log com dezenas de milhares de linhas por dia para dizer sempre
+ * a mesma coisa. Registrar o **primeiro de cada tipo** custa uma linha por tipo e responde a
+ * pergunta inteira.
+ */
+describe('AT-02: tipos de evento ignorados aparecem uma vez', () => {
+  async function servidorComLog() {
+    const linhas: string[] = [];
+    const conversations = inMemoryConversations();
+    const channelIntegrations = inMemoryChannelIntegrations([
+      {
+        tenantId: TENANT,
+        id: 'ch-1',
+        channel: 'whatsapp',
+        provider: 'evolution',
+        baseUrl: 'https://evo.local',
+        externalAccountId: 'drakkar',
+        accessToken: 'CHAVE',
+        allowedIps: [],
+        webhookToken: 'SEGREDO',
+        active: true,
+        connectedAt: new Date('2026-09-01T00:00:00Z'),
+      },
+    ]);
+    const ctx: RequestContext = {
+      tenantId: TENANT,
+      actor: { kind: 'team', userId: 'u1', role: 'owner' },
+    };
+    const app = await buildServer({
+      logStream: {
+        write: (linha: string) => {
+          linhas.push(linha);
+        },
+      },
+      deps: inMemoryServerDeps({
+        conversations,
+        channelIntegrations,
+        resolveContext: () => Promise.resolve(ctx),
+      }),
+    });
+    await app.ready();
+    return { app, linhas };
+  }
+
+  const mandar = (app: Awaited<ReturnType<typeof servidorComLog>>['app'], evento: string) =>
+    app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev',
+      headers: { 'x-webhook-token': 'SEGREDO' },
+      payload: { event: evento, data: {} },
+    });
+
+  it('o primeiro evento de um tipo desconhecido é registrado', async () => {
+    const { app, linhas } = await servidorComLog();
+
+    await mandar(app, 'messages.update');
+
+    expect(linhas.join(' ')).toContain('messages.update');
+    await app.close();
+  });
+
+  it('o mesmo tipo repetido não vira linha nova', async () => {
+    const { app, linhas } = await servidorComLog();
+
+    await mandar(app, 'presence.update');
+    await mandar(app, 'presence.update');
+    await mandar(app, 'presence.update');
+
+    // Conta só as linhas do registro: o log de acesso escreve duas por requisição.
+    const registros = linhas.filter((linha) => linha.includes('tipo novo'));
+    expect(registros).toHaveLength(1);
+    await app.close();
+  });
+
+  it('tipo diferente é registrado também — a lista é o que se quer descobrir', async () => {
+    const { app, linhas } = await servidorComLog();
+
+    await mandar(app, 'connection.update');
+    await mandar(app, 'chats.upsert');
+
+    expect(linhas.join(' ')).toContain('connection.update');
+    expect(linhas.join(' ')).toContain('chats.upsert');
+    await app.close();
+  });
+
+  it('mensagem de verdade não entra nessa contagem', async () => {
+    const { app, linhas } = await servidorComLog();
+
+    await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev',
+      headers: { 'x-webhook-token': 'SEGREDO' },
+      payload: evento('MSG-1', 'oi'),
+    });
+
+    expect(linhas.join(' ')).not.toContain('ignorado');
+    await app.close();
+  });
+});
