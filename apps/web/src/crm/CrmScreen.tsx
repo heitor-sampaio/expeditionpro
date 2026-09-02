@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { brl } from '../ui/money.js';
 import { dropTarget, type ColumnBounds } from './dropTarget.js';
 import { useBoard, type BoardColumn, type BoardOpportunity } from './useBoard.js';
+import { useItineraries, type ItineraryDto } from '../agenda/useItineraries.js';
 
 /**
  * §5.16 — o funil de oportunidades.
@@ -14,7 +15,11 @@ import { useBoard, type BoardColumn, type BoardOpportunity } from './useBoard.js
  * mostra o porquê em vez de não reagir.
  */
 export function CrmScreen(): React.JSX.Element {
-  const { state, busy, refresh, criar, mover } = useBoard();
+  const { state, busy, refresh, criar, mover, definirRoteiro } = useBoard();
+  // O quadro precisa da lista para o seletor; o nome do roteiro no cartão sai daqui, e
+  // não de uma junção no servidor — a lista já viria de qualquer jeito.
+  const roteiros = useItineraries(true);
+  const listaRoteiros = roteiros.status === 'ready' ? roteiros.itineraries : [];
   const [aviso, setAviso] = useState<string | null>(null);
   const [novo, setNovo] = useState(false);
 
@@ -93,12 +98,20 @@ export function CrmScreen(): React.JSX.Element {
       )}
 
       {state.status === 'ready' && state.columns.length > 0 && (
-        <Board columns={state.columns} busy={busy} onMove={mover} onAviso={setAviso} />
+        <Board
+          columns={state.columns}
+          busy={busy}
+          roteiros={listaRoteiros}
+          onMove={mover}
+          onRoteiro={definirRoteiro}
+          onAviso={setAviso}
+        />
       )}
 
       {novo && (
         <NovaOportunidade
           busy={busy}
+          roteiros={listaRoteiros}
           onClose={() => setNovo(false)}
           onCriar={async (dados) => {
             const r = await criar(dados);
@@ -117,16 +130,20 @@ export function CrmScreen(): React.JSX.Element {
 function Board({
   columns,
   busy,
+  roteiros,
   onMove,
+  onRoteiro,
   onAviso,
 }: {
   columns: BoardColumn[];
   busy: boolean;
+  roteiros: ItineraryDto[];
   onMove: (
     id: string,
     stageId: string,
     lostReason?: string,
   ) => Promise<{ ok: boolean; message?: string }>;
+  onRoteiro: (id: string, itineraryId: string | null) => Promise<{ ok: boolean; message?: string }>;
   onAviso: (texto: string | null) => void;
 }): React.JSX.Element {
   const colunasRef = useRef(new Map<string, HTMLElement>());
@@ -204,6 +221,12 @@ function Board({
                   onStart={() => setArrastando(o.id)}
                   onMovePointer={(x) => setAlvo(dropTarget(x, boundsAtuais())?.stageId ?? null)}
                   onDrop={(x) => void soltar(o, x)}
+                  roteiros={roteiros}
+                  onRoteiro={(itineraryId) => {
+                    void onRoteiro(o.id, itineraryId).then((r) => {
+                      if (!r.ok) onAviso(r.message ?? 'Não foi possível mudar o roteiro.');
+                    });
+                  }}
                 />
               ))}
             </div>
@@ -237,6 +260,8 @@ function Card({
   onStart,
   onMovePointer,
   onDrop,
+  roteiros,
+  onRoteiro,
 }: {
   opportunity: BoardOpportunity;
   arrastando: boolean;
@@ -244,6 +269,8 @@ function Card({
   onStart: () => void;
   onMovePointer: (x: number) => void;
   onDrop: (x: number) => void;
+  roteiros: ItineraryDto[];
+  onRoteiro: (itineraryId: string | null) => void;
 }): React.JSX.Element {
   const inicio = useRef<{ x: number; y: number } | null>(null);
   const passouLimiar = useRef(false);
@@ -295,6 +322,27 @@ function Card({
           </span>
         )}
       </div>
+
+      <select
+        className="field-input board-card-select"
+        aria-label={`Roteiro de ${opportunity.contactName}`}
+        value={opportunity.itineraryId ?? ''}
+        disabled={desabilitado}
+        /*
+         * O cartão inteiro captura o ponteiro para arrastar; sem parar aqui, tocar no
+         * seletor começaria um arrasto em vez de abrir a lista.
+         */
+        onPointerDown={(e) => e.stopPropagation()}
+        onChange={(e) => onRoteiro(e.target.value === '' ? null : e.target.value)}
+      >
+        <option value="">Sem roteiro definido</option>
+        {roteiros.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.name}
+          </option>
+        ))}
+      </select>
+
       {opportunity.lostReason && <p className="qcard-alert">{opportunity.lostReason}</p>}
     </article>
   );
@@ -302,20 +350,24 @@ function Card({
 
 function NovaOportunidade({
   busy,
+  roteiros,
   onClose,
   onCriar,
 }: {
   busy: boolean;
+  roteiros: ItineraryDto[];
   onClose: () => void;
   onCriar: (dados: {
     contactName: string;
     phone?: string;
     expectedValueCents?: number;
+    itineraryId?: string;
   }) => Promise<{ ok: boolean; message?: string }>;
 }): React.JSX.Element {
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [valor, setValor] = useState('');
+  const [roteiro, setRoteiro] = useState('');
   const [erro, setErro] = useState<string | null>(null);
 
   const enviar = async () => {
@@ -324,6 +376,7 @@ function NovaOportunidade({
       contactName: nome.trim(),
       ...(telefone.trim() ? { phone: telefone.trim() } : {}),
       ...(valor.trim() ? { expectedValueCents: Math.round(Number(valor) * 100) } : {}),
+      ...(roteiro ? { itineraryId: roteiro } : {}),
     });
     if (!r.ok) setErro(r.message ?? 'Não foi possível criar.');
   };
@@ -361,6 +414,24 @@ function NovaOportunidade({
               onChange={(e) => setTelefone(e.target.value)}
               placeholder="48 99999-8877"
             />
+          </label>
+          <label className="field field-wide">
+            <span className="field-label">Roteiro</span>
+            <select
+              className="field-input"
+              value={roteiro}
+              onChange={(e) => setRoteiro(e.target.value)}
+            >
+              <option value="">Ainda não sei</option>
+              {roteiros.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+            <span className="field-help">
+              Opcional. Muita conversa começa sem roteiro definido.
+            </span>
           </label>
           <label className="field">
             <span className="field-label">Valor previsto</span>

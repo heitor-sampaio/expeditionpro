@@ -6,6 +6,7 @@ import {
   moveOpportunity,
   renameStage,
   reorderStages,
+  setOpportunityItinerary,
 } from '@expedition/application';
 import { cents, formatPhone } from '@expedition/domain';
 import { z } from 'zod';
@@ -77,6 +78,27 @@ export function registerCrmRoutes(app: FastifyInstance, deps: ServerDeps): void 
         ...request.body,
       });
       return reply.send(opportunityDto(movida));
+    },
+  );
+
+  // OP-03: de qual roteiro é a conversa. Rota própria, como o /stage — são as duas coisas
+  // que se mexem num cartão pelo quadro, e cada uma tem regra própria.
+  typed.patch(
+    '/v1/crm/opportunities/:opportunityId/itinerary',
+    {
+      schema: {
+        params: z.object({ opportunityId: z.string().min(1) }),
+        body: z.object({ itineraryId: z.string().min(1).nullable() }),
+      },
+    },
+    async (request, reply) => {
+      const ctx = await deps.resolveContext(request);
+      const atualizada = await setOpportunityItinerary(
+        { opportunities: deps.opportunities, audit: deps.audit, itineraries: deps.itineraries },
+        ctx,
+        { opportunityId: request.params.opportunityId, itineraryId: request.body.itineraryId },
+      );
+      return reply.send(opportunityDto(atualizada));
     },
   );
 

@@ -22,6 +22,7 @@ export interface BoardOpportunity {
   contactName: string;
   phone: string | null;
   email: string | null;
+  itineraryId: string | null;
   expectedValueCents: number | null;
   source: 'manual' | 'whatsapp' | 'instagram' | 'messenger' | 'site';
   lostReason: string | null;
@@ -94,8 +95,12 @@ export function useBoard() {
   );
 
   const criar = useCallback(
-    (dados: { contactName: string; phone?: string; expectedValueCents?: number }) =>
-      chamar('/v1/crm/opportunities', { method: 'POST', body: JSON.stringify(dados) }),
+    (dados: {
+      contactName: string;
+      phone?: string;
+      expectedValueCents?: number;
+      itineraryId?: string;
+    }) => chamar('/v1/crm/opportunities', { method: 'POST', body: JSON.stringify(dados) }),
     [chamar],
   );
 
@@ -108,7 +113,16 @@ export function useBoard() {
     [chamar],
   );
 
-  return { state, busy, refresh, criar, mover };
+  const definirRoteiro = useCallback(
+    (opportunityId: string, itineraryId: string | null) =>
+      chamar(`/v1/crm/opportunities/${encodeURIComponent(opportunityId)}/itinerary`, {
+        method: 'PATCH',
+        body: JSON.stringify({ itineraryId }),
+      }),
+    [chamar],
+  );
+
+  return { state, busy, refresh, criar, mover, definirRoteiro };
 }
 
 /**

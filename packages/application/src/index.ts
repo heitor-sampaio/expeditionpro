@@ -894,3 +894,8 @@ export type {
   OpportunitySource,
   StageKind,
 } from './crm/opportunityRepository.js';
+export {
+  setOpportunityItinerary,
+  type SetOpportunityItineraryDeps,
+  type SetOpportunityItineraryCommand,
+} from './crm/setOpportunityItinerary.js';

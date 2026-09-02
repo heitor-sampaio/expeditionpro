@@ -4417,3 +4417,11 @@
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
+/* Seletor de roteiro dentro do cartão: menor que um campo de formulário, porque divide o
+   cartão com nome, telefone e valor — e ainda precisa de alvo de toque decente. */
+.board-card-select {
+  height: var(--tap);
+  font-size: 13px;
+  padding: 0 12px;
+  cursor: pointer;
+}
