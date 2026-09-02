@@ -59,11 +59,16 @@ const NAV: readonly NavSection[] = [
       { id: 'visao', label: 'Visão geral' },
       { id: 'agenda', label: 'Agenda' },
       { id: 'fila', label: 'Inscrições' },
-      { id: 'funil', label: 'Funil' },
       { id: 'clientes', label: 'Clientes' },
       { id: 'fornecedores', label: 'Fornecedores' },
       { id: 'roteiros', label: 'Roteiros' },
     ],
+  },
+  {
+    // §5.16/§5.17: o que acontece **antes** da inscrição. Seção própria porque é outro
+    // momento do trabalho — o bloco de cima é a operação da saída que já existe.
+    label: 'CRM',
+    items: [{ id: 'funil', label: 'Funil' }],
   },
   {
     label: 'Análise',
