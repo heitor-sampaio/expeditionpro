@@ -4426,28 +4426,46 @@
   cursor: pointer;
 }
 
-/* Caixa de conversas — lista + fio (§5.17, AT-07) --------------------------------------- */
+/* Caixa de conversas — três colunas, no formato de cliente de mensagem (§5.17, AT-07) ----- */
 
 /*
- * Duas colunas: a lista tem largura fixa porque é índice, e o fio fica com o que sobra.
- * Abaixo de 860px vira uma coluna — com uma conversa aberta, a lista sai de cena, que é o
- * comportamento de qualquer aplicativo de mensagem no telefone.
+ * Esta é a única página do sistema que **não rola como um documento**: ela ocupa a altura da
+ * janela e cada coluna rola sozinha. É o que diferencia ler uma conversa de ler um relatório —
+ * a lista precisa ficar parada enquanto o fio corre, e o fio precisa poder ir ao fim sem levar
+ * o cabeçalho junto.
  *
- * Nenhuma cor aqui é dado. O não lido e a linha selecionada usam o accent do tenant porque
- * são estado de **interface**, como a nav ativa e o chip de filtro.
+ * `min-height: 0` aparece em todo nível: sem ele um filho de flex/grid se recusa a encolher
+ * abaixo do próprio conteúdo, e o overflow vaza para a página inteira em vez de virar rolagem
+ * da coluna.
  */
-.inbox {
-  margin-top: 16px;
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 16px;
-  align-items: start;
+.page-chat {
+  height: 100%;
+  min-height: 0;
+  padding-bottom: 24px;
 }
-.inbox-list {
+.page-chat .page-header {
+  flex: 0 0 auto;
+}
+
+.inbox {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 300px;
+  gap: 16px;
+}
+.inbox-list,
+.inbox-thread,
+.inbox-side {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r-card-lg);
-  overflow: hidden;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* lista ------------------------------------------------------------------------------- */
+.inbox-list {
   display: flex;
   flex-direction: column;
 }
@@ -4467,6 +4485,7 @@
 .inbox-row:hover {
   background: var(--card-2);
 }
+/* Linha selecionada: realce de interface, por isso o accent do tenant — nunca estado de dado. */
 .inbox-row.is-active {
   background: var(--o-soft);
 }
@@ -4511,42 +4530,56 @@
   padding: 0 6px;
   font-variant-numeric: tabular-nums;
 }
+
+/* fio ---------------------------------------------------------------------------------- */
+/*
+ * O fio é a única coluna que não rola inteira: cabeçalho e rodapé ficam presos, e só a faixa
+ * das mensagens corre. Quem atende precisa ver de quem é a conversa enquanto sobe o histórico.
+ */
 .inbox-thread {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--r-card-lg);
-  padding: 16px 18px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  min-height: 260px;
 }
 .inbox-head {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
 }
 .inbox-head-text {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   flex: 1;
+  min-width: 0;
 }
-.inbox-attach {
-  max-width: 340px;
+.inbox-head-text .card-title,
+.inbox-head-text .member-cpf {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .inbox-msgs {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-top: 4px;
-  border-top: 1px solid var(--line);
+  padding: 16px;
+}
+.inbox-foot {
+  flex: 0 0 auto;
+  margin: 0 16px 14px;
 }
 /*
- * O balão da mensagem recebida e o da enviada se distinguem por **posição e relevo**, não por
- * cor: verde e vermelho são reservados ao dinheiro neste sistema, e um balão verde de "enviada"
- * quebraria isso no lugar onde a equipe passa o dia.
+ * O balão recebido e o enviado se distinguem por **posição e relevo**, não por cor: verde e
+ * vermelho são reservados ao dinheiro neste sistema, e um balão verde de "enviada" quebraria
+ * isso justamente na tela onde a equipe passa o dia.
  */
 .inbox-msg {
   align-self: flex-start;
@@ -4579,26 +4612,107 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* contato e cartão do funil ------------------------------------------------------------- */
+.inbox-side {
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.inbox-side-id {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.inbox-side-title {
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.inbox-side-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.inbox-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+}
+.inbox-fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.inbox-fact-label {
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  flex: 0 0 auto;
+}
+.inbox-fact-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  margin: 0;
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.inbox-fact-value.is-mono {
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.inbox-new-opp {
+  align-self: flex-start;
+}
+
+/* Voltar e Detalhes só existem quando uma coluna sai de cena. */
+.inbox-back,
+.inbox-details {
+  display: none;
+}
+
+@media (max-width: 1180px) {
+  .inbox {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+  .inbox-details {
+    display: inline-flex;
+  }
+  .inbox-side {
+    display: none;
+  }
+  /* Com "Detalhes" ligado, o painel toma o lugar do fio — não espreme as três colunas. */
+  .inbox.is-details .inbox-thread {
+    display: none;
+  }
+  .inbox.is-details .inbox-side {
+    display: flex;
+  }
+}
+
 @media (max-width: 860px) {
   .inbox {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .inbox.is-open .inbox-list {
     display: none;
   }
-}
-
-/* Só existe quando a lista sai de cena — no desktop ela está do lado, e voltar não faz sentido. */
-.inbox-back {
-  display: none;
-}
-@media (max-width: 860px) {
   .inbox-back {
     display: inline-flex;
   }
-}
-
-/* Ação secundária dentro do fio: alinhada à esquerda, não estica com o cartão. */
-.inbox-new-opp {
-  align-self: flex-start;
 }

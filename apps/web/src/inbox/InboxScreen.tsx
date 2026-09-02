@@ -1,22 +1,30 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { whatsappLink } from '../ui/whatsapp.js';
 import { useBoard } from '../crm/useBoard.js';
+import { useItineraries } from '../agenda/useItineraries.js';
+import { ContactPanel } from './ContactPanel.js';
 import { channelLabel, contactTitle, iniciais, type Channel } from './inboxFormat.js';
 import { useInbox, type Conversation, type Message } from './useInbox.js';
 
 /**
  * §5.17 — a caixa de conversas, omnichannel.
  *
+ * Três colunas, no formato que quem atende já conhece de qualquer cliente de mensagem: a lista
+ * à esquerda, o fio no meio, e quem é a pessoa à direita. A terceira coluna é o que este
+ * sistema tem a mais — ela mostra o cartão do funil, então dá para responder sabendo em que pé
+ * está a negociação, sem trocar de tela.
+ *
  * Caixa **compartilhada**: toda a equipe vê e responde qualquer conversa (AT-07). Não há
- * conversa "de alguém" — numa operação deste tamanho, conversa parada porque o dono dela está
- * na estrada é problema pior que conversa sem dono.
+ * conversa "de alguém" — conversa parada porque o dono dela está na estrada é problema pior
+ * que conversa sem dono.
  *
- * Layout de duas colunas: lista à esquerda, fio à direita. Abaixo de 860px vira uma coluna só
- * — abrir uma conversa esconde a lista, que é como todo aplicativo de mensagem se comporta no
- * telefone.
+ * A página ocupa a altura da janela e **cada coluna rola sozinha**, como um cliente de
+ * mensagem. Até 1180px a coluna da direita vira um painel que abre pelo botão "Detalhes";
+ * até 860px sobra uma coluna só, e abrir a conversa esconde a lista.
  *
- * Nenhuma cor carrega estado aqui. O não lido usa o accent do tenant porque é **estado de
- * interface** (como a nav ativa e o chip de filtro), não estado financeiro.
+ * Nenhuma cor carrega estado aqui. O não lido e a linha selecionada usam o accent do tenant
+ * porque são estado de **interface**, como a nav ativa e o chip de filtro — nunca porque
+ * signifiquem dinheiro.
  */
 
 const CANAIS: readonly { id: Channel | 'todos'; label: string }[] = [
@@ -30,6 +38,14 @@ export function InboxScreen(): React.JSX.Element {
   const { list, thread, openId, abrir, fechar, marcarLida, anexar, criarEAnexar, recarregar } =
     useInbox();
   const [canal, setCanal] = useState<Channel | 'todos'>('todos');
+  const [detalhes, setDetalhes] = useState(false);
+
+  // AT-10: o funil já vem pela API do CRM, e o painel da direita lê dela. Uma requisição para
+  // a tela inteira, não uma por conversa aberta.
+  const board = useBoard();
+  const colunas = board.state.status === 'ready' ? board.state.columns : [];
+  const roteiros = useItineraries(true);
+  const listaRoteiros = roteiros.status === 'ready' ? roteiros.itineraries : [];
 
   const conversas = list.status === 'ready' ? list.conversations : [];
   const filtradas = useMemo(
@@ -39,7 +55,7 @@ export function InboxScreen(): React.JSX.Element {
   const naoLidas = conversas.reduce((total, c) => total + (c.unreadCount > 0 ? 1 : 0), 0);
 
   return (
-    <main className="page page-wide">
+    <main className="page page-wide page-chat">
       <div className="page-header">
         <div className="toolbar">
           <div>
@@ -50,22 +66,19 @@ export function InboxScreen(): React.JSX.Element {
                 : `${naoLidas} conversa${naoLidas > 1 ? 's' : ''} sem resposta.`}
             </p>
           </div>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={recarregar}>
-            Atualizar
-          </button>
-        </div>
-        <div className="sort-group" role="group" aria-label="Filtrar por canal">
-          {CANAIS.map((opcao) => (
-            <button
-              key={opcao.id}
-              type="button"
-              className={`chip${canal === opcao.id ? ' is-active' : ''}`}
-              aria-pressed={canal === opcao.id}
-              onClick={() => setCanal(opcao.id)}
-            >
-              {opcao.label}
-            </button>
-          ))}
+          <div className="sort-group" role="group" aria-label="Filtrar por canal">
+            {CANAIS.map((opcao) => (
+              <button
+                key={opcao.id}
+                type="button"
+                className={`chip${canal === opcao.id ? ' is-active' : ''}`}
+                aria-pressed={canal === opcao.id}
+                onClick={() => setCanal(opcao.id)}
+              >
+                {opcao.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -127,7 +140,9 @@ export function InboxScreen(): React.JSX.Element {
       )}
 
       {list.status === 'ready' && conversas.length > 0 && (
-        <div className={`inbox${openId === null ? '' : ' is-open'}`}>
+        <div
+          className={`inbox${openId === null ? '' : ' is-open'}${detalhes ? ' is-details' : ''}`}
+        >
           <div className="inbox-list">
             {filtradas.length === 0 ? (
               <p className="members-empty">Nenhuma conversa neste canal.</p>
@@ -139,6 +154,7 @@ export function InboxScreen(): React.JSX.Element {
                   ativa={conversa.id === openId}
                   onOpen={() => {
                     abrir(conversa.id);
+                    setDetalhes(false);
                     if (conversa.unreadCount > 0) void marcarLida(conversa.id);
                   }}
                 />
@@ -163,12 +179,26 @@ export function InboxScreen(): React.JSX.Element {
               <Thread
                 conversation={thread.conversation}
                 messages={thread.messages}
-                onAnexar={anexar}
-                onCriar={criarEAnexar}
                 onVoltar={fechar}
+                onDetalhes={() => setDetalhes((atual) => !atual)}
               />
             )}
           </div>
+
+          <aside className="inbox-side">
+            {thread.status === 'ready' ? (
+              <ContactPanel
+                conversation={thread.conversation}
+                columns={colunas}
+                itineraries={listaRoteiros}
+                totalMensagens={thread.messages.length}
+                onAnexar={anexar}
+                onCriar={criarEAnexar}
+              />
+            ) : (
+              <p className="members-empty">Abra uma conversa para ver o contato.</p>
+            )}
+          </aside>
         </div>
       )}
     </main>
@@ -210,27 +240,21 @@ function ConversationRow({
 function Thread({
   conversation,
   messages,
-  onAnexar,
-  onCriar,
   onVoltar,
+  onDetalhes,
 }: {
   conversation: Conversation;
   messages: Message[];
-  onAnexar: (id: string, opportunityId: string | null) => Promise<boolean>;
-  onCriar: (dados: {
-    conversationId: string;
-    contactName: string;
-    phone?: string;
-    source: Channel;
-  }) => Promise<boolean>;
   onVoltar: () => void;
+  onDetalhes: () => void;
 }): React.JSX.Element {
-  // AT-10: a ponte com o funil. O quadro já é carregado pela mesma API do CRM — a caixa não
-  // ganha uma lista própria de oportunidades só para preencher um seletor.
-  const { state } = useBoard();
-  const oportunidades =
-    state.status === 'ready' ? state.columns.flatMap((coluna) => coluna.opportunities) : [];
   const titulo = contactTitle(conversation);
+  const fim = useRef<HTMLDivElement>(null);
+
+  // Fio de conversa se lê pelo fim: é lá que está a mensagem que ainda não foi respondida.
+  useEffect(() => {
+    fim.current?.scrollIntoView({ block: 'end' });
+  }, [conversation.id, messages.length]);
 
   return (
     <>
@@ -238,6 +262,7 @@ function Thread({
         <button type="button" className="btn btn-secondary btn-sm inbox-back" onClick={onVoltar}>
           Voltar
         </button>
+        <span className="avatar">{iniciais(titulo)}</span>
         <div className="inbox-head-text">
           <span className="card-title">{titulo}</span>
           <span className="member-cpf">
@@ -245,6 +270,13 @@ function Thread({
             {conversation.customerId ? ' · cliente cadastrado' : ' · contato solto'}
           </span>
         </div>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm inbox-details"
+          onClick={onDetalhes}
+        >
+          Detalhes
+        </button>
         {conversation.channel === 'whatsapp' && (
           <a
             className="btn btn-secondary btn-sm"
@@ -256,42 +288,6 @@ function Thread({
           </a>
         )}
       </div>
-
-      <label className="field inbox-attach">
-        <span className="field-label">Oportunidade no funil</span>
-        <select
-          className="field-input"
-          value={conversation.opportunityId ?? ''}
-          onChange={(e) => void onAnexar(conversation.id, e.target.value || null)}
-        >
-          <option value="">Nenhuma</option>
-          {oportunidades.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.contactName}
-            </option>
-          ))}
-        </select>
-        <span className="field-help">
-          Ligar a conversa ao cartão é o que faz o funil deixar de ser digitação.
-        </span>
-      </label>
-
-      {conversation.opportunityId === null && (
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm inbox-new-opp"
-          onClick={() =>
-            void onCriar({
-              conversationId: conversation.id,
-              contactName: titulo,
-              ...(conversation.channel === 'whatsapp' ? { phone: conversation.channelUserId } : {}),
-              source: conversation.channel,
-            })
-          }
-        >
-          Criar oportunidade com este contato
-        </button>
-      )}
 
       <div className="inbox-msgs">
         {messages.length === 0 ? (
@@ -307,9 +303,10 @@ function Thread({
             </div>
           ))
         )}
+        <div ref={fim} />
       </div>
 
-      <div className="feedback feedback-info" role="status">
+      <div className="feedback feedback-info inbox-foot" role="status">
         <span className="feedback-dot" />
         <span>Responder por aqui entra na próxima etapa. Por enquanto, use o botão acima.</span>
       </div>
