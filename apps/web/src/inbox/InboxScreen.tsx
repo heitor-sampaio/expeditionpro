@@ -261,12 +261,16 @@ function ConversationRow({
       <span className="avatar">{iniciais(titulo)}</span>
       <span className="inbox-row-text">
         <span className="member-name">{titulo}</span>
-        <span className="member-cpf">
-          {channelLabel(conversation.channel)}
-          {/*
-            Cinza, e não verde: cor é dado neste sistema, e verde é pago. "Já é cliente" é
-            informação de cadastro, não estado financeiro.
-          */}
+        {/*
+          A marca fica **fora** do texto que é cortado: dentro dele, o corte por reticências
+          comia justamente a pill num nome um pouco mais longo — e a informação sumia sem
+          ninguém entender por quê.
+
+          Cinza, e não verde: cor é dado neste sistema, e verde é pago. Ser cliente é
+          informação de cadastro, não estado financeiro.
+        */}
+        <span className="inbox-row-sub">
+          <span className="member-cpf">{channelLabel(conversation.channel)}</span>
           {conversation.customer !== null && <span className="inbox-tag">cliente</span>}
         </span>
       </span>

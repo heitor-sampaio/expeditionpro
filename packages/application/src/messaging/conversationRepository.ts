@@ -116,9 +116,10 @@ export interface ConversationRepository {
   /**
    * Carimba os horários da conversa a partir de uma mensagem.
    *
-   * A **direção decide tudo**: qual dos dois carimbos anda e se o não lido sobe. Passar as
-   * duas coisas separadas abriria espaço para elas discordarem — e discordando, uma conversa
-   * respondida pela equipe apareceria como não lida para sempre.
+   * A **direção decide tudo**: qual dos dois carimbos anda e o que acontece com o não lido —
+   * mensagem que entra soma, mensagem que sai **zera**. Responder é ter lido, e a equipe
+   * responde muito pelo celular pareado; sem zerar ali, o contador cresce para sempre e o
+   * número da lista deixa de significar alguma coisa.
    */
   touchConversation(
     tenantId: string,

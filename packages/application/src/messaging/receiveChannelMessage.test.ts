@@ -774,3 +774,57 @@ describe('AT-06: nono dígito entre a instância e a ficha', () => {
     expect(d.conversations.messages).toHaveLength(2);
   });
 });
+
+/**
+ * AT-07 — responder zera o não lido.
+ *
+ * O contador nunca contou o que sai, e isso estava certo. O que faltava era o outro lado:
+ * **responder é ter lido**. Como a equipe responde muito pelo celular pareado, o sistema
+ * nunca ficava sabendo que a conversa foi vista, e o não lido crescia para sempre — em
+ * produção havia conversas com 13 pendências, todas já respondidas.
+ *
+ * O sinal fica errado nos dois sentidos quando isso acontece: quem olha a lista não confia
+ * mais no número, e aí ele não serve para nada.
+ */
+describe('AT-07: responder zera o não lido', () => {
+  const mensagem = (id: string, fromMe: boolean) => ({
+    event: 'messages.upsert',
+    data: {
+      key: { id, fromMe, remoteJid: '5548999998877@s.whatsapp.net' },
+      pushName: 'Ana Prado',
+      message: { conversation: 'oi' },
+      messageTimestamp: 1788000000,
+    },
+  });
+  const comando = { token: 'segredo-certo', clientIp: '', channel: 'whatsapp' as const };
+
+  it('duas mensagens do contato contam duas', async () => {
+    const d = comCanal();
+
+    await receiveChannelMessage(d, sistema, { ...comando, body: mensagem('A', false) });
+    await receiveChannelMessage(d, sistema, { ...comando, body: mensagem('B', false) });
+
+    expect(d.conversations.conversations[0]?.unreadCount).toBe(2);
+  });
+
+  /** Resposta pelo celular pareado é resposta: chega como saída e apaga o pendente. */
+  it('nossa resposta zera o contador', async () => {
+    const d = comCanal();
+    await receiveChannelMessage(d, sistema, { ...comando, body: mensagem('A', false) });
+    await receiveChannelMessage(d, sistema, { ...comando, body: mensagem('B', false) });
+
+    await receiveChannelMessage(d, sistema, { ...comando, body: mensagem('C', true) });
+
+    expect(d.conversations.conversations[0]?.unreadCount).toBe(0);
+  });
+
+  it('e o contador volta a subir se o contato escrever de novo', async () => {
+    const d = comCanal();
+    await receiveChannelMessage(d, sistema, { ...comando, body: mensagem('A', false) });
+    await receiveChannelMessage(d, sistema, { ...comando, body: mensagem('B', true) });
+
+    await receiveChannelMessage(d, sistema, { ...comando, body: mensagem('C', false) });
+
+    expect(d.conversations.conversations[0]?.unreadCount).toBe(1);
+  });
+});

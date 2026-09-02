@@ -234,9 +234,10 @@ export function prismaConversationRepository(base: PrismaClient): ConversationRe
         data: {
           lastMessageAt: patch.at,
           ...(entrando ? { lastInboundAt: patch.at } : { lastOutboundAt: patch.at }),
-          // `increment` e não leitura-e-soma: duas mensagens chegando juntas somariam 1 se
-          // cada uma lesse o mesmo valor antes de gravar.
-          ...(entrando ? { unreadCount: { increment: 1 } } : {}),
+          // Entrando: `increment` e não leitura-e-soma — duas mensagens chegando juntas
+          // somariam 1 se cada uma lesse o mesmo valor antes de gravar. Saindo: zera, porque
+          // responder é ter lido.
+          ...(entrando ? { unreadCount: { increment: 1 } } : { unreadCount: 0 }),
           ...(patch.displayName === undefined ? {} : { displayName: patch.displayName }),
         },
       });

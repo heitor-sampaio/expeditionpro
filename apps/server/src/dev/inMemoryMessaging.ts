@@ -197,7 +197,7 @@ export function inMemoryConversations(): ConversationRepository & {
         ...atual,
         lastMessageAt: patch.at,
         ...(entrando ? { lastInboundAt: patch.at } : { lastOutboundAt: patch.at }),
-        unreadCount: entrando ? atual.unreadCount + 1 : atual.unreadCount,
+        unreadCount: entrando ? atual.unreadCount + 1 : 0,
         ...(patch.displayName === undefined ? {} : { displayName: patch.displayName }),
       };
       return Promise.resolve();

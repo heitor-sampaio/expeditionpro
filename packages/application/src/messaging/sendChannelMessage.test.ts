@@ -372,3 +372,25 @@ describe('AT-13: enviar anexo', () => {
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
+
+/**
+ * AT-07 — responder pela tela também zera o não lido. Mesma regra do que sai pelo celular
+ * pareado: respondeu, não há mais nada pendente naquela conversa.
+ */
+describe('AT-07: enviar zera o não lido', () => {
+  it('o contador vai a zero ao responder', async () => {
+    const d = await cenario();
+    await d.conversations.touchConversation('tenant-a', d.conversa.id, {
+      at: new Date('2026-09-03T13:00:00Z'),
+      direction: 'in',
+    });
+
+    await sendChannelMessage(d, ctxCom('operator'), {
+      conversationId: d.conversa.id,
+      body: 'respondendo',
+    });
+
+    const atual = await d.conversations.findConversationById('tenant-a', d.conversa.id);
+    expect(atual?.unreadCount).toBe(0);
+  });
+});

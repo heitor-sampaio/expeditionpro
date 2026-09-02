@@ -4502,6 +4502,20 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* O canal encolhe; a marca de cliente não — é ela que se perderia primeiro no corte. */
+.inbox-row-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.inbox-row-sub .member-cpf {
+  min-width: 0;
+}
+.inbox-row-sub .inbox-tag {
+  flex: 0 0 auto;
+  margin-left: 0;
+}
 .inbox-row-meta {
   display: flex;
   flex-direction: column;
