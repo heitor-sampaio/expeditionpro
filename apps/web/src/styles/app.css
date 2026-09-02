@@ -4563,10 +4563,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/*
+ * Rola, mas sem barra à vista: o fio ocupa a coluna inteira e a barra cortava a largura das
+ * mensagens. A rolagem continua inteira — roda do mouse, toque, teclado e a ida automática
+ * para o fim.
+ */
 .inbox-msgs {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -4903,4 +4910,8 @@
   padding: 8px 10px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.inbox-msgs::-webkit-scrollbar {
+  display: none;
 }

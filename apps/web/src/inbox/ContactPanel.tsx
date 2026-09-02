@@ -77,8 +77,8 @@ export function ContactPanel({
           Dois carimbos, e não um: "ele já respondeu?" e "nós já respondemos?" são perguntas
           diferentes, e quem atende faz as duas o dia inteiro.
         */}
-        <Fato rotulo="Ele falou" valor={dataHora(conversation.lastInboundAt)} mono />
-        <Fato rotulo="Nós falamos" valor={dataHora(conversation.lastOutboundAt)} mono />
+        <Fato rotulo="Última recebida" valor={dataHora(conversation.lastInboundAt)} mono />
+        <Fato rotulo="Última enviada" valor={dataHora(conversation.lastOutboundAt)} mono />
       </dl>
 
       <div className="inbox-side-block">
