@@ -89,15 +89,29 @@ abrir o movimento criaria venda que o financeiro não conhece, contra o §1.
 **Não verificado por gente:** o layout do quadro e o arrastar no celular. O gesto usa pointer
 events com `touch-action: none`; o raciocínio está testado, o dedo não.
 
-### O que falta nas outras fatias
+### Fatia 2 — WhatsApp recebendo ✅ (AT-01..AT-07, AT-09..AT-11)
 
-**Fatia 2 — WhatsApp recebendo.** `channel_integrations` + tela em Configurações →
-Integrações; webhook `POST /v1/webhooks/evolution/:tenantSlug` no molde do ASAAS (401 uniforme,
-rate limit por chave, idempotência por id do provedor, corpo cru guardado); caixa de conversas
-(o CSS de duas colunas já existe em `.post-card`, o composer é `.inline-form`/`.inline-send`);
-tempo real com `useLiveRefresh`, que exige `REPLICA IDENTITY FULL` + `ALTER PUBLICATION` dentro
-de bloco `DO $` guardado.
-**Precisa de você:** URL e chave da instância Evolution.
+Três tabelas (`channel_integrations`, `conversations`, `messages`), RLS só de equipe, migration
+aplicada no Supabase e as duas tabelas do fio na publicação `supabase_realtime`.
+
+- **Conexão do canal** em Configurações → Integrações, no molde do gateway: chave cifrada
+  (mesma `PAYMENT_TOKEN_KEY`, porque é o mesmo tipo de segredo), segredo do webhook hasheado e
+  mostrado **uma vez**; reconectar mantém o segredo, para a mensagem não parar de chegar.
+- **Webhook** `POST /v1/webhooks/evolution/:tenantSlug`: 401 uniforme, rate limit pela chave do
+  cabeçalho, idempotência pelo id da mensagem antes de qualquer escrita, corpo cru em `payload`
+  e fora do log. O gate de enumeração (`webhookEnumeration.test.ts`) virou tabela: webhook novo
+  sem entrada lá não passa.
+- **CRM → Conversas**: lista à esquerda, fio à direita, cinco estados, filtro por canal, ao vivo
+  pelo Realtime, e o botão que cria a oportunidade já com nome e telefone do canal (AT-10).
+- **Não implementado de propósito:** responder pela tela (é a fatia 3 — a tela diz isso e oferece
+  o `wa.me`) e mídia (AT-13, fora de escopo).
+
+**Precisa de você:** URL e chave da instância Evolution, coladas na tela de Integrações; e
+configurar lá o webhook com o evento `messages.upsert` e o cabeçalho que a tela mostra.
+
+**Não verificado por gente:** nenhuma mensagem real passou pelo caminho ainda.
+
+### O que falta nas outras fatias
 
 **Fatia 3 — WhatsApp enviando.** Port `MessagingGateway` + adapter no molde do `asaasGateway`
 (`fetchImpl` injetável, `AbortSignal.timeout`); composer ligado, `sentByUserId` gravado. Mídia
