@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseCpf } from '@expedition/domain';
 import { fakeConversationRepository } from './conversationRepository.fake.js';
 import { fakeChannelIntegrationRepository } from './channelIntegrationRepository.fake.js';
+import { fakeMediaStore } from './mediaStore.fake.js';
 import { fakeCustomerRepository } from '../customers/customerRepository.fake.js';
 import { receiveChannelMessage } from './receiveChannelMessage.js';
 import { UnauthorizedError } from '../errors.js';
@@ -37,7 +38,7 @@ function comCanal() {
     },
   ]);
   const customers = fakeCustomerRepository();
-  return { conversations, integrations, customers };
+  return { conversations, integrations, customers, media: fakeMediaStore() };
 }
 
 /**
@@ -478,5 +479,77 @@ describe('AT-05: LID e telefone são a mesma conversa', () => {
     await receiveChannelMessage(d, sistema, comando(doLid));
 
     expect(d.conversations.conversations[0]?.customerId).toBe(cliente.id);
+  });
+});
+
+/**
+ * AT-13 — a mídia que o lead manda entra na conversa.
+ *
+ * Duas decisões que este bloco fixa:
+ *
+ * - **O arquivo sai do payload cru.** O corpo do webhook é guardado como registro (AT-04), e
+ *   uma foto de 500 KB vira 687 KB de base64 dentro de uma coluna JSONB — por mensagem. Em um
+ *   mês de operação isso é o maior objeto do banco, guardado duas vezes: no bucket e ali.
+ *   O registro serve para auditar **o que chegou**, não para ser depósito de arquivo.
+ * - **Falhar ao guardar não apaga a mensagem.** Texto, horário e autor entram do mesmo jeito.
+ */
+describe('AT-13: mídia recebida entra na conversa', () => {
+  const comImagem = {
+    event: 'messages.upsert',
+    data: {
+      key: { id: 'MSG-IMG', fromMe: false, remoteJid: '5548999998877@s.whatsapp.net' },
+      pushName: 'Ana Prado',
+      messageType: 'imageMessage',
+      message: { imageMessage: { mimetype: 'image/jpeg' }, base64: 'QUJDRA==' },
+      messageTimestamp: 1788000000,
+    },
+  };
+  const comando = { token: 'segredo-certo', clientIp: '', channel: 'whatsapp' as const };
+
+  it('guarda o arquivo e aponta a mensagem para ele', async () => {
+    const d = comCanal();
+
+    await receiveChannelMessage(d, sistema, { ...comando, body: comImagem });
+
+    expect(d.media.arquivos).toHaveLength(1);
+    expect(d.conversations.messages[0]?.media).toMatchObject({
+      kind: 'image',
+      mimeType: 'image/jpeg',
+    });
+  });
+
+  it('o arquivo não fica no corpo cru guardado — ele já está no bucket', async () => {
+    const d = comCanal();
+
+    await receiveChannelMessage(d, sistema, { ...comando, body: comImagem });
+
+    expect(JSON.stringify(d.conversations.payloads[0])).not.toContain('QUJDRA==');
+  });
+
+  it('o resto do corpo cru continua lá — é o registro do que chegou', async () => {
+    const d = comCanal();
+
+    await receiveChannelMessage(d, sistema, { ...comando, body: comImagem });
+
+    expect(JSON.stringify(d.conversations.payloads[0])).toContain('imageMessage');
+  });
+
+  it('falha ao guardar não derruba a mensagem — o fio continua legível', async () => {
+    const d = comCanal();
+    d.media.falhar();
+
+    await receiveChannelMessage(d, sistema, { ...comando, body: comImagem });
+
+    expect(d.conversations.messages).toHaveLength(1);
+    expect(d.conversations.messages[0]?.body).toBe('[imagem]');
+    expect(d.conversations.messages[0]?.media).toBeNull();
+  });
+
+  it('mensagem de texto não chama o armazenamento à toa', async () => {
+    const d = comCanal();
+
+    await receiveChannelMessage(d, sistema, { ...comando, body: CORPO });
+
+    expect(d.media.arquivos).toHaveLength(0);
   });
 });

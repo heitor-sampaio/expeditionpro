@@ -252,5 +252,10 @@ export {
 export { searchKey } from './text/searchKey.js';
 
 // §5.17 — atendimento
-export { mapEvolutionEvent, type EvolutionEvent } from './messaging/evolutionEvent.js';
+export {
+  mapEvolutionEvent,
+  stripMediaBytes,
+  type EvolutionEvent,
+  type EvolutionMedia,
+} from './messaging/evolutionEvent.js';
 export { ipIsAllowed, parseAllowedIps, InvalidIpError } from './messaging/allowedIp.js';

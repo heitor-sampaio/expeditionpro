@@ -4731,3 +4731,58 @@
   height: var(--tap);
   font-size: 13px;
 }
+
+/* Anexo no fio (§5.17, AT-13) ----------------------------------------------------------- */
+
+/*
+ * A mídia tem largura própria e o balão se ajusta a ela: imagem esticada até a largura do
+ * balão fica irreconhecível, e miniatura pequena demais obriga a abrir para saber o que é.
+ */
+.inbox-media {
+  display: block;
+  max-width: 260px;
+  max-height: 320px;
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+.inbox-media img,
+.inbox-media video {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 320px;
+  object-fit: cover;
+}
+.inbox-audio {
+  width: 260px;
+  max-width: 100%;
+}
+.inbox-doc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-card);
+  background: var(--card);
+  text-decoration: none;
+}
+.inbox-doc:hover {
+  border-color: var(--ink-3);
+}
+.inbox-doc-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inbox-doc-size {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}

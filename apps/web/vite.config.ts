@@ -30,6 +30,14 @@ function cspPlugin(supabaseUrl: string, apiUrl: string): Plugin {
     'font-src https://fonts.gstatic.com',
     // Imagem do Storage vem por URL assinada do Supabase; `blob:` é o preview do upload.
     `img-src 'self' data: blob: ${supabase}`,
+    /*
+     * AT-13 — vídeo e áudio das conversas, também por URL assinada.
+     *
+     * Sem esta linha eles cairiam em `default-src 'self'` e o navegador bloquearia, sem erro
+     * visível na tela: o player simplesmente não toca. Imagem já estava coberta, e foi o que
+     * quase escondeu o problema.
+     */
+    `media-src 'self' blob: ${supabase}`,
     `connect-src 'self'${api} ${supabase} ${wsSupabase}`,
     "object-src 'none'",
     "base-uri 'self'",

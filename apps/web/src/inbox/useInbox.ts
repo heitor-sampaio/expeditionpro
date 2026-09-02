@@ -25,11 +25,21 @@ export interface Conversation {
   unreadCount: number;
 }
 
+/** AT-13: o anexo, já com URL assinada e curta. O caminho no bucket nunca chega aqui. */
+export interface MessageMedia {
+  kind: 'image' | 'video' | 'audio' | 'document' | 'sticker';
+  mimeType: string;
+  fileName: string | null;
+  sizeBytes: number;
+  url: string;
+}
+
 export interface Message {
   id: string;
   direction: 'in' | 'out';
   body: string;
   sentByUserId: string | null;
+  media: MessageMedia | null;
   sentAt: string;
 }
 

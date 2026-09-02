@@ -18,6 +18,7 @@ import { inMemoryMemberships } from '../dev/inMemoryMemberships.js';
 import {
   inMemoryChannelIntegrations,
   inMemoryConversations,
+  inMemoryMediaStore,
   inMemoryMessagingGateway,
 } from '../dev/inMemoryMessaging.js';
 import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
@@ -62,6 +63,7 @@ async function server(): Promise<FastifyInstance> {
       channelIntegrations: inMemoryChannelIntegrations(),
       conversations: inMemoryConversations(),
       messagingGateway: inMemoryMessagingGateway(),
+      conversationMedia: inMemoryMediaStore(),
       documents: inMemoryLegalDocuments(),
       consents: inMemoryConsents(),
       community: inMemoryCommunity(),

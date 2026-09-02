@@ -85,6 +85,8 @@ export async function sendChannelMessage(
     direction: 'out',
     body,
     sentByUserId: ctx.actor.userId,
+    // AT-13: responder com anexo é outra fatia; por enquanto o que sai é texto.
+    media: null,
     // Sem corpo cru: esta mensagem nasceu aqui, não veio de webhook nenhum.
     payload: {},
     sentAt,

@@ -5,7 +5,7 @@ import { useItineraries } from '../agenda/useItineraries.js';
 import { ContactPanel } from './ContactPanel.js';
 import { channelLabel, contactTitle, iniciais, type Channel } from './inboxFormat.js';
 import { matchesSearch } from './searchConversations.js';
-import { useInbox, type Conversation, type Message } from './useInbox.js';
+import { useInbox, type Conversation, type Message, type MessageMedia } from './useInbox.js';
 
 /**
  * §5.17 — a caixa de conversas, omnichannel.
@@ -353,7 +353,12 @@ function Thread({
               key={mensagem.id}
               className={`inbox-msg${mensagem.direction === 'out' ? ' is-out' : ''}`}
             >
-              <p className="inbox-msg-body">{mensagem.body}</p>
+              {mensagem.media !== null && <Anexo media={mensagem.media} />}
+              {/*
+                Foto sem legenda chega com o marcador `[imagem]`, e repeti-lo embaixo da
+                própria imagem é ruído. Com legenda, o texto é o que a pessoa quis dizer.
+              */}
+              {!ehMarcador(mensagem) && <p className="inbox-msg-body">{mensagem.body}</p>}
               <span className="inbox-msg-time">{hora(mensagem.sentAt)}</span>
             </div>
           ))
@@ -393,6 +398,45 @@ function Thread({
       </div>
     </>
   );
+}
+
+/**
+ * AT-13 — o anexo, mostrado pelo que ele é.
+ *
+ * Imagem e vídeo aparecem no fio: é o ponto de ver a mídia sem sair do sistema. Áudio ganha o
+ * player do navegador, que já traz controle de tempo e velocidade. Documento vira link com
+ * nome e tamanho — abrir um PDF dentro de um balão de conversa não ajuda ninguém.
+ */
+function Anexo({ media }: { media: MessageMedia }): React.JSX.Element {
+  if (media.kind === 'image' || media.kind === 'sticker') {
+    return (
+      <a href={media.url} target="_blank" rel="noreferrer" className="inbox-media">
+        <img src={media.url} alt="Imagem recebida na conversa" loading="lazy" />
+      </a>
+    );
+  }
+  if (media.kind === 'video') {
+    return <video className="inbox-media" src={media.url} controls preload="metadata" />;
+  }
+  if (media.kind === 'audio') {
+    return <audio className="inbox-audio" src={media.url} controls preload="metadata" />;
+  }
+  return (
+    <a href={media.url} target="_blank" rel="noreferrer" className="inbox-doc">
+      <span className="inbox-doc-name">{media.fileName ?? 'Documento'}</span>
+      <span className="inbox-doc-size">{tamanho(media.sizeBytes)}</span>
+    </a>
+  );
+}
+
+/** Marcador de mídia sem legenda: com o anexo à vista, repetir "[imagem]" é ruído. */
+function ehMarcador(mensagem: Message): boolean {
+  return mensagem.media !== null && /^[[^]]+]$/.test(mensagem.body);
+}
+
+function tamanho(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 function hora(iso: string): string {

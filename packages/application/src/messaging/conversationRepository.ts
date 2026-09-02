@@ -33,6 +33,15 @@ export interface NewConversation {
   readonly customerId: string | null;
 }
 
+/** AT-13: o anexo de uma mensagem, já guardado. `path` é do bucket, nunca uma URL. */
+export interface MessageMedia {
+  readonly kind: 'image' | 'video' | 'audio' | 'document' | 'sticker';
+  readonly mimeType: string;
+  readonly fileName: string | null;
+  readonly path: string;
+  readonly sizeBytes: number;
+}
+
 export interface MessageRecord {
   readonly id: string;
   readonly conversationId: string;
@@ -41,6 +50,7 @@ export interface MessageRecord {
   readonly body: string;
   /** AT-08: quem da equipe respondeu. `null` em mensagem recebida. */
   readonly sentByUserId: string | null;
+  readonly media: MessageMedia | null;
   readonly sentAt: Date;
 }
 
@@ -51,6 +61,7 @@ export interface NewMessage {
   readonly direction: MessageDirection;
   readonly body: string;
   readonly sentByUserId: string | null;
+  readonly media: MessageMedia | null;
   /** AT-04: corpo cru do webhook, como o intake guarda. Nunca vai para o log. */
   readonly payload: unknown;
   readonly sentAt: Date;

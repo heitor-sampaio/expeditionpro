@@ -14,7 +14,7 @@ import { z } from 'zod';
 import type {
   ChannelIntegrationView,
   ConversationRecord,
-  MessageRecord,
+  ThreadMessage,
 } from '@expedition/application';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
@@ -125,6 +125,7 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
           integrations: deps.channelIntegrations,
           conversations: deps.conversations,
           customers: deps.customers,
+          media: deps.conversationMedia,
         },
         { tenantId, actor: { kind: 'system' } },
         {
@@ -170,7 +171,7 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
     { schema: { params: z.object({ conversationId: z.string().min(1) }) } },
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
-      const fio = await getConversation(inbox(), ctx, {
+      const fio = await getConversation({ ...inbox(), media: deps.conversationMedia }, ctx, {
         conversationId: request.params.conversationId,
       });
       return reply.send({
@@ -220,7 +221,9 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
           ctx,
           { conversationId: request.params.conversationId, body: request.body.body },
         );
-        return reply.status(201).send(messageDto(enviada));
+        // A mensagem que sai não tem anexo (AT-13 cobre o que chega), então o DTO do fio
+        // serve sem tradução extra.
+        return reply.status(201).send(messageDto({ ...enviada, media: null }));
       } catch (error) {
         if (error instanceof BusinessRuleError && error.code === 'send_failed') {
           return reply.status(502).send({ error: error.code, detail: error.message });
@@ -335,12 +338,14 @@ function conversationDto(conversation: ConversationRecord) {
  * mas não sai pela API: tem metadado do provedor, id de aparelho e campos que mudam a cada
  * versão da Evolution. A tela precisa do texto, de quem mandou e de quando.
  */
-function messageDto(message: MessageRecord) {
+function messageDto(message: ThreadMessage) {
   return {
     id: message.id,
     direction: message.direction,
     body: message.body,
     sentByUserId: message.sentByUserId,
+    // AT-13: o anexo já com URL assinada e curta. O caminho no bucket nunca sai daqui.
+    media: message.media,
     sentAt: message.sentAt.toISOString(),
   };
 }

@@ -14,6 +14,7 @@ import type {
   OpportunityRepository,
   ChannelIntegrationRepository,
   ConversationRepository,
+  MediaStore,
   MessagingGateway,
   AuthAdminGateway,
   BookingRepository,
@@ -99,6 +100,8 @@ export interface ServerDeps {
   readonly conversations: ConversationRepository;
   /** §5.17: por onde a resposta da equipe sai para o provedor (AT-08). */
   readonly messagingGateway: MessagingGateway;
+  /** §5.17: o bucket privado onde a mídia recebida fica (AT-13). */
+  readonly conversationMedia: MediaStore;
   /** §5.13: Termo de adesão (versionamento + aceite). */
   readonly documents: LegalDocumentRepository;
   /** §5.9 · DOC-06: consentimento de comunicação por canal (marketing). */

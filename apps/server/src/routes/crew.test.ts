@@ -18,6 +18,7 @@ import { inMemoryMemberships } from '../dev/inMemoryMemberships.js';
 import {
   inMemoryChannelIntegrations,
   inMemoryConversations,
+  inMemoryMediaStore,
   inMemoryMessagingGateway,
 } from '../dev/inMemoryMessaging.js';
 import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
@@ -99,6 +100,7 @@ describe('CF-05: GET e PUT /v1/crew', () => {
         channelIntegrations: inMemoryChannelIntegrations(),
         conversations: inMemoryConversations(),
         messagingGateway: inMemoryMessagingGateway(),
+        conversationMedia: inMemoryMediaStore(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),

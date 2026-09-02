@@ -14,14 +14,18 @@ type MessageRow = MessageRecord & { tenantId: string };
 export function fakeConversationRepository(): ConversationRepository & {
   conversations: ConversationRow[];
   messages: MessageRow[];
+  payloads: unknown[];
 } {
   const conversations: ConversationRow[] = [];
   const messages: MessageRow[] = [];
+  // O corpo cru guardado, para o teste conferir o que foi (e o que não foi) persistido.
+  const payloads: unknown[] = [];
   let seq = 0;
 
   return {
     conversations,
     messages,
+    payloads,
 
     findByChannelUser: (tenantId, channel: Channel, identidade) => {
       const formas = [identidade.channelUserId, identidade.phone].filter(
@@ -86,9 +90,11 @@ export function fakeConversationRepository(): ConversationRepository & {
         direction: message.direction,
         body: message.body,
         sentByUserId: message.sentByUserId,
+        media: message.media,
         sentAt: message.sentAt,
       };
       messages.push(record);
+      payloads.push(message.payload);
       return Promise.resolve(record);
     },
 

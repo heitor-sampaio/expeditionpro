@@ -18,6 +18,7 @@ import { inMemoryMemberships } from './inMemoryMemberships.js';
 import {
   inMemoryChannelIntegrations,
   inMemoryConversations,
+  inMemoryMediaStore,
   inMemoryMessagingGateway,
 } from './inMemoryMessaging.js';
 import { inMemoryOpportunities } from './inMemoryOpportunities.js';
@@ -65,6 +66,7 @@ export function inMemoryServerDeps(override: Partial<ServerDeps> = {}): ServerDe
     channelIntegrations: inMemoryChannelIntegrations(),
     conversations: inMemoryConversations(),
     messagingGateway: inMemoryMessagingGateway(),
+    conversationMedia: inMemoryMediaStore(),
     documents: inMemoryLegalDocuments(),
     consents: inMemoryConsents(),
     community: inMemoryCommunity(),

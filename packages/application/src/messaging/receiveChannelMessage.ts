@@ -1,8 +1,9 @@
-import { ipIsAllowed, mapEvolutionEvent } from '@expedition/domain';
+import { ipIsAllowed, mapEvolutionEvent, stripMediaBytes } from '@expedition/domain';
 import { UnauthorizedError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { CustomerRepository } from '../customers/customerRepository.js';
 import type { ChannelIntegrationRepository } from './channelIntegrationRepository.js';
+import type { MediaStore } from './mediaStore.js';
 import type {
   Channel,
   ConversationRecord,
@@ -13,6 +14,8 @@ export interface ReceiveChannelMessageDeps {
   readonly integrations: ChannelIntegrationRepository;
   readonly conversations: ConversationRepository;
   readonly customers: CustomerRepository;
+  /** AT-13: onde o arquivo que veio junto é guardado. */
+  readonly media: MediaStore;
 }
 
 export interface ReceiveChannelMessageCommand {
@@ -85,6 +88,24 @@ export async function receiveChannelMessage(
         // mesma, e passa a ser identificada pelo LID assim que ele aparece.
         await converger(deps, ctx, existente, identidade);
 
+  /*
+   * AT-13 — o arquivo vai para o bucket antes de a mensagem ser gravada, para a linha já
+   * nascer apontando para ele. Se guardar falhar, `guardada` é `null` e a mensagem entra
+   * assim mesmo, com o marcador: um anexo perdido é um problema; a mensagem sumindo do fio,
+   * outro bem maior.
+   */
+  const guardada =
+    evento.media === null
+      ? null
+      : await deps.media.save({
+          tenantId: ctx.tenantId,
+          conversationId: conversa.id,
+          externalId: evento.externalId,
+          mimeType: evento.media.mimeType,
+          fileName: evento.media.fileName,
+          base64: evento.media.base64,
+        });
+
   await deps.conversations.addMessage({
     tenantId: ctx.tenantId,
     conversationId: conversa.id,
@@ -94,7 +115,19 @@ export async function receiveChannelMessage(
     // Mensagem que chega não tem autor da equipe; a que sai pelo celular pareado também não
     // — quem respondeu foi alguém no aparelho, e o provedor não diz quem (AT-08).
     sentByUserId: null,
-    payload: command.body,
+    media:
+      evento.media === null || guardada === null
+        ? null
+        : {
+            kind: evento.media.kind,
+            mimeType: evento.media.mimeType,
+            fileName: evento.media.fileName,
+            path: guardada.path,
+            sizeBytes: guardada.sizeBytes,
+          },
+    // AT-04 · AT-13: o registro do que chegou, **sem** os bytes do arquivo — eles já estão
+    // no bucket, e guardá-los aqui de novo dobraria o maior objeto do banco.
+    payload: stripMediaBytes(command.body),
     sentAt: evento.sentAt,
   });
 

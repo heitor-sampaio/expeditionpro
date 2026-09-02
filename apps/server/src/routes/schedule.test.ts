@@ -18,6 +18,7 @@ import { inMemoryMemberships } from '../dev/inMemoryMemberships.js';
 import {
   inMemoryChannelIntegrations,
   inMemoryConversations,
+  inMemoryMediaStore,
   inMemoryMessagingGateway,
 } from '../dev/inMemoryMessaging.js';
 import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
@@ -83,6 +84,7 @@ describe('AG-02/AG-03: rotas da agenda', () => {
         channelIntegrations: inMemoryChannelIntegrations(),
         conversations: inMemoryConversations(),
         messagingGateway: inMemoryMessagingGateway(),
+        conversationMedia: inMemoryMediaStore(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),

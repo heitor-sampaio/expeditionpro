@@ -18,6 +18,7 @@ import { inMemoryMemberships } from '../dev/inMemoryMemberships.js';
 import {
   inMemoryChannelIntegrations,
   inMemoryConversations,
+  inMemoryMediaStore,
   inMemoryMessagingGateway,
 } from '../dev/inMemoryMessaging.js';
 import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
@@ -99,6 +100,7 @@ describe('GR-03/IN-18: POST /v1/groups/:groupId/bookings', () => {
         channelIntegrations: inMemoryChannelIntegrations(),
         conversations: inMemoryConversations(),
         messagingGateway: inMemoryMessagingGateway(),
+        conversationMedia: inMemoryMediaStore(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),
@@ -581,6 +583,7 @@ describe('GR-03/IN-18: POST /v1/groups/:groupId/bookings', () => {
         channelIntegrations: inMemoryChannelIntegrations(),
         conversations: inMemoryConversations(),
         messagingGateway: inMemoryMessagingGateway(),
+        conversationMedia: inMemoryMediaStore(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),

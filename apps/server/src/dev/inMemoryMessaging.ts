@@ -5,9 +5,11 @@ import type {
   ConversationRecord,
   ConversationRepository,
   MessageRecord,
+  MediaStore,
   MessagingGateway,
   NewChannelIntegration,
   NewConversation,
+  NewMedia,
   NewMessage,
   OutboundText,
   SendOutcome,
@@ -75,6 +77,22 @@ export function inMemoryChannelIntegrations(
       rows.splice(i, 1);
       return Promise.resolve(true);
     },
+  };
+}
+
+/**
+ * AT-13 — armazenamento de mídia em memória, para dev sem banco e testes de rota. Não guarda
+ * nada: devolve um caminho e uma URL de mentira, que é o bastante para exercitar o fluxo.
+ */
+export function inMemoryMediaStore(): MediaStore {
+  return {
+    save: (media: NewMedia) =>
+      Promise.resolve({
+        path: `${media.tenantId}/${media.conversationId}/${media.externalId}`,
+        sizeBytes: Math.floor((media.base64.length * 3) / 4),
+      }),
+    signedUrls: (paths: readonly string[]) =>
+      Promise.resolve(new Map(paths.map((path) => [path, `https://exemplo.local/${path}`]))),
   };
 }
 
@@ -156,6 +174,7 @@ export function inMemoryConversations(): ConversationRepository & {
         direction: message.direction,
         body: message.body,
         sentByUserId: message.sentByUserId,
+        media: message.media,
         sentAt: message.sentAt,
       };
       messages.push(record);

@@ -25,6 +25,7 @@ import {
   prismaMembershipRepository,
   prismaChannelIntegrationRepository,
   prismaConversationRepository,
+  supabaseMediaStore,
   evolutionGateway,
   prismaOpportunityRepository,
   prismaPaymentIntegrationRepository,
@@ -35,6 +36,7 @@ import {
 } from '@expedition/infrastructure';
 import type {
   AuthAdminGateway,
+  MediaStore,
   NotificationGateway,
   RequestContext,
 } from '@expedition/application';
@@ -58,6 +60,7 @@ import { inMemoryMemberships } from './dev/inMemoryMemberships.js';
 import {
   inMemoryChannelIntegrations,
   inMemoryConversations,
+  inMemoryMediaStore,
   inMemoryMessagingGateway,
 } from './dev/inMemoryMessaging.js';
 import { inMemoryOpportunities } from './dev/inMemoryOpportunities.js';
@@ -129,6 +132,30 @@ function buildAuthAdmin(): AuthAdminGateway | undefined {
   return supabaseAuthAdmin({ url, serviceRoleKey });
 }
 
+/**
+ * AT-13 — o bucket privado das conversas. Sem `SUPABASE_URL` e `service_role`, o anexo
+ * simplesmente não é guardado: a mensagem entra com o marcador e a conversa segue legível.
+ * É o mesmo desenho da cifra de credenciais — falta de configuração degrada, não derruba.
+ */
+function buildConversationMedia(): MediaStore {
+  const url = process.env['SUPABASE_URL'];
+  const serviceRoleKey = process.env['SUPABASE_SERVICE_ROLE_KEY'];
+  if (!url || !serviceRoleKey) {
+    console.warn(
+      missingEnvWarning(
+        process.env,
+        ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'],
+        'mídia das conversas não será guardada.',
+      )!,
+    );
+    return {
+      save: () => Promise.resolve(null),
+      signedUrls: () => Promise.resolve(new Map<string, string>()),
+    };
+  }
+  return supabaseMediaStore({ url, serviceRoleKey });
+}
+
 function buildDeps(): ServerDeps {
   // SEC-01: fora de desenvolvimento, sem banco o servidor recusa subir — o fallback em
   // memória traz um ator de owner fixo e sem autenticação.
@@ -146,6 +173,7 @@ function buildDeps(): ServerDeps {
       channelIntegrations: inMemoryChannelIntegrations(),
       conversations: inMemoryConversations(),
       messagingGateway: inMemoryMessagingGateway(),
+      conversationMedia: inMemoryMediaStore(),
       vehicles: inMemoryVehicles(),
       itineraries: inMemoryItineraries(),
       schedule: inMemorySchedule(),
@@ -291,6 +319,7 @@ function messagingDeps(base: ReturnType<typeof createPrismaClient>) {
     channelIntegrations: prismaChannelIntegrationRepository(base, credentialCipher()),
     conversations: prismaConversationRepository(base),
     messagingGateway: evolutionGateway(),
+    conversationMedia: buildConversationMedia(),
   };
 }
 

@@ -1141,6 +1141,13 @@ model Message {
   // AT-08: quem da equipe respondeu. Null em mensagem recebida — e também na que sai pelo
   // celular pareado, porque o provedor não diz quem digitou.
   sentByUserId   String?  @map("sent_by_user_id") @db.Uuid
+  // AT-13 — o anexo. Vive no bucket privado `conversations`; aqui fica o ponteiro e o que a
+  // tela precisa para decidir como mostrar. `mediaPath` nunca é URL: URL é assinada na hora.
+  mediaKind      String?  @map("media_kind")
+  mediaMimeType  String?  @map("media_mime_type")
+  mediaFileName  String?  @map("media_file_name")
+  mediaPath      String?  @map("media_path")
+  mediaSize      BigInt?  @map("media_size")
   payload        Json
   sentAt         DateTime @map("sent_at")
   createdAt      DateTime @default(now()) @map("created_at")

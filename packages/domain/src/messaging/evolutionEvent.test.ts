@@ -35,6 +35,7 @@ describe('AT-03: mapeamento do evento da Evolution', () => {
       externalId: '3EB0C767D26A1D9B6F3A',
       channelUserId: '5548999998877',
       phone: '5548999998877',
+      media: null,
       direction: 'in',
       body: 'Bom dia! Quanto custa a Coxilha Rica?',
       displayName: 'Ana Prado',
@@ -222,5 +223,100 @@ describe('AT-05: LID e telefone são a mesma pessoa', () => {
     expect(mapEvolutionEvent(evento({ remoteJid: 'algo@broadcast' }))).toEqual({
       kind: 'ignored',
     });
+  });
+});
+
+/**
+ * AT-13 — a mídia que o lead manda.
+ *
+ * A instalação daqui entrega o arquivo **dentro do webhook**, em `message.base64` — verificado
+ * no corpo cru de uma imagem que chegou de verdade (515 KB de foto, 687 KB de base64). Então
+ * não há segunda chamada ao provedor: o que precisa ser guardado já veio.
+ *
+ * A legenda vira o corpo da mensagem quando existe. Foto com legenda é uma frase com uma
+ * imagem junto, e jogar a frase fora deixaria a conversa sem sentido — foi o que o marcador
+ * `[imagem]` fazia até aqui.
+ */
+describe('AT-13: mídia recebida', () => {
+  const comMidia = (tipo: string, conteudo: Record<string, unknown>) => ({
+    event: 'messages.upsert',
+    data: {
+      key: { id: 'MSG-M', fromMe: false, remoteJid: '5548999998877@s.whatsapp.net' },
+      pushName: 'Ana Prado',
+      messageType: tipo,
+      message: { [tipo]: conteudo, base64: 'QUJD' },
+      messageTimestamp: 1788000000,
+    },
+  });
+
+  it('imagem vem com o arquivo, o tipo e o formato', () => {
+    const r = mapEvolutionEvent(comMidia('imageMessage', { mimetype: 'image/jpeg' }));
+
+    expect(r).toMatchObject({
+      body: '[imagem]',
+      media: { kind: 'image', mimeType: 'image/jpeg', fileName: null, base64: 'QUJD' },
+    });
+  });
+
+  it('a legenda vira o texto da mensagem — é o que a pessoa quis dizer', () => {
+    const r = mapEvolutionEvent(
+      comMidia('imageMessage', { mimetype: 'image/jpeg', caption: 'olha o estrago no pneu' }),
+    );
+
+    expect(r).toMatchObject({ body: 'olha o estrago no pneu' });
+  });
+
+  it('vídeo, áudio e documento entram do mesmo jeito', () => {
+    expect(mapEvolutionEvent(comMidia('videoMessage', { mimetype: 'video/mp4' }))).toMatchObject({
+      media: { kind: 'video', mimeType: 'video/mp4' },
+    });
+    expect(mapEvolutionEvent(comMidia('audioMessage', { mimetype: 'audio/ogg' }))).toMatchObject({
+      media: { kind: 'audio', mimeType: 'audio/ogg' },
+    });
+    expect(
+      mapEvolutionEvent(
+        comMidia('documentMessage', {
+          mimetype: 'application/pdf',
+          fileName: 'orçamento.pdf',
+        }),
+      ),
+    ).toMatchObject({ media: { kind: 'document', fileName: 'orçamento.pdf' } });
+  });
+
+  /**
+   * Sem o arquivo no corpo, a mensagem **continua entrando** — só sem mídia. Sumir com ela
+   * deixaria um buraco no fio, e quem lê não saberia que alguma coisa foi mandada.
+   */
+  it('mídia sem o arquivo vira mensagem com marcador, e não some', () => {
+    const r = mapEvolutionEvent({
+      event: 'messages.upsert',
+      data: {
+        key: { id: 'MSG-M', fromMe: false, remoteJid: '5548999998877@s.whatsapp.net' },
+        messageType: 'imageMessage',
+        message: { imageMessage: { mimetype: 'image/jpeg' } },
+        messageTimestamp: 1788000000,
+      },
+    });
+
+    expect(r).toMatchObject({ body: '[imagem]', media: null });
+  });
+
+  it('sem o tipo do arquivo, guarda como binário genérico em vez de recusar', () => {
+    const r = mapEvolutionEvent(comMidia('documentMessage', {}));
+
+    expect(r).toMatchObject({ media: { mimeType: 'application/octet-stream' } });
+  });
+
+  it('mensagem de texto continua sem mídia nenhuma', () => {
+    const texto = {
+      event: 'messages.upsert',
+      data: {
+        key: { id: 'MSG-T', fromMe: false, remoteJid: '5548999998877@s.whatsapp.net' },
+        message: { conversation: 'oi' },
+        messageTimestamp: 1788000000,
+      },
+    };
+
+    expect(mapEvolutionEvent(texto)).toMatchObject({ media: null });
   });
 });

@@ -28,8 +28,25 @@ export type EvolutionEvent =
       readonly direction: 'in' | 'out';
       readonly body: string;
       readonly displayName: string | null;
+      /** AT-13: o arquivo que veio junto, quando veio. `null` em mensagem de texto. */
+      readonly media: EvolutionMedia | null;
       readonly sentAt: Date;
     };
+
+/**
+ * AT-13 — o arquivo que o lead mandou.
+ *
+ * A instalação daqui entrega o conteúdo **dentro do webhook**, em `message.base64` — foi
+ * verificado no corpo cru de uma imagem real. Por isso não há segunda chamada ao provedor
+ * para buscar mídia: o que precisa ser guardado já chegou.
+ */
+export interface EvolutionMedia {
+  readonly kind: 'image' | 'video' | 'audio' | 'document' | 'sticker';
+  readonly mimeType: string;
+  /** Só documento costuma trazer nome; foto e áudio chegam sem. */
+  readonly fileName: string | null;
+  readonly base64: string;
+}
 
 const IGNORED: EvolutionEvent = { kind: 'ignored' };
 
@@ -45,6 +62,18 @@ const AVISO_DE_MIDIA: Record<string, string> = {
   stickerMessage: '[figurinha]',
   locationMessage: '[localização]',
   contactMessage: '[contato]',
+};
+
+/**
+ * Quais desses tipos são **arquivo**. Localização e contato entram na conversa como marcador
+ * e nada mais: não há o que baixar, e inventar um anexo para eles seria mentira.
+ */
+const ESPECIE: Record<string, EvolutionMedia['kind']> = {
+  imageMessage: 'image',
+  videoMessage: 'video',
+  audioMessage: 'audio',
+  documentMessage: 'document',
+  stickerMessage: 'sticker',
 };
 
 export function mapEvolutionEvent(body: unknown): EvolutionEvent {
@@ -98,6 +127,7 @@ export function mapEvolutionEvent(body: unknown): EvolutionEvent {
      */
     displayName:
       !saindo && typeof data.pushName === 'string' && data.pushName !== '' ? data.pushName : null,
+    media: midiaDe(data.message),
     sentAt: horarioDe(data.messageTimestamp),
   };
 }
@@ -155,8 +185,64 @@ function textoDe(message: Record<string, unknown> | undefined): string | null {
   return null;
 }
 
+/**
+ * AT-13 — o arquivo, quando o evento traz um.
+ *
+ * Sem `base64` devolve `null` e a mensagem **continua entrando**, com o marcador de sempre:
+ * sumir com ela deixaria um buraco no fio, e quem lê não saberia que algo foi mandado.
+ *
+ * Tipo ausente vira `application/octet-stream` em vez de recusa. O arquivo já está aqui;
+ * guardá-lo sem saber o formato é melhor que perdê-lo por causa de um campo que faltou.
+ */
+function midiaDe(message: Record<string, unknown> | undefined): EvolutionMedia | null {
+  if (!message || typeof message !== 'object') return null;
+
+  const base64 = message['base64'];
+  if (typeof base64 !== 'string' || base64 === '') return null;
+
+  for (const [chave, kind] of Object.entries(ESPECIE)) {
+    if (!(chave in message)) continue;
+    const conteudo = (message[chave] ?? {}) as { mimetype?: unknown; fileName?: unknown };
+    return {
+      kind,
+      mimeType:
+        typeof conteudo.mimetype === 'string' && conteudo.mimetype !== ''
+          ? conteudo.mimetype
+          : 'application/octet-stream',
+      fileName:
+        typeof conteudo.fileName === 'string' && conteudo.fileName !== ''
+          ? conteudo.fileName
+          : null,
+      base64,
+    };
+  }
+  return null;
+}
+
 /** O timestamp vem em segundos; `Date` quer milissegundos. */
 function horarioDe(timestamp: unknown): Date {
   const segundos = typeof timestamp === 'number' ? timestamp : Number(timestamp);
   return Number.isFinite(segundos) ? new Date(segundos * 1000) : new Date(0);
+}
+
+/**
+ * AT-04 · AT-13 — o corpo cru **sem** o arquivo.
+ *
+ * O payload do webhook é guardado como registro do que chegou. Com o arquivo dentro, uma foto
+ * de 500 KB vira 687 KB de base64 numa coluna JSONB, por mensagem — e o mesmo conteúdo já
+ * está no bucket. Em um mês de operação isso é o maior objeto do banco, guardado duas vezes.
+ *
+ * Tira só o `base64`. Todo o resto continua: é o que permite conferir depois o que a
+ * Evolution mandou, que é a razão de o registro existir.
+ */
+export function stripMediaBytes(body: unknown): unknown {
+  const envelope = body as { data?: { message?: Record<string, unknown> } } | null | undefined;
+  const message = envelope?.data?.message;
+  if (!message || typeof message !== 'object' || !('base64' in message)) return body;
+
+  const { base64: _descartado, ...semArquivo } = message;
+  return {
+    ...(envelope as object),
+    data: { ...(envelope!.data as object), message: semArquivo },
+  };
 }

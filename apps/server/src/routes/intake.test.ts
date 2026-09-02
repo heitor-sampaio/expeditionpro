@@ -18,6 +18,7 @@ import { inMemoryMemberships } from '../dev/inMemoryMemberships.js';
 import {
   inMemoryChannelIntegrations,
   inMemoryConversations,
+  inMemoryMediaStore,
   inMemoryMessagingGateway,
 } from '../dev/inMemoryMessaging.js';
 import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
@@ -94,6 +95,7 @@ describe('IN-01/IN-02: webhook POST /v1/intake/:tenantSlug', () => {
         channelIntegrations: inMemoryChannelIntegrations(),
         conversations: inMemoryConversations(),
         messagingGateway: inMemoryMessagingGateway(),
+        conversationMedia: inMemoryMediaStore(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),

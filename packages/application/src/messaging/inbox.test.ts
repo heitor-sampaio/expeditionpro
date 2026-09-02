@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fakeConversationRepository } from './conversationRepository.fake.js';
+import { fakeMediaStore } from './mediaStore.fake.js';
 import { fakeOpportunityRepository } from '../crm/opportunityRepository.fake.js';
 import { fakeAuditLogRepository } from '../audit/auditLogRepository.fake.js';
 import { listConversations } from './listConversations.js';
@@ -20,6 +21,7 @@ const cliente: RequestContext = {
 
 async function comConversa() {
   const conversations = fakeConversationRepository();
+  const media = fakeMediaStore();
   const conversa = await conversations.createConversation({
     tenantId: 'tenant-a',
     channel: 'whatsapp',
@@ -35,6 +37,7 @@ async function comConversa() {
     direction: 'in',
     body: 'Quanto custa a Coxilha Rica?',
     sentByUserId: null,
+    media: null,
     payload: {},
     sentAt: new Date('2026-09-01T10:00:00Z'),
   });
@@ -42,7 +45,7 @@ async function comConversa() {
     lastMessageAt: new Date('2026-09-01T10:00:00Z'),
     incrementUnread: true,
   });
-  return { conversations, conversa };
+  return { conversations, media, conversa };
 }
 
 /**
@@ -76,7 +79,7 @@ describe('AT-07: ler a caixa', () => {
   });
 
   it('abrir uma conversa traz o fio inteiro, em ordem', async () => {
-    const { conversations, conversa } = await comConversa();
+    const { conversations, media, conversa } = await comConversa();
     await conversations.addMessage({
       tenantId: 'tenant-a',
       conversationId: conversa.id,
@@ -84,11 +87,12 @@ describe('AT-07: ler a caixa', () => {
       direction: 'out',
       body: 'Bom dia! Vou te passar os valores.',
       sentByUserId: 'u1',
+      media: null,
       payload: {},
       sentAt: new Date('2026-09-01T10:05:00Z'),
     });
 
-    const fio = await getConversation({ conversations }, ctxCom('operator'), {
+    const fio = await getConversation({ conversations, media }, ctxCom('operator'), {
       conversationId: conversa.id,
     });
 
@@ -100,11 +104,11 @@ describe('AT-07: ler a caixa', () => {
   });
 
   it('conversa de outro tenant responde como se não existisse', async () => {
-    const { conversations, conversa } = await comConversa();
+    const { conversations, media, conversa } = await comConversa();
 
     await expect(
       getConversation(
-        { conversations },
+        { conversations, media },
         { ...ctxCom('operator'), tenantId: 'tenant-b' },
         {
           conversationId: conversa.id,
@@ -228,5 +232,75 @@ describe('AT-10: anexar conversa a uma oportunidade', () => {
         opportunityId: 'opp-1',
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+/**
+ * AT-13 — o anexo chega à tela por **URL assinada e curta**, nunca por caminho público.
+ *
+ * O bucket é privado: o que está lá é conversa de cliente, o conteúdo mais sensível que o
+ * sistema guarda. A assinatura é feita no servidor, na hora de abrir o fio, e vale minutos —
+ * link que vaza de um print deixa de funcionar sozinho.
+ */
+describe('AT-13: mídia no fio', () => {
+  async function comAnexo() {
+    const conversations = fakeConversationRepository();
+    const media = fakeMediaStore();
+    const conversa = await conversations.createConversation({
+      tenantId: 'tenant-a',
+      channel: 'whatsapp',
+      channelUserId: '5548999998877',
+      phone: '5548999998877',
+      displayName: 'Ana Prado',
+      customerId: null,
+    });
+    await conversations.addMessage({
+      tenantId: 'tenant-a',
+      conversationId: conversa.id,
+      externalId: 'MSG-IMG',
+      direction: 'in',
+      body: '[imagem]',
+      sentByUserId: null,
+      media: {
+        kind: 'image',
+        mimeType: 'image/jpeg',
+        fileName: null,
+        path: 'tenant-a/conv/MSG-IMG',
+        sizeBytes: 515262,
+      },
+      payload: {},
+      sentAt: new Date('2026-09-03T10:00:00Z'),
+    });
+    return { conversations, media, conversa };
+  }
+
+  it('a mensagem com anexo vem com a URL para mostrar', async () => {
+    const d = await comAnexo();
+
+    const fio = await getConversation(d, ctxCom('operator'), { conversationId: d.conversa.id });
+
+    expect(fio.messages[0]?.media).toMatchObject({
+      kind: 'image',
+      url: 'https://assinada/tenant-a/conv/MSG-IMG',
+    });
+  });
+
+  it('mensagem de texto continua sem anexo nenhum', async () => {
+    const d = await comAnexo();
+    await d.conversations.addMessage({
+      tenantId: 'tenant-a',
+      conversationId: d.conversa.id,
+      externalId: 'MSG-TXT',
+      direction: 'in',
+      body: 'oi',
+      sentByUserId: null,
+      media: null,
+      payload: {},
+      sentAt: new Date('2026-09-03T10:01:00Z'),
+    });
+
+    const fio = await getConversation(d, ctxCom('operator'), { conversationId: d.conversa.id });
+
+    expect(fio.messages[1]?.media).toBeNull();
   });
 });

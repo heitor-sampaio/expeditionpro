@@ -7,6 +7,7 @@ import type {
   ConversationRecord,
   ConversationRepository,
   MessageDirection,
+  MessageMedia,
   MessageRecord,
   NewChannelIntegration,
   NewConversation,
@@ -205,6 +206,11 @@ export function prismaConversationRepository(base: PrismaClient): ConversationRe
           direction: message.direction,
           body: message.body,
           sentByUserId: message.sentByUserId,
+          mediaKind: message.media?.kind ?? null,
+          mediaMimeType: message.media?.mimeType ?? null,
+          mediaFileName: message.media?.fileName ?? null,
+          mediaPath: message.media?.path ?? null,
+          mediaSize: message.media === null ? null : BigInt(message.media.sizeBytes),
           payload: message.payload as Prisma.InputJsonValue,
           sentAt: message.sentAt,
         },
@@ -280,7 +286,23 @@ function toMessage(row: PrismaMessage): MessageRecord {
     direction: row.direction as MessageDirection,
     body: row.body,
     sentByUserId: row.sentByUserId,
+    media: toMedia(row),
     sentAt: row.sentAt,
+  };
+}
+
+/**
+ * AT-13 — o anexo só existe inteiro. A constraint no banco garante que caminho, espécie e
+ * tipo andam juntos; aqui a leitura confia nisso e devolve `null` se o caminho não está lá.
+ */
+function toMedia(row: PrismaMessage): MessageMedia | null {
+  if (row.mediaPath === null || row.mediaKind === null || row.mediaMimeType === null) return null;
+  return {
+    kind: row.mediaKind as MessageMedia['kind'],
+    mimeType: row.mediaMimeType,
+    fileName: row.mediaFileName,
+    path: row.mediaPath,
+    sizeBytes: Number(row.mediaSize ?? 0n),
   };
 }
 

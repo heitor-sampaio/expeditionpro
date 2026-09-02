@@ -912,6 +912,7 @@ export type {
   MessageDirection,
   ConversationRecord,
   ConversationRepository,
+  MessageMedia,
   MessageRecord,
   NewConversation,
   NewMessage,
@@ -940,9 +941,12 @@ export {
   type SendChannelMessageCommand,
 } from './messaging/sendChannelMessage.js';
 export type { MessagingGateway, OutboundText, SendOutcome } from './messaging/messagingGateway.js';
+export type { MediaStore, NewMedia, StoredMedia } from './messaging/mediaStore.js';
 export {
   getConversation,
   type ConversationThread,
+  type ThreadDeps,
+  type ThreadMessage,
   type GetConversationCommand,
 } from './messaging/getConversation.js';
 export {

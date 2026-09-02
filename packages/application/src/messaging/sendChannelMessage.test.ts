@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fakeChannelIntegrationRepository } from './channelIntegrationRepository.fake.js';
 import { fakeConversationRepository } from './conversationRepository.fake.js';
 import { fakeCustomerRepository } from '../customers/customerRepository.fake.js';
+import { fakeMediaStore } from './mediaStore.fake.js';
 import { fakeMessagingGateway } from './messagingGateway.fake.js';
 import { receiveChannelMessage } from './receiveChannelMessage.js';
 import { sendChannelMessage } from './sendChannelMessage.js';
@@ -117,7 +118,7 @@ describe('AT-08: enviar mensagem pela caixa', () => {
     });
 
     const eco = await receiveChannelMessage(
-      { ...d, customers: fakeCustomerRepository() },
+      { ...d, customers: fakeCustomerRepository(), media: fakeMediaStore() },
       { tenantId: 'tenant-a', actor: { kind: 'system' } },
       {
         token: 'SEGREDO',
