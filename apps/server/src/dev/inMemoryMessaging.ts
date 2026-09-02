@@ -11,6 +11,7 @@ import type {
   NewConversation,
   NewMedia,
   NewMessage,
+  OutboundMedia,
   OutboundText,
   SendOutcome,
 } from '@expedition/application';
@@ -237,6 +238,13 @@ export function inMemoryMessagingGateway(): MessagingGateway & {
     sendText(message: OutboundText): Promise<SendOutcome> {
       if (falha !== null) return Promise.resolve({ ok: false, detail: falha });
       enviadas.push({ to: message.to, text: message.text });
+      seq += 1;
+      return Promise.resolve({ ok: true, externalId: `DEV-${seq}` });
+    },
+
+    sendMedia(message: OutboundMedia): Promise<SendOutcome> {
+      if (falha !== null) return Promise.resolve({ ok: false, detail: falha });
+      enviadas.push({ to: message.to, text: message.caption ?? `[${message.kind}]` });
       seq += 1;
       return Promise.resolve({ ok: true, externalId: `DEV-${seq}` });
     },

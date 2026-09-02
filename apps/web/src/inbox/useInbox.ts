@@ -34,6 +34,14 @@ export interface MessageMedia {
   url: string;
 }
 
+/** AT-13: o anexo que a equipe escolheu ou gravou, pronto para subir. */
+export interface Anexo {
+  kind: 'image' | 'video' | 'audio' | 'document';
+  mimeType: string;
+  fileName: string | null;
+  base64: string;
+}
+
 export interface Message {
   id: string;
   direction: 'in' | 'out';
@@ -123,11 +131,15 @@ export function useInbox() {
    * no WhatsApp" e "não foi possível enviar" levam a lugares diferentes.
    */
   const enviar = useCallback(
-    async (id: string, texto: string): Promise<{ ok: true } | { ok: false; message: string }> => {
+    async (
+      id: string,
+      texto: string,
+      anexo?: Anexo,
+    ): Promise<{ ok: true } | { ok: false; message: string }> => {
       const res = await api(`/v1/inbox/conversations/${encodeURIComponent(id)}/messages`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ body: texto }),
+        body: JSON.stringify({ body: texto, ...(anexo === undefined ? {} : { media: anexo }) }),
       });
       if (res.ok) {
         recarregar();
@@ -222,7 +234,7 @@ function falhaAoEnviar(corpo: { error?: string; detail?: string }, status: numbe
   if (corpo.error === 'send_failed' && corpo.detail) return `O WhatsApp recusou: ${corpo.detail}`;
   if (corpo.error === 'channel_not_connected')
     return 'O canal desta conversa não está conectado. Reconecte em Configurações → Integrações.';
-  if (corpo.error === 'required_field') return 'Escreva a mensagem antes de enviar.';
+  if (corpo.error === 'required_field') return 'Escreva a mensagem ou escolha um anexo.';
   if (status === 401 || status === 403) return 'Seu perfil não permite responder.';
   return 'Não foi possível enviar.';
 }

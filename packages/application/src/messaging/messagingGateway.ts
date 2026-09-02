@@ -26,6 +26,21 @@ export type SendOutcome =
   /** Motivo em texto, para chegar à tela. Sem ele, "não foi possível enviar" e nada a fazer. */
   | { readonly ok: false; readonly detail: string };
 
+/**
+ * AT-13 — o anexo que sai. `caption` acompanha imagem, vídeo e documento; áudio de voz não
+ * tem legenda no WhatsApp, e mandar uma seria inventar um campo que o aparelho não mostra.
+ */
+export interface OutboundMedia {
+  readonly integration: ChannelIntegrationRecord;
+  readonly to: string;
+  readonly kind: 'image' | 'video' | 'audio' | 'document';
+  readonly mimeType: string;
+  readonly fileName: string | null;
+  readonly caption: string | null;
+  readonly base64: string;
+}
+
 export interface MessagingGateway {
   sendText(message: OutboundText): Promise<SendOutcome>;
+  sendMedia(message: OutboundMedia): Promise<SendOutcome>;
 }

@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { whatsappLink } from '../ui/whatsapp.js';
+import { useMemo, useState } from 'react';
 import { useBoard } from '../crm/useBoard.js';
 import { useItineraries } from '../agenda/useItineraries.js';
 import { ContactPanel } from './ContactPanel.js';
+import { Thread } from './Thread.js';
 import { channelLabel, contactTitle, iniciais, type Channel } from './inboxFormat.js';
 import { matchesSearch } from './searchConversations.js';
-import { useInbox, type Conversation, type Message, type MessageMedia } from './useInbox.js';
+import { useInbox, type Conversation } from './useInbox.js';
 
 /**
  * §5.17 — a caixa de conversas, omnichannel.
@@ -273,176 +273,6 @@ function ConversationRow({
   );
 }
 
-function Thread({
-  conversation,
-  messages,
-  onVoltar,
-  onDetalhes,
-  onEnviar,
-}: {
-  conversation: Conversation;
-  messages: Message[];
-  onVoltar: () => void;
-  onDetalhes: () => void;
-  onEnviar: (id: string, texto: string) => Promise<{ ok: true } | { ok: false; message: string }>;
-}): React.JSX.Element {
-  const titulo = contactTitle(conversation);
-  const fim = useRef<HTMLDivElement>(null);
-  const [texto, setTexto] = useState('');
-  const [enviando, setEnviando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-
-  const enviar = async () => {
-    const conteudo = texto.trim();
-    if (conteudo === '' || enviando) return;
-    setEnviando(true);
-    setErro(null);
-    const resultado = await onEnviar(conversation.id, conteudo);
-    setEnviando(false);
-    // Só limpa o campo quando saiu de verdade: apagar o que a pessoa escreveu depois de uma
-    // recusa a obrigaria a digitar de novo, e a recusa costuma ser do provedor, não do texto.
-    if (resultado.ok) setTexto('');
-    else setErro(resultado.message);
-  };
-
-  // Fio de conversa se lê pelo fim: é lá que está a mensagem que ainda não foi respondida.
-  useEffect(() => {
-    fim.current?.scrollIntoView({ block: 'end' });
-  }, [conversation.id, messages.length]);
-
-  return (
-    <>
-      <div className="inbox-head">
-        <button type="button" className="btn btn-secondary btn-sm inbox-back" onClick={onVoltar}>
-          Voltar
-        </button>
-        <span className="avatar">{iniciais(titulo)}</span>
-        <div className="inbox-head-text">
-          <span className="card-title">{titulo}</span>
-          <span className="member-cpf">
-            {channelLabel(conversation.channel)}
-            {conversation.customerId ? ' · cliente cadastrado' : ' · contato solto'}
-          </span>
-        </div>
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm inbox-details"
-          onClick={onDetalhes}
-        >
-          Detalhes
-        </button>
-        {/* Sem número não há link: `wa.me` com um LID abre uma conversa com ninguém. */}
-        {conversation.channel === 'whatsapp' && conversation.phone !== null && (
-          <a
-            className="btn btn-secondary btn-sm"
-            href={whatsappLink(conversation.phone, '')}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Abrir no WhatsApp
-          </a>
-        )}
-      </div>
-
-      <div className="inbox-msgs">
-        {messages.length === 0 ? (
-          <p className="members-empty">Esta conversa ainda não tem mensagem.</p>
-        ) : (
-          messages.map((mensagem) => (
-            <div
-              key={mensagem.id}
-              className={`inbox-msg${mensagem.direction === 'out' ? ' is-out' : ''}`}
-            >
-              {mensagem.media !== null && <Anexo media={mensagem.media} />}
-              {/*
-                Foto sem legenda chega com o marcador `[imagem]`, e repeti-lo embaixo da
-                própria imagem é ruído. Com legenda, o texto é o que a pessoa quis dizer.
-              */}
-              {!ehMarcador(mensagem) && <p className="inbox-msg-body">{mensagem.body}</p>}
-              <span className="inbox-msg-time">{hora(mensagem.sentAt)}</span>
-            </div>
-          ))
-        )}
-        <div ref={fim} />
-      </div>
-
-      {erro && (
-        <div className="feedback feedback-error inbox-foot" role="alert">
-          <span className="feedback-dot" />
-          <span>{erro}</span>
-        </div>
-      )}
-
-      <div className="inline-form inbox-foot">
-        <input
-          className="field-input"
-          value={texto}
-          maxLength={4000}
-          disabled={enviando}
-          aria-label="Escreva a resposta"
-          placeholder="Escreva a resposta"
-          onChange={(e) => setTexto(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void enviar();
-          }}
-        />
-        <button
-          type="button"
-          className="inline-send"
-          aria-label="Enviar resposta"
-          disabled={enviando || texto.trim() === ''}
-          onClick={() => void enviar()}
-        >
-          <SendIcon />
-        </button>
-      </div>
-    </>
-  );
-}
-
-/**
- * AT-13 — o anexo, mostrado pelo que ele é.
- *
- * Imagem e vídeo aparecem no fio: é o ponto de ver a mídia sem sair do sistema. Áudio ganha o
- * player do navegador, que já traz controle de tempo e velocidade. Documento vira link com
- * nome e tamanho — abrir um PDF dentro de um balão de conversa não ajuda ninguém.
- */
-function Anexo({ media }: { media: MessageMedia }): React.JSX.Element {
-  if (media.kind === 'image' || media.kind === 'sticker') {
-    return (
-      <a href={media.url} target="_blank" rel="noreferrer" className="inbox-media">
-        <img src={media.url} alt="Imagem recebida na conversa" loading="lazy" />
-      </a>
-    );
-  }
-  if (media.kind === 'video') {
-    return <video className="inbox-media" src={media.url} controls preload="metadata" />;
-  }
-  if (media.kind === 'audio') {
-    return <audio className="inbox-audio" src={media.url} controls preload="metadata" />;
-  }
-  return (
-    <a href={media.url} target="_blank" rel="noreferrer" className="inbox-doc">
-      <span className="inbox-doc-name">{media.fileName ?? 'Documento'}</span>
-      <span className="inbox-doc-size">{tamanho(media.sizeBytes)}</span>
-    </a>
-  );
-}
-
-/** Marcador de mídia sem legenda: com o anexo à vista, repetir "[imagem]" é ruído. */
-function ehMarcador(mensagem: Message): boolean {
-  return mensagem.media !== null && /^[[^]]+]$/.test(mensagem.body);
-}
-
-function tamanho(bytes: number): string {
-  const mb = bytes / (1024 * 1024);
-  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
-
-function hora(iso: string): string {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-}
-
 function quando(iso: string | null): string {
   if (iso === null) return '';
   const data = new Date(iso);
@@ -451,23 +281,4 @@ function quando(iso: string | null): string {
   return mesmoDia
     ? data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     : data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-}
-
-/** Ícone do botão de enviar. Cópia local, como na comunidade: a terceira é que vira comum. */
-function SendIcon(): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="16"
-      height="16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m4 12 16-8-6 8 6 8z" />
-    </svg>
-  );
 }

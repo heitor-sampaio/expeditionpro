@@ -657,3 +657,97 @@ describe('AT-08: POST /v1/inbox/conversations/:id/messages', () => {
     await app.close();
   });
 });
+
+/**
+ * AT-13 — anexo pela borda.
+ *
+ * O arquivo sobe em base64 dentro do JSON, e não em multipart: é o formato em que ele já
+ * chega da tela (gravação de voz e leitura de arquivo dão base64 no navegador), e evita um
+ * plugin a mais no servidor. O preço é o corpo ~33% maior, e o limite da rota reconhece isso.
+ */
+describe('AT-13: enviar anexo pelo HTTP', () => {
+  const foto = {
+    kind: 'image',
+    mimeType: 'image/jpeg',
+    fileName: 'pneu.jpg',
+    base64: 'QUJDRA==',
+  };
+
+  async function comConversa() {
+    const tudo = await servidor();
+    await tudo.app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev',
+      headers: { 'x-webhook-token': 'SEGREDO' },
+      payload: evento('MSG-1', 'oi'),
+    });
+    return { ...tudo, id: tudo.conversations.conversations[0]!.id };
+  }
+
+  it('manda o anexo e devolve a mensagem com a URL para mostrar', async () => {
+    const { app, id } = await comConversa();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/inbox/conversations/${id}/messages`,
+      payload: { body: 'olha como ficou', media: foto },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json().media).toMatchObject({ kind: 'image', url: expect.any(String) });
+    await app.close();
+  });
+
+  it('anexo sem texto é aceito — legenda é opcional', async () => {
+    const { app, id } = await comConversa();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/inbox/conversations/${id}/messages`,
+      payload: { body: '', media: foto },
+    });
+
+    expect(res.statusCode).toBe(201);
+    await app.close();
+  });
+
+  it('sem texto e sem anexo continua recusado', async () => {
+    const { app, id } = await comConversa();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/inbox/conversations/${id}/messages`,
+      payload: { body: '' },
+    });
+
+    expect(res.statusCode).toBe(422);
+    await app.close();
+  });
+
+  it('espécie de anexo fora da lista é recusada na borda', async () => {
+    const { app, id } = await comConversa();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/inbox/conversations/${id}/messages`,
+      payload: { body: '', media: { ...foto, kind: 'executavel' } },
+    });
+
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('viewer não manda anexo', async () => {
+    const leitor = await servidor('viewer');
+    const { app } = leitor;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/inbox/conversations/qualquer/messages',
+      payload: { body: '', media: foto },
+    });
+
+    expect(res.statusCode).toBe(403);
+    await app.close();
+  });
+});

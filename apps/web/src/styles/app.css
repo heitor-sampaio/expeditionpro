@@ -4786,3 +4786,75 @@
   flex: 0 0 auto;
   font-variant-numeric: tabular-nums;
 }
+
+/* Composer com anexo e voz (§5.17, AT-13) ----------------------------------------------- */
+
+/*
+ * O campo divide a linha com dois botões de ferramenta à esquerda e o de enviar à direita.
+ * `.inline-form` já posiciona o de enviar; aqui entra o espaço da esquerda.
+ */
+.inbox-composer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.inbox-composer .field-input {
+  flex: 1;
+  padding-right: 46px;
+}
+.inbox-file {
+  display: none;
+}
+.inbox-tool {
+  flex: 0 0 auto;
+  width: var(--ctl);
+  height: var(--ctl);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-2);
+  background: var(--card);
+  color: var(--ink-2);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.inbox-tool:hover:not(:disabled) {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+.inbox-tool:disabled {
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+/* Gravando: o accent do tenant, porque é estado de interface — não é dado financeiro. */
+.inbox-tool.is-recording {
+  background: var(--o-soft);
+  border-color: var(--o);
+  color: var(--o);
+}
+.inbox-timer {
+  flex: 1;
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.inbox-anexo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-card);
+  background: var(--card-2);
+}
+.inbox-anexo-nome {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

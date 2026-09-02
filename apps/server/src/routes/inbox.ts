@@ -32,6 +32,9 @@ import type { ServerDeps } from '../buildServer.js';
 
 const channel = z.enum(['whatsapp', 'instagram', 'messenger']);
 
+/** O mesmo prazo que o fio usa: dez minutos bastam para ver, e um link copiado morre. */
+const URL_DE_MIDIA_SEGUNDOS = 10 * 60;
+
 /** Cabeçalho do segredo. Nome próprio nosso: a Evolution deixa o cabeçalho a nosso critério. */
 const WEBHOOK_HEADER = 'x-webhook-token';
 
@@ -205,8 +208,29 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
     {
       schema: {
         params: z.object({ conversationId: z.string().min(1) }),
-        body: z.object({ body: z.string().min(1) }),
+        body: z.object({
+          // Vazio é válido quando há anexo: aí o texto é legenda, e legenda é opcional. Quem
+          // decide se sobrou alguma coisa para mandar é o caso de uso.
+          body: z.string(),
+          media: z
+            .object({
+              kind: z.enum(['image', 'video', 'audio', 'document']),
+              mimeType: z.string().min(1),
+              fileName: z.string().min(1).nullable(),
+              base64: z.string().min(1),
+            })
+            .optional(),
+        }),
       },
+      /*
+       * AT-13 — o arquivo sobe em base64 dentro do JSON, e não em multipart: é o formato em
+       * que ele já chega da tela (gravação de voz e leitura de arquivo dão base64 no
+       * navegador), e evita um plugin a mais no servidor.
+       *
+       * O preço é o corpo ~33% maior que o arquivo. 24 MB cobre o que o WhatsApp aceita com
+       * folga; o limite padrão do Fastify é 1 MB e recusaria qualquer foto.
+       */
+      bodyLimit: 24 * 1024 * 1024,
     },
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
@@ -216,14 +240,39 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
             conversations: deps.conversations,
             integrations: deps.channelIntegrations,
             gateway: deps.messagingGateway,
+            media: deps.conversationMedia,
             clock: deps.clock ?? (() => new Date()),
           },
           ctx,
-          { conversationId: request.params.conversationId, body: request.body.body },
+          {
+            conversationId: request.params.conversationId,
+            body: request.body.body,
+            ...(request.body.media === undefined ? {} : { media: request.body.media }),
+          },
         );
-        // A mensagem que sai não tem anexo (AT-13 cobre o que chega), então o DTO do fio
-        // serve sem tradução extra.
-        return reply.status(201).send(messageDto({ ...enviada, media: null }));
+
+        // O anexo enviado precisa voltar com URL assinada, como o que chega: é o mesmo fio,
+        // e a tela mostra os dois do mesmo jeito.
+        const urls =
+          enviada.media === null
+            ? new Map<string, string>()
+            : await deps.conversationMedia.signedUrls([enviada.media.path], URL_DE_MIDIA_SEGUNDOS);
+        const url = enviada.media === null ? undefined : urls.get(enviada.media.path);
+        return reply.status(201).send(
+          messageDto({
+            ...enviada,
+            media:
+              enviada.media === null || url === undefined
+                ? null
+                : {
+                    kind: enviada.media.kind,
+                    mimeType: enviada.media.mimeType,
+                    fileName: enviada.media.fileName,
+                    sizeBytes: enviada.media.sizeBytes,
+                    url,
+                  },
+          }),
+        );
       } catch (error) {
         if (error instanceof BusinessRuleError && error.code === 'send_failed') {
           return reply.status(502).send({ error: error.code, detail: error.message });

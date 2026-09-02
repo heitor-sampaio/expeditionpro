@@ -144,3 +144,108 @@ describe('AT-08: envio pela Evolution', () => {
     expect(resultado).toMatchObject({ ok: false });
   });
 });
+
+/**
+ * AT-13 — anexo pela Evolution. São **dois** endpoints, e não um com parâmetro:
+ *
+ * - `sendMedia` para imagem, vídeo e documento;
+ * - `sendWhatsAppAudio` para áudio, que no WhatsApp é mensagem de voz — outro tipo de coisa,
+ *   com outra aparência no aparelho e sem legenda.
+ *
+ * Mandar voz pelo `sendMedia` chega como anexo de áudio, com cara de arquivo. É diferença que
+ * quem recebe percebe na hora.
+ */
+describe('AT-13: envio de anexo pela Evolution', () => {
+  it('imagem vai pelo sendMedia, com tipo e legenda', async () => {
+    const { impl, chamadas } = fetchFalso({ status: 201, ...OK });
+
+    await evolutionGateway(impl).sendMedia({
+      integration: INTEGRACAO,
+      to: '5548999998877',
+      kind: 'image',
+      mimeType: 'image/jpeg',
+      fileName: 'pneu.jpg',
+      caption: 'olha como ficou',
+      base64: 'QUJDRA==',
+    });
+
+    expect(chamadas[0]?.url).toBe('https://evo.exemplo.app/message/sendMedia/drakkar');
+    expect(JSON.parse(String(chamadas[0]?.init.body))).toEqual({
+      number: '5548999998877',
+      mediatype: 'image',
+      mimetype: 'image/jpeg',
+      media: 'QUJDRA==',
+      fileName: 'pneu.jpg',
+      caption: 'olha como ficou',
+    });
+  });
+
+  it('documento sem nome ganha um, porque o WhatsApp mostra o nome do arquivo', async () => {
+    const { impl, chamadas } = fetchFalso({ status: 201, ...OK });
+
+    await evolutionGateway(impl).sendMedia({
+      integration: INTEGRACAO,
+      to: '5548999998877',
+      kind: 'document',
+      mimeType: 'application/pdf',
+      fileName: null,
+      caption: null,
+      base64: 'QUJDRA==',
+    });
+
+    const corpo = JSON.parse(String(chamadas[0]?.init.body)) as { fileName: string };
+    expect(corpo.fileName).toBe('arquivo.pdf');
+  });
+
+  it('áudio vai pelo endpoint de voz, que é outra coisa no aparelho', async () => {
+    const { impl, chamadas } = fetchFalso({ status: 201, ...OK });
+
+    await evolutionGateway(impl).sendMedia({
+      integration: INTEGRACAO,
+      to: '5548999998877',
+      kind: 'audio',
+      mimeType: 'audio/ogg',
+      fileName: null,
+      caption: null,
+      base64: 'QUJDRA==',
+    });
+
+    expect(chamadas[0]?.url).toBe('https://evo.exemplo.app/message/sendWhatsAppAudio/drakkar');
+    expect(JSON.parse(String(chamadas[0]?.init.body))).toEqual({
+      number: '5548999998877',
+      audio: 'QUJDRA==',
+    });
+  });
+
+  it('devolve o id da mensagem, como o texto', async () => {
+    const { impl } = fetchFalso({ status: 201, ...OK });
+
+    const r = await evolutionGateway(impl).sendMedia({
+      integration: INTEGRACAO,
+      to: '5548999998877',
+      kind: 'image',
+      mimeType: 'image/jpeg',
+      fileName: null,
+      caption: null,
+      base64: 'QUJDRA==',
+    });
+
+    expect(r).toEqual({ ok: true, externalId: 'BAE5F0C1' });
+  });
+
+  it('recusa volta com o motivo do provedor', async () => {
+    const { impl } = fetchFalso({ status: 400, body: { message: 'file too large' } });
+
+    const r = await evolutionGateway(impl).sendMedia({
+      integration: INTEGRACAO,
+      to: '5548999998877',
+      kind: 'video',
+      mimeType: 'video/mp4',
+      fileName: null,
+      caption: null,
+      base64: 'QUJDRA==',
+    });
+
+    expect(r).toMatchObject({ ok: false, detail: expect.stringContaining('file too large') });
+  });
+});

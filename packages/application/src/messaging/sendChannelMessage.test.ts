@@ -45,7 +45,7 @@ async function cenario(comCanal = true) {
   const integrations = fakeChannelIntegrationRepository(comCanal ? [INTEGRACAO] : []);
   const gateway = fakeMessagingGateway();
   const clock = () => new Date('2026-09-03T14:00:00Z');
-  return { conversations, integrations, gateway, clock, conversa };
+  return { conversations, integrations, gateway, media: fakeMediaStore(), clock, conversa };
 }
 
 /**
@@ -245,5 +245,130 @@ describe('AT-05: envio usa o telefone, não o LID', () => {
       sendChannelMessage(d, ctxCom('operator'), { conversationId: d.conversa.id, body: 'oi' }),
     ).rejects.toMatchObject({ code: 'no_phone' });
     expect(d.gateway.enviadas).toHaveLength(0);
+  });
+});
+
+/**
+ * AT-13 — responder com anexo.
+ *
+ * A ordem é a mesma do texto e pela mesma razão: **manda primeiro, grava depois**. Uma foto no
+ * fio que o cliente nunca recebeu faria a equipe acreditar que respondeu.
+ *
+ * O arquivo também é guardado no nosso bucket, e não só mandado embora: o fio precisa mostrar
+ * o que foi enviado, e depender do eco do provedor para isso deixaria a tela vazia até ele
+ * chegar — quando chega.
+ */
+describe('AT-13: enviar anexo', () => {
+  const foto = {
+    kind: 'image' as const,
+    mimeType: 'image/jpeg',
+    fileName: 'pneu.jpg',
+    base64: 'QUJDRA==',
+  };
+
+  const comAnexo = cenario;
+
+  it('manda o arquivo pelo provedor', async () => {
+    const d = await comAnexo();
+
+    await sendChannelMessage(d, ctxCom('operator'), {
+      conversationId: d.conversa.id,
+      body: '',
+      media: foto,
+    });
+
+    expect(d.gateway.anexos[0]).toMatchObject({
+      to: '5548999998877',
+      kind: 'image',
+      mimeType: 'image/jpeg',
+      fileName: 'pneu.jpg',
+    });
+  });
+
+  it('o texto vira legenda do anexo, e não uma segunda mensagem', async () => {
+    const d = await comAnexo();
+
+    await sendChannelMessage(d, ctxCom('operator'), {
+      conversationId: d.conversa.id,
+      body: 'olha como ficou',
+      media: foto,
+    });
+
+    expect(d.gateway.anexos[0]?.caption).toBe('olha como ficou');
+    expect(d.gateway.enviadas).toHaveLength(0);
+    expect(d.conversations.messages).toHaveLength(1);
+  });
+
+  it('guarda o arquivo aqui também — o fio mostra o que foi enviado', async () => {
+    const d = await comAnexo();
+
+    const enviada = await sendChannelMessage(d, ctxCom('operator'), {
+      conversationId: d.conversa.id,
+      body: '',
+      media: foto,
+    });
+
+    expect(d.media.arquivos).toHaveLength(1);
+    expect(enviada.media).toMatchObject({ kind: 'image', fileName: 'pneu.jpg' });
+  });
+
+  it('anexo sem legenda entra com o marcador, para o fio não ter linha vazia', async () => {
+    const d = await comAnexo();
+
+    const enviada = await sendChannelMessage(d, ctxCom('operator'), {
+      conversationId: d.conversa.id,
+      body: '',
+      media: foto,
+    });
+
+    expect(enviada.body).toBe('[imagem]');
+  });
+
+  /** Áudio de voz não tem legenda no WhatsApp: mandar uma seria inventar um campo. */
+  it('áudio vai sem legenda, mesmo com texto digitado', async () => {
+    const d = await comAnexo();
+
+    await sendChannelMessage(d, ctxCom('operator'), {
+      conversationId: d.conversa.id,
+      body: 'escuta isso',
+      media: { kind: 'audio', mimeType: 'audio/ogg', fileName: null, base64: 'QUJDRA==' },
+    });
+
+    expect(d.gateway.anexos[0]?.caption).toBeNull();
+  });
+
+  it('recusa do provedor não deixa anexo fantasma no fio', async () => {
+    const d = await comAnexo();
+    d.gateway.falharCom('file too large');
+
+    await expect(
+      sendChannelMessage(d, ctxCom('operator'), {
+        conversationId: d.conversa.id,
+        body: '',
+        media: foto,
+      }),
+    ).rejects.toMatchObject({ code: 'send_failed' });
+    expect(d.conversations.messages).toHaveLength(0);
+    expect(d.media.arquivos).toHaveLength(0);
+  });
+
+  it('mensagem sem texto e sem anexo continua recusada', async () => {
+    const d = await comAnexo();
+
+    await expect(
+      sendChannelMessage(d, ctxCom('operator'), { conversationId: d.conversa.id, body: '  ' }),
+    ).rejects.toBeInstanceOf(RequiredFieldError);
+  });
+
+  it('viewer não manda anexo', async () => {
+    const d = await comAnexo();
+
+    await expect(
+      sendChannelMessage(d, ctxCom('viewer'), {
+        conversationId: d.conversa.id,
+        body: '',
+        media: foto,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });

@@ -939,8 +939,14 @@ export {
   sendChannelMessage,
   type SendChannelMessageDeps,
   type SendChannelMessageCommand,
+  type OutboundAttachment,
 } from './messaging/sendChannelMessage.js';
-export type { MessagingGateway, OutboundText, SendOutcome } from './messaging/messagingGateway.js';
+export type {
+  MessagingGateway,
+  OutboundMedia,
+  OutboundText,
+  SendOutcome,
+} from './messaging/messagingGateway.js';
 export type { MediaStore, NewMedia, StoredMedia } from './messaging/mediaStore.js';
 export {
   getConversation,
