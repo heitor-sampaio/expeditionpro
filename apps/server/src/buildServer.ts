@@ -11,6 +11,7 @@ import type {
   ApiKeyRepository,
   AuditLogRepository,
   MembershipRepository,
+  OpportunityRepository,
   AuthAdminGateway,
   BookingRepository,
   CashbackRepository,
@@ -55,6 +56,7 @@ import { registerConsentRoutes } from './routes/communications.js';
 import { registerReportRoutes } from './routes/reports.js';
 import { registerCommunityRoutes } from './routes/community.js';
 import { registerCouponRoutes } from './routes/coupons.js';
+import { registerCrmRoutes } from './routes/crm.js';
 import { registerCompanyRoutes, registerCrewRoutes } from './routes/company.js';
 
 /**
@@ -84,6 +86,8 @@ export interface ServerDeps {
   readonly audit: AuditLogRepository;
   /** SEC-17: quem tem acesso ao sistema. Fonte da verdade do papel, lida por requisição. */
   readonly memberships: MembershipRepository;
+  /** §5.16: funil de oportunidades. Vive antes do dinheiro e não encosta nele (OP-09). */
+  readonly opportunities: OpportunityRepository;
   /** §5.13: Termo de adesão (versionamento + aceite). */
   readonly documents: LegalDocumentRepository;
   /** §5.9 · DOC-06: consentimento de comunicação por canal (marketing). */
@@ -200,6 +204,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       registerPaymentGatewayRoutes(instance, deps);
       registerCashbackRoutes(instance, deps);
       registerCouponRoutes(instance, deps);
+      registerCrmRoutes(instance, deps);
       registerCompanyRoutes(instance, deps);
       registerCrewRoutes(instance, deps);
       registerTeamRoutes(instance, deps);

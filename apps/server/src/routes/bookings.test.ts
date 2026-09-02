@@ -15,6 +15,7 @@ import { inMemoryCoupons } from '../dev/inMemoryCoupons.js';
 import { inMemoryIdentityChange } from '../dev/inMemoryIdentityChange.js';
 import { inMemoryAudit } from '../dev/inMemoryAudit.js';
 import { inMemoryMemberships } from '../dev/inMemoryMemberships.js';
+import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
 import { inMemoryLegalDocuments } from '../dev/inMemoryLegalDocuments.js';
 import { inMemoryConsents } from '../dev/inMemoryConsents.js';
 import { inMemoryCommunity } from '../dev/inMemoryCommunity.js';
@@ -89,6 +90,7 @@ describe('GR-03/IN-18: POST /v1/groups/:groupId/bookings', () => {
         identityRequests: inMemoryIdentityChange(),
         audit: inMemoryAudit(),
         memberships: inMemoryMemberships(),
+        opportunities: inMemoryOpportunities(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),
@@ -567,6 +569,7 @@ describe('GR-03/IN-18: POST /v1/groups/:groupId/bookings', () => {
         identityRequests: inMemoryIdentityChange(),
         audit: inMemoryAudit(),
         memberships: inMemoryMemberships(),
+        opportunities: inMemoryOpportunities(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),

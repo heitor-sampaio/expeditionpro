@@ -23,6 +23,7 @@ import {
   resendNotificationGateway,
   supabaseAuthAdmin,
   prismaMembershipRepository,
+  prismaOpportunityRepository,
   prismaPaymentIntegrationRepository,
   prismaPaymentChargeRepository,
   newWebhookSecret,
@@ -51,6 +52,7 @@ import { inMemoryCoupons } from './dev/inMemoryCoupons.js';
 import { inMemoryIdentityChange } from './dev/inMemoryIdentityChange.js';
 import { inMemoryAudit } from './dev/inMemoryAudit.js';
 import { inMemoryMemberships } from './dev/inMemoryMemberships.js';
+import { inMemoryOpportunities } from './dev/inMemoryOpportunities.js';
 import { inMemoryLegalDocuments } from './dev/inMemoryLegalDocuments.js';
 import { inMemoryConsents } from './dev/inMemoryConsents.js';
 import { inMemoryCommunity } from './dev/inMemoryCommunity.js';
@@ -132,6 +134,7 @@ function buildDeps(): ServerDeps {
     return {
       customers: inMemoryCustomers(),
       memberships: inMemoryMemberships(),
+      opportunities: inMemoryOpportunities(),
       vehicles: inMemoryVehicles(),
       itineraries: inMemoryItineraries(),
       schedule: inMemorySchedule(),
@@ -190,6 +193,7 @@ function buildDeps(): ServerDeps {
     authAdmin: buildAuthAdmin(),
     notifications: buildNotifications(),
     memberships: prismaMembershipRepository(base),
+    opportunities: prismaOpportunityRepository(base),
     resolveContext: resolveContextForProd(base),
   };
 }
