@@ -1,5 +1,5 @@
 import { formatCnpj, isValidCnpj, parseCnpj } from '../identity/cnpj.js';
-import { formatCpf, isValidCpf, parseCpf } from '../identity/cpf.js';
+import { formatCpf, isValidCpf, maskCpf, parseCpf } from '../identity/cpf.js';
 import { formatPhone, isValidPhone, parsePhone } from '../contact/phone.js';
 
 /**
@@ -100,4 +100,27 @@ function temCaraDeTelefone(digits: string): boolean {
   // Celular no Brasil tem 9 dígitos começando em 9; fixo tem 8 começando em 2..5.
   const numero = nacional.slice(2);
   return numero.length === 9 ? numero.startsWith('9') : /^[2-5]/.test(numero);
+}
+
+/**
+ * FO-07 · A09 — a chave mascarada, para a trilha de auditoria.
+ *
+ * Trocar a chave PIX de um fornecedor redireciona pagamento, então a alteração precisa
+ * deixar rastro. Mas a chave costuma **ser** um CPF, um telefone ou um e-mail, e a trilha
+ * não guarda dado pessoal cru. O que a investigação precisa é reconhecer, não reconstituir:
+ * "mudou de um CPF terminado em 57 para um e-mail em outro domínio" já denuncia o desvio.
+ *
+ * O CPF segue a máscara que o resto do sistema já usa (`maskCpf`), para não haver duas
+ * grafias do mesmo dado em telas diferentes.
+ */
+export function maskPixKey(key: PixKey): string {
+  if (key.type === 'cpf') return maskCpf(parseCpf(key.value));
+  if (key.type === 'email') {
+    const arroba = key.value.indexOf('@');
+    const local = key.value.slice(0, arroba);
+    const dominio = key.value.slice(arroba);
+    // Uma letra só não é pista, é a coisa inteira: esconde tudo.
+    return local.length > 1 ? `${local[0]}***${dominio}` : `***${dominio}`;
+  }
+  return `***${key.value.slice(-4)}`;
 }

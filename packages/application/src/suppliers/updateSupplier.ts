@@ -1,5 +1,5 @@
 import { requireWriter } from '../audience.js';
-import { parsePixKey } from '@expedition/domain';
+import { maskPixKey, parsePixKey, type PixKeyType } from '@expedition/domain';
 import { BusinessRuleError, NotFoundError, RequiredFieldError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import {
@@ -9,6 +9,7 @@ import {
   type CreateSupplierDeps,
 } from './createSupplier.js';
 import type { SupplierRecord } from './supplierRepository.js';
+import { actorUserId, type AuditLogRepository } from '../audit/auditLogRepository.js';
 
 /**
  * FO-04 — edita um fornecedor. Campo ausente (`undefined`) preserva o valor atual; documento
@@ -29,8 +30,12 @@ export interface UpdateSupplierCommand {
   readonly categoryId?: string | null | undefined;
 }
 
+export interface UpdateSupplierDeps extends CreateSupplierDeps {
+  readonly audit: AuditLogRepository;
+}
+
 export async function updateSupplier(
-  deps: CreateSupplierDeps,
+  deps: UpdateSupplierDeps,
   ctx: RequestContext,
   command: UpdateSupplierCommand,
 ): Promise<SupplierRecord> {
@@ -72,7 +77,7 @@ export async function updateSupplier(
       ? { pixKey: current.pixKey, pixKeyType: current.pixKeyType }
       : resolvePix(command.pixKey);
 
-  return deps.suppliers.updateSupplier(ctx.tenantId, current.id, {
+  const atualizado = await deps.suppliers.updateSupplier(ctx.tenantId, current.id, {
     name,
     doc,
     docType,
@@ -83,6 +88,56 @@ export async function updateSupplier(
     notes: command.notes !== undefined ? blankToNull(command.notes) : current.notes,
     categoryId,
   });
+
+  const diff = diffSupplier(current, atualizado);
+  // Trilha cheia de ruído não é lida: salvar sem mudar nada não vira linha.
+  if (Object.keys(diff).length > 0) {
+    await deps.audit.record({
+      tenantId: ctx.tenantId,
+      actorUserId: actorUserId(ctx.actor),
+      entity: 'supplier',
+      entityId: current.id,
+      action: 'supplier.update',
+      diff,
+    });
+  }
+
+  return atualizado;
+}
+
+/** Campos cujo valor entra cru na trilha: nenhum deles é dado pessoal. */
+const CAMPOS_LEGIVEIS = ['name', 'docType', 'categoryId', 'notes'] as const;
+
+/**
+ * A09 — o que mudou, em formato de investigação (`{ from, to }`), e só o que mudou.
+ *
+ * A chave PIX entra **mascarada**: ela costuma ser um CPF, um telefone ou um e-mail, e a
+ * regra da trilha é que dado pessoal só entra mascarado. Pelo mesmo motivo o documento e
+ * os contatos entram apenas como "mudou", sem valor — para o rastro basta saber que a
+ * conta de destino do dinheiro foi mexida e por quem.
+ */
+function diffSupplier(antes: SupplierRecord, depois: SupplierRecord): Record<string, unknown> {
+  const diff: Record<string, unknown> = {};
+
+  for (const campo of CAMPOS_LEGIVEIS) {
+    if (antes[campo] !== depois[campo]) diff[campo] = { from: antes[campo], to: depois[campo] };
+  }
+
+  if (antes.pixKey !== depois.pixKey) {
+    diff['pixKey'] = { from: mascarar(antes), to: mascarar(depois) };
+    diff['pixKeyType'] = { from: antes.pixKeyType, to: depois.pixKeyType };
+  }
+
+  for (const campo of ['doc', 'phone', 'email'] as const) {
+    if (antes[campo] !== depois[campo]) diff[campo] = { changed: true };
+  }
+
+  return diff;
+}
+
+function mascarar(s: SupplierRecord): string | null {
+  if (!s.pixKey || !s.pixKeyType) return null;
+  return maskPixKey({ type: s.pixKeyType as PixKeyType, value: s.pixKey });
 }
 
 /**

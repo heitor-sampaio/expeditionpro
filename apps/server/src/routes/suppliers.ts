@@ -98,7 +98,7 @@ export function registerSupplierRoutes(app: FastifyInstance, deps: ServerDeps): 
     { schema: { params: z.object({ id: z.string().min(1) }), body: supplierPatchBody } },
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
-      const supplier = await updateSupplier({ suppliers: deps.suppliers }, ctx, {
+      const supplier = await updateSupplier({ suppliers: deps.suppliers, audit: deps.audit }, ctx, {
         id: request.params.id,
         ...request.body,
       });

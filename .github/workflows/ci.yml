@@ -58,6 +58,15 @@ jobs:
       - name: Typecheck
         run: pnpm exec tsc -b
 
+      # O `tsc -b` acima compila só o que vai para produção: todo tsconfig do repositório
+      # exclui `*.test.ts`. Durante meses os testes ficaram fora de qualquer verificação de
+      # tipo, e as fixtures foram divergindo dos tipos reais sem que nada acusasse — campo
+      # novo obrigatório ausente, dep morta passada a um caso de uso que a ignora, e um
+      # teste que importava um erro inexistente e por isso aceitava qualquer exceção.
+      # Fixture que mente é teste que passa sem testar, e o custo aparece meses depois.
+      - name: Typecheck dos testes
+        run: pnpm typecheck:tests
+
       - name: Guardas de política (RLS em toda tabela · sem TODO)
         run: |
           pnpm check:rls

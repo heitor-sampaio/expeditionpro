@@ -86,20 +86,20 @@ describe('GR-15: o texto sobrevive ao português', () => {
 
 describe('GR-15: a linha da empresa no cabeçalho', () => {
   it('CNPJ válido sai pontuado', () => {
-    expect(companyLine({ name: 'Drakkar Expedições', cnpj: '19131243000197', slug: 'drk' })).toBe(
-      'Drakkar Expedições — CNPJ 19.131.243/0001-97',
-    );
+    expect(
+      companyLine({ name: 'Drakkar Expedições', cnpj: '19131243000197', slug: 'drk', logo: null }),
+    ).toBe('Drakkar Expedições — CNPJ 19.131.243/0001-97');
   });
 
   it('sem CNPJ, só o nome', () => {
-    expect(companyLine({ name: 'Drakkar Expedições', cnpj: null, slug: 'drk' })).toBe(
+    expect(companyLine({ name: 'Drakkar Expedições', cnpj: null, slug: 'drk', logo: null })).toBe(
       'Drakkar Expedições',
     );
   });
 
   it('CNPJ inválido no cadastro sai como está, sem derrubar o documento', () => {
     // Campo mal preenchido meses atrás não pode impedir a saída de amanhã de ter roomlist.
-    expect(companyLine({ name: 'Drakkar Expedições', cnpj: '123', slug: 'drk' })).toBe(
+    expect(companyLine({ name: 'Drakkar Expedições', cnpj: '123', slug: 'drk', logo: null })).toBe(
       'Drakkar Expedições — CNPJ 123',
     );
   });

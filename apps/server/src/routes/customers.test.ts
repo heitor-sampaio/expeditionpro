@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildServer } from '../buildServer.js';
+import { inMemoryServerDeps } from '../dev/inMemoryServerDeps.js';
 import { inMemoryCustomers as fakeRepo } from '../dev/inMemoryCustomers.js';
 import { inMemoryVehicles } from '../dev/inMemoryVehicles.js';
 import { inMemoryItineraries } from '../dev/inMemoryItineraries.js';
@@ -88,19 +89,14 @@ describe('CL-06: GET /v1/customers/:id/file (ficha do cliente)', () => {
     const cashback = inMemoryCashback();
     const app = await buildServer({
       logger: false,
-      deps: {
+      deps: inMemoryServerDeps({
         customers,
-        vehicles: inMemoryVehicles(),
-        itineraries: inMemoryItineraries(),
         schedule,
         bookings,
         payments,
-        suppliers: inMemorySuppliers(),
-        apiKeys: inMemoryApiKeys([]),
-        intake: inMemoryIntake(),
         cashback,
         resolveContext: () => Promise.resolve(atual),
-      },
+      }),
     });
     await app.ready();
     return { app, customers, schedule, bookings, payments, cashback };
@@ -142,6 +138,7 @@ describe('CL-06: GET /v1/customers/:id/file (ficha do cliente)', () => {
       status: 'confirmed',
       source: 'manual',
       invoiceChecked: false,
+      checkedInAt: null,
       participants: [
         {
           id: 'bk-file-1-p0',
@@ -176,6 +173,7 @@ describe('CL-06: GET /v1/customers/:id/file (ficha do cliente)', () => {
       availableFrom: parseLocalDate('2025-11-15'),
       expiresAt: null,
       notes: null,
+      createdBy: null,
     });
 
     const res = await app.inject({ method: 'GET', url: `/v1/customers/${resp.id}/file` });
@@ -597,6 +595,8 @@ describe('PC-01/PC-02: POST /v1/customers/:id/portal-invite', () => {
         suppliers: inMemorySuppliers(),
         apiKeys: inMemoryApiKeys([]),
         intake: inMemoryIntake(),
+        formMappings: inMemoryFormMappings(),
+        tenants: inMemoryTenants(),
         cashback: inMemoryCashback(),
         coupons: inMemoryCoupons(),
         identityRequests: inMemoryIdentityChange(),
@@ -629,8 +629,8 @@ describe('PC-01/PC-02: POST /v1/customers/:id/portal-invite', () => {
     expect(res.statusCode).toBe(201);
     expect(res.json().actionLink).toBeDefined();
     expect(authAdmin.portalInvites).toHaveLength(1);
-    expect(authAdmin.portalInvites[0].customerId).toBe(resp.id);
-    expect(authAdmin.portalInvites[0].tenantId).toBe('tenant-a');
+    expect(authAdmin.portalInvites[0]!.customerId).toBe(resp.id);
+    expect(authAdmin.portalInvites[0]!.tenantId).toBe('tenant-a');
     await app.close();
   });
 

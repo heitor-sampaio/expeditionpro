@@ -152,7 +152,7 @@ describe('FO-04: categorias e edição de fornecedor', () => {
     const suppliers = fakeSupplierRepository();
     const s = await createSupplier({ suppliers }, ctx, { name: 'Antigo' });
     const cat = await createSupplierCategory({ suppliers, audit }, ctx, { name: 'Alimentação' });
-    const up = await updateSupplier({ suppliers }, ctx, {
+    const up = await updateSupplier({ suppliers, audit }, ctx, {
       id: s.id,
       name: 'Novo',
       phone: '5199',
@@ -174,7 +174,7 @@ describe('FO-04: categorias e edição de fornecedor', () => {
     });
     const b = await createSupplier({ suppliers }, ctx, { name: 'B' });
     await expect(
-      updateSupplier({ suppliers }, ctx, {
+      updateSupplier({ suppliers, audit }, ctx, {
         id: b.id,
         doc: '11.222.333/0001-81',
         docType: 'cnpj',
@@ -189,7 +189,7 @@ describe('FO-04: categorias e edição de fornecedor', () => {
       doc: '11222333000181',
       docType: 'cnpj',
     });
-    const up = await updateSupplier({ suppliers }, ctx, {
+    const up = await updateSupplier({ suppliers, audit }, ctx, {
       id: a.id,
       doc: '11222333000181',
       docType: 'cnpj',
@@ -202,7 +202,7 @@ describe('FO-04: categorias e edição de fornecedor', () => {
   it('rejeita editar fornecedor inexistente', async () => {
     const suppliers = fakeSupplierRepository();
     await expect(
-      updateSupplier({ suppliers }, ctx, { id: 'fantasma', name: 'y' }),
+      updateSupplier({ suppliers, audit }, ctx, { id: 'fantasma', name: 'y' }),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
@@ -453,7 +453,7 @@ describe('FO-07: chave PIX do fornecedor', () => {
       pixKey: 'contato@pousada.com.br',
     });
 
-    const editado = await updateSupplier({ suppliers }, ctx, {
+    const editado = await updateSupplier({ suppliers, audit }, ctx, {
       id: forn.id,
       pixKey: '(48) 99999-8877',
     });
@@ -469,7 +469,7 @@ describe('FO-07: chave PIX do fornecedor', () => {
       pixKey: 'contato@pousada.com.br',
     });
 
-    const editado = await updateSupplier({ suppliers }, ctx, { id: forn.id, pixKey: null });
+    const editado = await updateSupplier({ suppliers, audit }, ctx, { id: forn.id, pixKey: null });
 
     expect(editado.pixKey).toBeNull();
     expect(editado.pixKeyType).toBeNull();
@@ -482,7 +482,10 @@ describe('FO-07: chave PIX do fornecedor', () => {
       pixKey: 'contato@pousada.com.br',
     });
 
-    const editado = await updateSupplier({ suppliers }, ctx, { id: forn.id, name: 'Pousada II' });
+    const editado = await updateSupplier({ suppliers, audit }, ctx, {
+      id: forn.id,
+      name: 'Pousada II',
+    });
 
     expect(editado.pixKey).toBe('contato@pousada.com.br');
     expect(editado.pixKeyType).toBe('email');
@@ -543,7 +546,7 @@ describe('SEC-01: fornecedor e gasto são da equipe', () => {
       createSupplier({ suppliers }, cliente, { name: 'Fantasma' }),
     ).rejects.toBeInstanceOf(ForbiddenError);
     await expect(
-      updateSupplier({ suppliers }, cliente, { id: forn.id, name: 'Outro' }),
+      updateSupplier({ suppliers, audit }, cliente, { id: forn.id, name: 'Outro' }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 

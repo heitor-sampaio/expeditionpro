@@ -39,6 +39,7 @@ export {
   parsePixKey,
   isValidPixKey,
   formatPixKey,
+  maskPixKey,
   InvalidPixKeyError,
   type PixKey,
   type PixKeyType,

@@ -23,7 +23,8 @@ import {
   inMemoryPaymentCharges,
 } from '../dev/inMemoryPaymentGateway.js';
 import { asaasGateway } from '@expedition/infrastructure';
-import type { CashbackConfig, RequestContext } from '@expedition/application';
+import type { CashbackConfig } from '@expedition/domain';
+import type { RequestContext } from '@expedition/application';
 import type { FastifyInstance } from 'fastify';
 
 const TEAM: RequestContext = {
@@ -234,6 +235,8 @@ describe('CB-01/CB-02: rotas de config de cashback', () => {
         suppliers: inMemorySuppliers(),
         apiKeys: inMemoryApiKeys([]),
         intake: inMemoryIntake(),
+        formMappings: inMemoryFormMappings(),
+        tenants: inMemoryTenants(),
         cashback: inMemoryCashback(),
         coupons: inMemoryCoupons(),
         identityRequests: inMemoryIdentityChange(),

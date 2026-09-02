@@ -172,7 +172,10 @@ describe('FO-05: excluir categoria', () => {
       name: 'Pousada',
       categoryId: cat.id,
     });
-    await updateSupplier({ suppliers: s.suppliers }, ctx, { id: forn.id, categoryId: null });
+    await updateSupplier({ suppliers: s.suppliers, audit: s.audit }, ctx, {
+      id: forn.id,
+      categoryId: null,
+    });
 
     await expect(deleteSupplierCategory(s.deps, ctx, { id: cat.id })).resolves.toBeUndefined();
   });

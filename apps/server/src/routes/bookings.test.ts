@@ -558,6 +558,8 @@ describe('GR-03/IN-18: POST /v1/groups/:groupId/bookings', () => {
         suppliers: inMemorySuppliers(),
         apiKeys: inMemoryApiKeys([]),
         intake: inMemoryIntake(),
+        formMappings: inMemoryFormMappings(),
+        tenants: inMemoryTenants(),
         cashback: inMemoryCashback(),
         coupons: inMemoryCoupons(),
         identityRequests: inMemoryIdentityChange(),

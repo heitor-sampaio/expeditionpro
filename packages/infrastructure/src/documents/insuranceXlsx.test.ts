@@ -50,7 +50,7 @@ describe('GR-16: o zip do modelo sobrevive', () => {
     const original = await readTemplate();
     const entries = readZip(original);
 
-    const rebuilt = readZip(writeZip(entries));
+    const rebuilt = readZip(Buffer.from(writeZip(entries)));
 
     expect([...rebuilt.keys()]).toEqual([...entries.keys()]);
     for (const [name, content] of entries) {

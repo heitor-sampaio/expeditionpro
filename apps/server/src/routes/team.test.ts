@@ -80,8 +80,8 @@ describe('§3.7: POST /v1/team/invitations', () => {
     expect(res.json().userId).toBeDefined();
     expect(res.json().actionLink).toBeDefined();
     expect(authAdmin.invites).toHaveLength(1);
-    expect(authAdmin.invites[0].tenantId).toBe('tenant-a'); // do contexto, não do corpo
-    expect(authAdmin.invites[0].role).toBe('operator');
+    expect(authAdmin.invites[0]!.tenantId).toBe('tenant-a'); // do contexto, não do corpo
+    expect(authAdmin.invites[0]!.role).toBe('operator');
     await app.close();
   });
 

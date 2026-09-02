@@ -1,15 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildServer } from '../buildServer.js';
-import { inMemoryCustomers } from '../dev/inMemoryCustomers.js';
+import { inMemoryServerDeps } from '../dev/inMemoryServerDeps.js';
 import { inMemoryVehicles } from '../dev/inMemoryVehicles.js';
-import { inMemoryItineraries } from '../dev/inMemoryItineraries.js';
-import { inMemorySchedule } from '../dev/inMemorySchedule.js';
-import { inMemoryBookings } from '../dev/inMemoryBookings.js';
-import { inMemoryPayments } from '../dev/inMemoryPayments.js';
-import { inMemorySuppliers } from '../dev/inMemorySuppliers.js';
-import { inMemoryApiKeys, inMemoryIntake } from '../dev/inMemoryIntake.js';
-import { inMemoryCashback } from '../dev/inMemoryCashback.js';
-import { inMemoryCoupons } from '../dev/inMemoryCoupons.js';
 import type { RequestContext } from '@expedition/application';
 import type { FastifyInstance } from 'fastify';
 
@@ -52,20 +44,10 @@ const RESP_PAYLOAD = {
 async function server(): Promise<FastifyInstance> {
   const app = await buildServer({
     logger: false,
-    deps: {
-      customers: inMemoryCustomers(),
+    deps: inMemoryServerDeps({
       vehicles: inMemoryVehicles({ brands: BRANDS, models: MODELS }),
-      itineraries: inMemoryItineraries(),
-      schedule: inMemorySchedule(),
-      bookings: inMemoryBookings(),
-      payments: inMemoryPayments([]),
-      suppliers: inMemorySuppliers(),
-      apiKeys: inMemoryApiKeys([]),
-      intake: inMemoryIntake(),
-      cashback: inMemoryCashback(),
-      coupons: inMemoryCoupons(),
       resolveContext: () => Promise.resolve(atual),
-    },
+    }),
   });
   await app.ready();
   return app;
