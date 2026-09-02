@@ -1,8 +1,7 @@
 import { actorUserId } from '../audit/auditLogRepository.js';
 import type { AuditLogRepository } from '../audit/auditLogRepository.js';
-import { requireWriter } from '../audience.js';
 import { cents, parseLocalDate } from '@expedition/domain';
-import { BusinessRuleError, NotFoundError } from '../errors.js';
+import { BusinessRuleError, ForbiddenError, NotFoundError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { SupplierPaymentRecord, SupplierRepository } from './supplierRepository.js';
 
@@ -31,7 +30,19 @@ export async function registerSupplierPayment(
   ctx: RequestContext,
   command: RegisterSupplierPaymentCommand,
 ): Promise<SupplierPaymentRecord> {
-  requireWriter(ctx);
+  /*
+   * M5 — mesma exigência de `registerPayment` (dinheiro entrando) e de
+   * `deleteSupplierPayment`. A assimetria era ao contrário do risco: registrar que o
+   * dinheiro **saiu** bastava ser equipe, e um pagamento inventado a um fornecedor com
+   * chave PIX recém-trocada fechava o círculo sem passar por ninguém.
+   *
+   * `addSupplierExpense` segue com o operador de propósito: é o compromisso, não o caixa,
+   * e quem está na estrada precisa lançar a pousada no ato.
+   */
+  const { actor } = ctx;
+  if (!(actor.kind === 'team' && (actor.role === 'owner' || actor.role === 'admin'))) {
+    throw new ForbiddenError('Registrar pagamento a fornecedor exige owner ou admin');
+  }
   if (!Number.isInteger(command.amountCents) || command.amountCents <= 0) {
     throw new BusinessRuleError('invalid_amount', 'Valor do pagamento deve ser positivo');
   }
@@ -49,7 +60,7 @@ export async function registerSupplierPayment(
     method: command.method,
     reference: blankToNull(command.reference),
     notes: blankToNull(command.notes),
-    createdBy: ctx.actor.userId,
+    createdBy: actor.userId,
   });
 
   // A09 — mesma assimetria do gasto: `deleteSupplierPayment` (GR-19) gravava, pagar não.
