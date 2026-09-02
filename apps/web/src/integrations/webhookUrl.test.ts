@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asaasWebhookUrl } from './webhookUrl.js';
+import { asaasWebhookUrl, evolutionWebhookUrl } from './webhookUrl.js';
 
 /**
  * PG-03 — o endereço que o ASAAS chama é copiado à mão desta tela para o painel deles.
@@ -31,6 +31,25 @@ describe('PG-03: URL do webhook do ASAAS', () => {
   it('barra final não vira barra dupla', () => {
     expect(asaasWebhookUrl('https://tunel.exemplo/', '')).toBe(
       'https://tunel.exemplo/v1/webhooks/asaas/drk',
+    );
+  });
+});
+
+/**
+ * AT-02 — o mesmo raciocínio, no webhook da Evolution: o endereço é copiado desta tela para o
+ * painel da instância. Caminho relativo colado lá também não é chamado por ninguém, e a falha
+ * é igualmente silenciosa — mensagem que chega e não aparece na caixa.
+ */
+describe('AT-02: URL do webhook da Evolution', () => {
+  it('usa o host da API quando não há túnel configurado', () => {
+    expect(evolutionWebhookUrl(undefined, 'https://api.exemplo.app')).toBe(
+      'https://api.exemplo.app/v1/webhooks/evolution/drk',
+    );
+  });
+
+  it('o túnel tem precedência — é o caso de desenvolvimento', () => {
+    expect(evolutionWebhookUrl('https://tunel.trycloudflare.com', 'https://api.exemplo.app')).toBe(
+      'https://tunel.trycloudflare.com/v1/webhooks/evolution/drk',
     );
   });
 });

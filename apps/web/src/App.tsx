@@ -13,6 +13,7 @@ import { ComunidadeScreen } from './community/ComunidadeScreen.js';
 import { RelatoriosScreen } from './reports/RelatoriosScreen.js';
 import { DashboardScreen } from './reports/DashboardScreen.js';
 import { CrmScreen } from './crm/CrmScreen.js';
+import { InboxScreen } from './inbox/InboxScreen.js';
 import { PortalApp } from './portal/PortalApp.js';
 import { LoginScreen } from './auth/LoginScreen.js';
 import { useAuth } from './auth/useAuth.js';
@@ -36,6 +37,7 @@ type View =
   | 'agenda'
   | 'fila'
   | 'funil'
+  | 'conversas'
   | 'clientes'
   | 'fornecedores'
   | 'roteiros'
@@ -68,7 +70,10 @@ const NAV: readonly NavSection[] = [
     // §5.16/§5.17: o que acontece **antes** da inscrição. Seção própria porque é outro
     // momento do trabalho — o bloco de cima é a operação da saída que já existe.
     label: 'CRM',
-    items: [{ id: 'funil', label: 'Funil' }],
+    items: [
+      { id: 'funil', label: 'Funil' },
+      { id: 'conversas', label: 'Conversas' },
+    ],
   },
   {
     label: 'Análise',
@@ -88,6 +93,7 @@ const TITLES: Record<View, string> = {
   agenda: 'Agenda',
   fila: 'Inscrições',
   funil: 'Funil',
+  conversas: 'Conversas',
   clientes: 'Clientes',
   fornecedores: 'Fornecedores',
   roteiros: 'Roteiros',
@@ -372,6 +378,8 @@ function Shell({
               <QueueScreen />
             ) : view === 'funil' ? (
               <CrmScreen />
+            ) : view === 'conversas' ? (
+              <InboxScreen />
             ) : view === 'fornecedores' ? (
               <FornecedoresScreen onOpenFile={openSupplierFile} />
             ) : view === 'roteiros' ? (

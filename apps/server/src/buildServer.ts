@@ -12,6 +12,8 @@ import type {
   AuditLogRepository,
   MembershipRepository,
   OpportunityRepository,
+  ChannelIntegrationRepository,
+  ConversationRepository,
   AuthAdminGateway,
   BookingRepository,
   CashbackRepository,
@@ -57,6 +59,7 @@ import { registerReportRoutes } from './routes/reports.js';
 import { registerCommunityRoutes } from './routes/community.js';
 import { registerCouponRoutes } from './routes/coupons.js';
 import { registerCrmRoutes } from './routes/crm.js';
+import { registerInboxRoutes } from './routes/inbox.js';
 import { registerCompanyRoutes, registerCrewRoutes } from './routes/company.js';
 
 /**
@@ -88,6 +91,10 @@ export interface ServerDeps {
   readonly memberships: MembershipRepository;
   /** §5.16: funil de oportunidades. Vive antes do dinheiro e não encosta nele (OP-09). */
   readonly opportunities: OpportunityRepository;
+  /** §5.17: conexão do tenant com cada canal de mensagem (AT-01). */
+  readonly channelIntegrations: ChannelIntegrationRepository;
+  /** §5.17: a caixa de conversas — compartilhada por toda a equipe (AT-07). */
+  readonly conversations: ConversationRepository;
   /** §5.13: Termo de adesão (versionamento + aceite). */
   readonly documents: LegalDocumentRepository;
   /** §5.9 · DOC-06: consentimento de comunicação por canal (marketing). */
@@ -205,6 +212,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       registerCashbackRoutes(instance, deps);
       registerCouponRoutes(instance, deps);
       registerCrmRoutes(instance, deps);
+      registerInboxRoutes(instance, deps);
       registerCompanyRoutes(instance, deps);
       registerCrewRoutes(instance, deps);
       registerTeamRoutes(instance, deps);

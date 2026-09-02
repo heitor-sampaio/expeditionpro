@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApiKeys, type ApiKey } from './useApiKeys.js';
 import { AsaasCard } from './AsaasCard.js';
+import { ChannelsCard } from './ChannelsCard.js';
 
 /**
  * Integrações — chaves de API do webhook de inscrições. Cor é dado: pill de chave ativa
@@ -13,12 +14,13 @@ export function IntegracoesScreen(): React.JSX.Element {
       <div className="page-header">
         <h1 className="page-title">Integrações</h1>
         <p className="page-meta">
-          Chaves de API do formulário de inscrições e conexão com o gateway de pagamento.
+          Chaves de API do formulário de inscrições, gateway de pagamento e canais de mensagem.
         </p>
       </div>
 
       <ApiKeysCard />
       <AsaasCard />
+      <ChannelsCard />
     </main>
   );
 }

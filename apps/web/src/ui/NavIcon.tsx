@@ -94,6 +94,12 @@ const PATHS: Record<string, React.JSX.Element> = {
       <path d="M4 7h16M4 12h16M4 17h16" />
     </>
   ),
+  conversas: (
+    <>
+      <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H9l-5 4z" />
+      <path d="M8.5 8.5h7M8.5 12h4" />
+    </>
+  ),
   documentos: (
     <>
       <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />

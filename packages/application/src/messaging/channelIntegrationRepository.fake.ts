@@ -26,6 +26,9 @@ export function fakeChannelIntegrationRepository(
       const i = rows.findIndex(
         (r) => r.tenantId === integration.tenantId && r.channel === integration.channel,
       );
+      if (i < 0 && integration.webhookToken === undefined) {
+        return Promise.reject(new Error('upsert: conexão nova exige webhookToken'));
+      }
       seq += 1;
       const record: Row = {
         tenantId: integration.tenantId,
@@ -35,7 +38,7 @@ export function fakeChannelIntegrationRepository(
         baseUrl: integration.baseUrl,
         externalAccountId: integration.externalAccountId,
         accessToken: integration.accessToken,
-        webhookToken: integration.webhookToken,
+        webhookToken: integration.webhookToken ?? rows[i]!.webhookToken,
         active: true,
         connectedAt: i >= 0 ? rows[i]!.connectedAt : new Date('2026-09-02T00:00:00Z'),
       };

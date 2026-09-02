@@ -922,3 +922,29 @@ export type {
   ChannelIntegrationRepository,
   NewChannelIntegration,
 } from './messaging/channelIntegrationRepository.js';
+export {
+  connectChannel,
+  type ConnectChannelDeps,
+  type ConnectChannelCommand,
+  type ConnectedChannel,
+} from './messaging/connectChannel.js';
+export {
+  listChannelIntegrations,
+  type ChannelIntegrationView,
+} from './messaging/listChannelIntegrations.js';
+export { disconnectChannel, type DisconnectChannelCommand } from './messaging/disconnectChannel.js';
+export { listConversations, type InboxDeps } from './messaging/listConversations.js';
+export {
+  getConversation,
+  type ConversationThread,
+  type GetConversationCommand,
+} from './messaging/getConversation.js';
+export {
+  markConversationRead,
+  type MarkConversationReadCommand,
+} from './messaging/markConversationRead.js';
+export {
+  attachConversationToOpportunity,
+  type AttachConversationDeps,
+  type AttachConversationCommand,
+} from './messaging/attachConversationToOpportunity.js';

@@ -15,6 +15,7 @@ import { inMemoryCoupons } from '../dev/inMemoryCoupons.js';
 import { inMemoryIdentityChange } from '../dev/inMemoryIdentityChange.js';
 import { inMemoryAudit } from '../dev/inMemoryAudit.js';
 import { inMemoryMemberships } from '../dev/inMemoryMemberships.js';
+import { inMemoryChannelIntegrations, inMemoryConversations } from '../dev/inMemoryMessaging.js';
 import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
 import { inMemoryLegalDocuments } from '../dev/inMemoryLegalDocuments.js';
 import { inMemoryConsents } from '../dev/inMemoryConsents.js';
@@ -66,6 +67,8 @@ function build(): Promise<FastifyInstance> {
       audit: inMemoryAudit(),
       memberships: inMemoryMemberships(),
       opportunities: inMemoryOpportunities(),
+      channelIntegrations: inMemoryChannelIntegrations(),
+      conversations: inMemoryConversations(),
       documents: inMemoryLegalDocuments(),
       consents: inMemoryConsents(),
       community: inMemoryCommunity(),

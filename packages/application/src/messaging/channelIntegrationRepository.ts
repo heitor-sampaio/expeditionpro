@@ -20,7 +20,11 @@ export interface NewChannelIntegration {
   /** Nome da instância na Evolution; id da página/conta na Meta. */
   readonly externalAccountId: string;
   readonly accessToken: string;
-  readonly webhookToken: string;
+  /**
+   * Só na **primeira** conexão. Reconectar omite: trocar o segredo exigiria reconfigurar o
+   * webhook no provedor, e a mensagem pararia de chegar em silêncio até alguém notar.
+   */
+  readonly webhookToken?: string | undefined;
   readonly connectedBy: string | null;
 }
 

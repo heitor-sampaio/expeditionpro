@@ -15,6 +15,7 @@ import { inMemoryCoupons } from '../dev/inMemoryCoupons.js';
 import { inMemoryIdentityChange } from '../dev/inMemoryIdentityChange.js';
 import { inMemoryAudit } from '../dev/inMemoryAudit.js';
 import { inMemoryMemberships } from '../dev/inMemoryMemberships.js';
+import { inMemoryChannelIntegrations, inMemoryConversations } from '../dev/inMemoryMessaging.js';
 import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
 import { inMemoryLegalDocuments } from '../dev/inMemoryLegalDocuments.js';
 import { inMemoryConsents } from '../dev/inMemoryConsents.js';
@@ -84,6 +85,8 @@ describe('CB-03/CB-05/CB-08: rotas de cashback', () => {
         audit: inMemoryAudit(),
         memberships: inMemoryMemberships(),
         opportunities: inMemoryOpportunities(),
+        channelIntegrations: inMemoryChannelIntegrations(),
+        conversations: inMemoryConversations(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),
@@ -247,6 +250,8 @@ describe('CB-01/CB-02: rotas de config de cashback', () => {
         audit: inMemoryAudit(),
         memberships: inMemoryMemberships(),
         opportunities: inMemoryOpportunities(),
+        channelIntegrations: inMemoryChannelIntegrations(),
+        conversations: inMemoryConversations(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),

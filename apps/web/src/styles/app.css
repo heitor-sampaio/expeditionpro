@@ -4425,3 +4425,180 @@
   padding: 0 12px;
   cursor: pointer;
 }
+
+/* Caixa de conversas — lista + fio (§5.17, AT-07) --------------------------------------- */
+
+/*
+ * Duas colunas: a lista tem largura fixa porque é índice, e o fio fica com o que sobra.
+ * Abaixo de 860px vira uma coluna — com uma conversa aberta, a lista sai de cena, que é o
+ * comportamento de qualquer aplicativo de mensagem no telefone.
+ *
+ * Nenhuma cor aqui é dado. O não lido e a linha selecionada usam o accent do tenant porque
+ * são estado de **interface**, como a nav ativa e o chip de filtro.
+ */
+.inbox {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.inbox-list {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.inbox-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: var(--pad-y) 14px;
+  min-height: var(--row);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.inbox-row:hover {
+  background: var(--card-2);
+}
+.inbox-row.is-active {
+  background: var(--o-soft);
+}
+.inbox-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.inbox-row-text .member-name,
+.inbox-row-text .member-cpf {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inbox-row-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+.inbox-time {
+  font-family: var(--f-mono);
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.inbox-unread {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 11px;
+  color: #fff;
+  background: var(--o);
+  border-radius: var(--r-pill);
+  min-width: 22px;
+  height: 19px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+.inbox-thread {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card-lg);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 260px;
+}
+.inbox-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.inbox-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+.inbox-attach {
+  max-width: 340px;
+}
+.inbox-msgs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+/*
+ * O balão da mensagem recebida e o da enviada se distinguem por **posição e relevo**, não por
+ * cor: verde e vermelho são reservados ao dinheiro neste sistema, e um balão verde de "enviada"
+ * quebraria isso no lugar onde a equipe passa o dia.
+ */
+.inbox-msg {
+  align-self: flex-start;
+  max-width: 74%;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card-lg);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.inbox-msg.is-out {
+  align-self: flex-end;
+  background: var(--relief);
+  border-color: var(--line-2);
+}
+.inbox-msg-body {
+  font-size: 14px;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.inbox-msg-time {
+  font-family: var(--f-mono);
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--ink-3);
+  align-self: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 860px) {
+  .inbox {
+    grid-template-columns: 1fr;
+  }
+  .inbox.is-open .inbox-list {
+    display: none;
+  }
+}
+
+/* Só existe quando a lista sai de cena — no desktop ela está do lado, e voltar não faz sentido. */
+.inbox-back {
+  display: none;
+}
+@media (max-width: 860px) {
+  .inbox-back {
+    display: inline-flex;
+  }
+}
+
+/* Ação secundária dentro do fio: alinhada à esquerda, não estica com o cartão. */
+.inbox-new-opp {
+  align-self: flex-start;
+}

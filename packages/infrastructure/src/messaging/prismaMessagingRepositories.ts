@@ -46,6 +46,20 @@ export function prismaChannelIntegrationRepository(
 
   return {
     async upsert(integration: NewChannelIntegration): Promise<ChannelIntegrationRecord> {
+      // Reconectar **não** toca no hash do webhook: o endereço já está configurado no painel
+      // do provedor, e trocar o segredo faria a mensagem parar de chegar em silêncio.
+      if (integration.webhookToken === undefined) {
+        const existente = await tenantClient(
+          base,
+          integration.tenantId,
+        ).channelIntegration.findFirst({
+          where: { channel: integration.channel },
+          select: { id: true },
+        });
+        // Conexão nova sem segredo seria linha sem hash, e o webhook não teria como se provar.
+        if (!existente) throw new Error('upsert: conexão nova exige webhookToken');
+      }
+
       const row = await tenantClient(base, integration.tenantId).channelIntegration.upsert({
         where: {
           tenantId_channel: { tenantId: integration.tenantId, channel: integration.channel },
@@ -57,7 +71,7 @@ export function prismaChannelIntegrationRepository(
           baseUrl: integration.baseUrl,
           externalAccountId: integration.externalAccountId,
           accessToken: cipher.encrypt(integration.accessToken),
-          webhookTokenHash: sha256(integration.webhookToken),
+          webhookTokenHash: sha256(integration.webhookToken ?? ''),
           connectedBy: integration.connectedBy,
         },
         update: {
@@ -65,7 +79,9 @@ export function prismaChannelIntegrationRepository(
           baseUrl: integration.baseUrl,
           externalAccountId: integration.externalAccountId,
           accessToken: cipher.encrypt(integration.accessToken),
-          webhookTokenHash: sha256(integration.webhookToken),
+          ...(integration.webhookToken === undefined
+            ? {}
+            : { webhookTokenHash: sha256(integration.webhookToken) }),
           active: true,
         },
       });

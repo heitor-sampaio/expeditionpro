@@ -23,6 +23,8 @@ import {
   resendNotificationGateway,
   supabaseAuthAdmin,
   prismaMembershipRepository,
+  prismaChannelIntegrationRepository,
+  prismaConversationRepository,
   prismaOpportunityRepository,
   prismaPaymentIntegrationRepository,
   prismaPaymentChargeRepository,
@@ -52,6 +54,7 @@ import { inMemoryCoupons } from './dev/inMemoryCoupons.js';
 import { inMemoryIdentityChange } from './dev/inMemoryIdentityChange.js';
 import { inMemoryAudit } from './dev/inMemoryAudit.js';
 import { inMemoryMemberships } from './dev/inMemoryMemberships.js';
+import { inMemoryChannelIntegrations, inMemoryConversations } from './dev/inMemoryMessaging.js';
 import { inMemoryOpportunities } from './dev/inMemoryOpportunities.js';
 import { inMemoryLegalDocuments } from './dev/inMemoryLegalDocuments.js';
 import { inMemoryConsents } from './dev/inMemoryConsents.js';
@@ -135,6 +138,8 @@ function buildDeps(): ServerDeps {
       customers: inMemoryCustomers(),
       memberships: inMemoryMemberships(),
       opportunities: inMemoryOpportunities(),
+      channelIntegrations: inMemoryChannelIntegrations(),
+      conversations: inMemoryConversations(),
       vehicles: inMemoryVehicles(),
       itineraries: inMemoryItineraries(),
       schedule: inMemorySchedule(),
@@ -189,6 +194,7 @@ function buildDeps(): ServerDeps {
     community: prismaCommunityRepository(base),
     media: prismaMediaConsentRepository(base),
     ...paymentGatewayDeps(base),
+    ...messagingDeps(base),
     uow: prismaUnitOfWork(base),
     authAdmin: buildAuthAdmin(),
     notifications: buildNotifications(),
@@ -260,14 +266,35 @@ main().catch((error: unknown) => {
  * causa de uma integração opcional seria pior; guardar a chave em claro, muito pior.
  */
 function paymentGatewayDeps(base: ReturnType<typeof createPrismaClient>) {
-  const key = process.env['PAYMENT_TOKEN_KEY'];
-  const cipher = key ? createTokenCipher(key) : unavailableCipher();
   return {
-    paymentIntegrations: prismaPaymentIntegrationRepository(base, cipher),
+    paymentIntegrations: prismaPaymentIntegrationRepository(base, credentialCipher()),
     charges: prismaPaymentChargeRepository(base),
     paymentGateway: asaasGateway(),
     newWebhookSecret,
   };
+}
+
+/**
+ * §5.17 — atendimento. A chave da instância do provedor é guardada com a **mesma** cifra das
+ * credenciais de pagamento: são o mesmo tipo de segredo (credencial de terceiro que precisa
+ * voltar em claro para chamar a API) e uma segunda chave seria mais uma coisa para perder —
+ * perder qualquer uma delas torna o que está cifrado ilegível.
+ */
+function messagingDeps(base: ReturnType<typeof createPrismaClient>) {
+  return {
+    channelIntegrations: prismaChannelIntegrationRepository(base, credentialCipher()),
+    conversations: prismaConversationRepository(base),
+  };
+}
+
+/**
+ * A cifra das credenciais de terceiros. Sem `PAYMENT_TOKEN_KEY` ela existe mas **falha ao
+ * ser usada**: o servidor sobe e o resto do sistema funciona; quem tentar conectar um gateway
+ * ou um canal recebe o erro na cara, em vez de guardar em claro.
+ */
+function credentialCipher(): TokenCipher {
+  const key = process.env['PAYMENT_TOKEN_KEY'];
+  return key ? createTokenCipher(key) : unavailableCipher();
 }
 
 function unavailableCipher(): TokenCipher {
