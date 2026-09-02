@@ -7,8 +7,11 @@ latência entre regiões que já apareceu no BellarisOS (`prd.md:1369`). Railway
 
 | Serviço | Domínio | O que é |
 |---|---|---|
-| `api` | `api-production-e30a.up.railway.app` | Fastify |
-| `web` | `web-production-859bb.up.railway.app` | Front React, arquivos estáticos servidos por `sirv` |
+| `api` | `api.drakkarexpedicoes.com.br` (e `api-production-e30a.up.railway.app`) | Fastify |
+| `web` | `app.drakkarexpedicoes.com.br` (e `web-production-859bb.up.railway.app`) | Front React, arquivos estáticos servidos por `sirv` |
+
+O domínio `.up.railway.app` continua ativo e continua listado no `CORS_ORIGINS`: derrubá-lo
+sem necessidade só criaria um jeito de o sistema parar sem ninguém entender por quê.
 
 ## Onde a configuração vive
 
@@ -73,7 +76,7 @@ exige novo deploy, não basta reiniciar.
 
 | Variável | Por quê |
 |---|---|
-| `VITE_API_URL` | O host da `api`. Vazia, o front chamaria `/v1/...` no próprio domínio e receberia o `index.html` com **200** — o erro só apareceria no `res.json()`. Entra também no `connect-src` da CSP: sem ela lá, o navegador bloqueia toda chamada |
+| `VITE_API_URL` | O host da `api`. **Trocar de domínio exige novo deploy do `web`, não basta reiniciar** — o Vite grava o valor no bundle.  Vazia, o front chamaria `/v1/...` no próprio domínio e receberia o `index.html` com **200** — o erro só apareceria no `res.json()`. Entra também no `connect-src` da CSP: sem ela lá, o navegador bloqueia toda chamada |
 | `VITE_SUPABASE_URL` | Auth, Storage e Realtime |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Chave publicável (`sb_publishable_…`). Pública por construção — vai no bundle |
 | `VITE_PUBLIC_API_URL` | **Opcional.** Só para o túnel de desenvolvimento (cloudflared, ngrok) no endereço do webhook do ASAAS. Em produção o padrão é `VITE_API_URL` |
@@ -86,3 +89,20 @@ exige novo deploy, não basta reiniciar.
 3. **Tirar a `SUPABASE_URL` da `api` e conferir que o serviço falha ao subir.** É o teste do
    SEC-01 valendo em produção: falha aberta é a pior forma de falhar, e a única prova de que
    ela não existe é vê-la recusar.
+
+## Autenticação: a lista de URLs do Supabase
+
+O front pede o retorno do link mágico para a própria origem (`emailRedirectTo:
+ window.location.origin`), mas o Supabase **só obedece se a URL estiver na lista de
+permitidas**. Fora dela ele ignora o pedido em silêncio e joga na `Site URL` do projeto —
+e o sintoma é cair num host que não serve páginas, com um 404 que não menciona autenticação
+nenhuma.
+
+Em **Authentication → URL Configuration**:
+
+- **Site URL:** `https://app.drakkarexpedicoes.com.br`
+- **Redirect URLs:** `https://app.drakkarexpedicoes.com.br/**`,
+  `https://web-production-859bb.up.railway.app/**` e `http://localhost:5173/**` —
+  o último mantém o desenvolvimento local funcionando.
+
+Link já enviado não se aproveita: o destino é decidido na hora da geração.
