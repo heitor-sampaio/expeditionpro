@@ -29,8 +29,10 @@ const SCAN_ROOTS = ['packages/infrastructure/src', 'packages/application/src', '
 const IGNORE_DIRS = new Set(['node_modules', 'dist', 'coverage', 'generated']);
 const RAW = /\$(queryRaw|executeRaw|queryRawUnsafe|executeRawUnsafe|runCommandRaw)\b/;
 
+/** @type {string[]} */
 const offenders = [];
 
+/** @param {string} dir */
 function walk(dir) {
   for (const entry of readdirSync(dir)) {
     if (IGNORE_DIRS.has(entry)) continue;

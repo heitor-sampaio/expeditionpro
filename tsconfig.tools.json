@@ -1,0 +1,27 @@
+{
+  // Os arquivos de raiz e de configuração, que não vivem em nenhum `src/` e por isso não
+  // entravam em tsconfig nenhum. Ficaram fora de qualquer verificação de tipo desde sempre —
+  // inclusive o `seed.ts`, que não é configuração: é código que escreve no banco.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "types": ["node"],
+    "allowJs": true,
+    "checkJs": true
+  },
+  "include": [
+    "vitest.config.ts",
+    "vitest.setup.db.ts",
+    "apps/web/vite.config.ts",
+    "packages/infrastructure/prisma.config.ts",
+    "packages/infrastructure/prisma/seed.ts",
+    "scripts/**/*.mjs"
+  ]
+}

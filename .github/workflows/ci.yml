@@ -58,11 +58,27 @@ jobs:
       - name: Typecheck
         run: pnpm exec tsc -b
 
-      # O `tsc -b` acima compila só o que vai para produção: todo tsconfig do repositório
-      # exclui `*.test.ts`. Durante meses os testes ficaram fora de qualquer verificação de
-      # tipo, e as fixtures foram divergindo dos tipos reais sem que nada acusasse — campo
-      # novo obrigatório ausente, dep morta passada a um caso de uso que a ignora, e um
-      # teste que importava um erro inexistente e por isso aceitava qualquer exceção.
+      # O `tsc -b` segue as referências do tsconfig da raiz — domínio, aplicação,
+      # infraestrutura e servidor — e ao mesmo tempo compila o `dist` de que o servidor
+      # depende. O que ele **não** faz é olhar para o que não está nessas referências, e
+      # `apps/web` nunca esteve: o front inteiro passou meses sem verificação de tipo no CI.
+      # Este passo é por pacote, então um app novo entra sozinho em vez de ser esquecido.
+      - name: Typecheck de todos os pacotes (inclui o front)
+        run: pnpm typecheck
+
+      # Arquivos de raiz e de configuração não vivem em nenhum `src/` e por isso não
+      # entravam em tsconfig nenhum — `vite.config.ts`, `vitest.config.ts`, os verificadores
+      # de política e, o que mais importa, `prisma/seed.ts` e `prisma.config.ts`. Foi lá que
+      # apareceu um `directUrl:` que o Prisma 7 descarta em silêncio: a migration ia pelo
+      # pooler enquanto o comentário garantia conexão direta.
+      - name: Typecheck dos arquivos de raiz e dos scripts
+        run: pnpm typecheck:tools
+
+      # O `tsc -b` compila só o que vai para produção: todo tsconfig do repositório exclui
+      # `*.test.ts`. Durante meses os testes ficaram fora de qualquer verificação de tipo, e
+      # as fixtures foram divergindo dos tipos reais sem que nada acusasse — campo novo
+      # obrigatório ausente, dep morta passada a um caso de uso que a ignora, e um teste que
+      # importava um erro inexistente e por isso aceitava qualquer exceção.
       # Fixture que mente é teste que passa sem testar, e o custo aparece meses depois.
       - name: Typecheck dos testes
         run: pnpm typecheck:tests

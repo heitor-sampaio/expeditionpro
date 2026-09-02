@@ -22,8 +22,10 @@ const IGNORE_DIRS = new Set([
 const SCAN_EXT = new Set(['.ts', '.tsx', '.js', '.mjs', '.cjs', '.prisma', '.sql']);
 const MARKER = /\b(TODO|FIXME|XXX|HACK)\b/;
 
+/** @type {string[]} */
 const offenders = [];
 
+/** @param {string} dir */
 function walk(dir) {
   for (const entry of readdirSync(dir)) {
     if (IGNORE_DIRS.has(entry)) continue;

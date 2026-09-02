@@ -16,6 +16,7 @@ const MIGRATIONS_DIR = path.join(ROOT, 'packages', 'infrastructure', 'prisma', '
 /** Tabelas internas do Prisma não são de negócio. */
 const IGNORED = new Set(['_prisma_migrations']);
 
+/** @param {string} dir @returns {string} */
 function collectSql(dir) {
   let sql = '';
   for (const entry of readdirSync(dir)) {
@@ -29,6 +30,7 @@ function collectSql(dir) {
   return sql;
 }
 
+/** @param {string} sql @param {RegExp} regex @returns {Set<string>} */
 function namesMatching(sql, regex) {
   const found = new Set();
   for (const match of sql.matchAll(regex)) {

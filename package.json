@@ -29,7 +29,8 @@
     "check:rls": "node scripts/check-rls-migrations.mjs",
     "check:markers": "node scripts/check-markers.mjs",
     "typecheck:tests": "pnpm -r typecheck:tests",
-    "check:raw-sql": "node scripts/check-raw-sql.mjs"
+    "check:raw-sql": "node scripts/check-raw-sql.mjs",
+    "typecheck:tools": "tsc -p tsconfig.tools.json"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
