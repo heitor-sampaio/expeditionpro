@@ -63,14 +63,23 @@ export {
 } from './automation/interpreter.js';
 export { INTERVALO_MINIMO_MIN, intervaloEmMinutos, janelaDe } from './automation/recurring.js';
 export {
-  CAMPOS_DA_BUSCA,
   CAMPOS_DO_GATILHO,
   contextFieldsFor,
-  searchFieldsFor,
   TRIGGER_TYPES,
   type ContextField,
   type TriggerType,
 } from './automation/triggers.js';
+export {
+  CATALOGO_DE_BUSCA,
+  SEARCH_ENTITIES,
+  entityFieldsOf,
+  matchesFilters,
+  searchEntityOf,
+  searchFilters,
+  type EntityCatalog,
+  type SearchEntity,
+  type SearchFilter,
+} from './automation/search.js';
 export {
   parsePixKey,
   isValidPixKey,

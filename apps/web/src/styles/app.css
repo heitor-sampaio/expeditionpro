@@ -5315,6 +5315,30 @@
   min-width: 0;
 }
 
+/*
+ * AU-18 — um filtro da busca: campo em cima, comparação e remover na linha do meio, valor
+ * embaixo. Empilhado, e não em três colunas, porque dentro de um bloco de 300px três controles
+ * lado a lado viram três caixas onde não cabe o que se digita.
+ */
+.auto-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--card-2);
+}
+.auto-filter-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.auto-filter-line .field-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* AU-16 — os campos que o gatilho traz, listados no inspetor dele. */
 .auto-fieldlist {
   list-style: none;

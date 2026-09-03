@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  CAMPOS_DA_BUSCA,
-  CAMPOS_DO_GATILHO,
-  contextFieldsFor,
-  searchFieldsFor,
-  TRIGGER_TYPES,
-} from './triggers.js';
+import { CAMPOS_DO_GATILHO, contextFieldsFor, TRIGGER_TYPES } from './triggers.js';
 
 /**
  * AU-16 — o que cada gatilho põe no contexto.
@@ -86,34 +80,5 @@ describe('AU-17: gatilhos novos', () => {
     expect(caminhos.some((c) => c.startsWith('contato.') || c.startsWith('inscricao.'))).toBe(
       false,
     );
-  });
-});
-
-/**
- * AU-18 · AU-16 — a busca acrescenta campos ao contexto, e o seletor precisa saber quais.
- *
- * Quem desenha "a cada cinco minutos, para cada conversa parada, mande…" não tem contato
- * nenhum vindo do gatilho: o de tempo não traz entidade. Os campos vêm da busca, e prometê-los
- * é o que faz o `{{contato.nome}}` do texto não sair vazio.
- */
-describe('AU-18: os campos que a busca traz', () => {
-  it('a busca de conversas paradas traz contato, conversa e a oportunidade ligada', () => {
-    const caminhos = searchFieldsFor('find_stale_conversations').map((campo) => campo.path);
-
-    expect(caminhos).toContain('contato.nome');
-    expect(caminhos).toContain('conversa.id');
-    expect(caminhos).toContain('conversa.paradaHaMin');
-    expect(caminhos).toContain('oportunidade.id');
-  });
-
-  it('busca desconhecida não promete campo nenhum', () => {
-    expect(searchFieldsFor('inventada')).toEqual([]);
-  });
-
-  it('não há caminho repetido', () => {
-    for (const campos of Object.values(CAMPOS_DA_BUSCA)) {
-      const caminhos = campos.map((campo) => campo.path);
-      expect(new Set(caminhos).size).toBe(caminhos.length);
-    }
   });
 });

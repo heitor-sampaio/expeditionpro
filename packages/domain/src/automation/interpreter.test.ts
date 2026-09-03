@@ -208,3 +208,52 @@ describe('AU-15: os casos de uma escolha múltipla', () => {
     expect(switchCases({ cases: 'preço' })).toEqual([]);
   });
 });
+
+/**
+ * AU-18 — comparar número, e não só texto.
+ *
+ * "Parado há mais de trinta minutos" é a pergunta que abre o filtro de busca, e ela não se faz
+ * com `contains`. Os operadores entram na **mesma** função que a condição usa, de propósito: o
+ * filtro do bloco de busca e o bloco "Se" precisam decidir igual, senão a equipe filtra uma
+ * coisa e o "Se" seguinte discorda dela.
+ */
+describe('AU-18: comparação numérica', () => {
+  const contexto = { conversa: { paradaHaMin: 45 }, oportunidade: { etapa: 'Em conversa' } };
+
+  it('maior que compara número', () => {
+    expect(
+      evaluateCondition(
+        { field: 'conversa.paradaHaMin', operator: 'greater_than', value: '30' },
+        contexto,
+      ),
+    ).toBe(true);
+  });
+
+  it('menor que compara número', () => {
+    expect(
+      evaluateCondition(
+        { field: 'conversa.paradaHaMin', operator: 'less_than', value: '30' },
+        contexto,
+      ),
+    ).toBe(false);
+  });
+
+  /** Campo que não é número devolve não, em vez de comparar texto como se fosse. */
+  it('campo de texto não passa por comparação numérica', () => {
+    expect(
+      evaluateCondition(
+        { field: 'oportunidade.etapa', operator: 'greater_than', value: '10' },
+        contexto,
+      ),
+    ).toBe(false);
+  });
+
+  it('valor de comparação vazio devolve não', () => {
+    expect(
+      evaluateCondition(
+        { field: 'conversa.paradaHaMin', operator: 'greater_than', value: '' },
+        contexto,
+      ),
+    ).toBe(false);
+  });
+});

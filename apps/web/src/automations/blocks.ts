@@ -1,5 +1,8 @@
-import { switchCases } from '@expedition/domain';
+import { CATALOGO_DE_BUSCA, SEARCH_ENTITIES, switchCases } from '@expedition/domain';
 import type { NodeKind } from '@expedition/domain';
+
+/** As listas que o bloco "Para cada" percorre, na ordem em que a tela as oferece. */
+const ENTIDADES = SEARCH_ENTITIES.map((entidade) => CATALOGO_DE_BUSCA[entidade]);
 
 /**
  * §5.18 — o catálogo de blocos: o que a equipe pode arrastar para o quadro.
@@ -115,11 +118,11 @@ export const BLOCOS: readonly BlockType[] = [
     config: { field: '', cases: [] },
   },
   {
-    type: 'find_stale_conversations',
+    type: 'for_each',
     kind: 'forEach',
-    label: 'Para cada conversa parada',
-    hint: 'Busca quem está sem resposta e segue o fluxo para cada um',
-    config: { minutes: 30, waiting: 'customer', limit: 10 },
+    label: 'Para cada',
+    hint: 'Percorre uma lista do sistema e segue o fluxo para cada item',
+    config: { entity: 'opportunities', filters: [], limit: 10 },
   },
   {
     type: 'set',
@@ -240,7 +243,7 @@ export interface BlockField {
    * `path` é o seletor de campo do contexto (AU-16); `cases`, a lista de valores da escolha
    * múltipla. Os dois existem porque digitar de cabeça é onde o erro não dá erro.
    */
-  readonly kind: 'text' | 'number' | 'textarea' | 'select' | 'path' | 'cases';
+  readonly kind: 'text' | 'number' | 'textarea' | 'select' | 'path' | 'cases' | 'filters';
   readonly help?: string;
   readonly placeholder?: string;
   readonly options?: readonly { readonly value: string; readonly label: string }[];
@@ -278,23 +281,25 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
       help: 'Um caminho por valor, na ordem. O que não casar com nenhum sai pelo padrão.',
     },
   ],
-  // AU-18: a busca lê a caixa e segue o fluxo uma vez por conversa encontrada.
-  find_stale_conversations: [
+  /*
+   * AU-18: a busca é um mecanismo, não uma pergunta pronta. A equipe escolhe a lista, monta o
+   * filtro com os campos dela, e o fluxo adiante roda uma vez por item.
+   */
+  for_each: [
     {
-      key: 'waiting',
-      label: 'Quem está devendo resposta',
+      key: 'entity',
+      label: 'Percorrer',
       kind: 'select',
-      options: [
-        { value: 'customer', label: 'o contato não respondeu' },
-        { value: 'team', label: 'a equipe não respondeu' },
-      ],
+      options: ENTIDADES.map((entidade) => ({
+        value: entidade.entity,
+        label: entidade.label,
+      })),
     },
     {
-      key: 'minutes',
-      label: 'Parada há mais de (minutos)',
-      kind: 'number',
-      placeholder: '30',
-      help: 'A mesma conversa não é pega de novo dentro desse intervalo.',
+      key: 'filters',
+      label: 'Só os que',
+      kind: 'filters',
+      help: 'Todos os filtros precisam casar. Sem filtro nenhum, percorre a lista inteira.',
     },
     {
       key: 'limit',

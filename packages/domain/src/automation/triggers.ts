@@ -93,26 +93,3 @@ export const CAMPOS_DO_GATILHO: Record<TriggerType, readonly ContextField[]> = {
 export function contextFieldsFor(trigger: TriggerType | null): readonly ContextField[] {
   return trigger === null ? [] : CAMPOS_DO_GATILHO[trigger];
 }
-
-/**
- * AU-18 · AU-16 — o que **a busca** põe no contexto de cada execução que ela semeia.
- *
- * Um fluxo que começa no relógio não tem contato nenhum vindo do gatilho: quem traz é a busca.
- * Prometer estes campos é o que faz o `{{contato.nome}}` da mensagem não sair vazio — e é
- * cobrado do mesmo jeito que o do gatilho, por teste da borda que semeia.
- */
-export const CAMPOS_DA_BUSCA: Record<string, readonly ContextField[]> = {
-  find_stale_conversations: [
-    ...CONTATO,
-    { path: 'contato.ehCliente', label: 'Já é cliente (true ou false)' },
-    { path: 'conversa.id', label: 'Id da conversa' },
-    { path: 'conversa.paradaHaMin', label: 'Minutos sem resposta' },
-    { path: 'oportunidade.id', label: 'Id da oportunidade ligada, se houver' },
-    { path: 'oportunidade.etapa', label: 'Etapa do funil, se houver' },
-  ],
-};
-
-/** Os campos de uma busca. Tipo que este sistema não conhece não promete nada. */
-export function searchFieldsFor(type: string): readonly ContextField[] {
-  return CAMPOS_DA_BUSCA[type] ?? [];
-}

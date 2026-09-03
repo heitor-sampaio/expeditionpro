@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import { Handle, Position, useNodes, useReactFlow, type Node, type NodeProps } from '@xyflow/react';
-import { switchCases } from '@expedition/domain';
+import { CATALOGO_DE_BUSCA, searchEntityOf, searchFilters, switchCases } from '@expedition/domain';
 import { blockLabel, saidasDe } from './blocks.js';
 import { camposDisponiveis } from './fields.js';
 import { BlockFields } from './BlockFields.js';
@@ -155,10 +155,12 @@ function resumo(data: BlockData): string {
     if (dias === 0) return 'no dia da saída';
     return dias < 0 ? `${String(-dias)} dias antes` : `${String(dias)} dias depois`;
   }
-  if (data.type === 'find_stale_conversations') {
-    const minutos = Number(c['minutes'] ?? 0);
-    const quem = c['waiting'] === 'team' ? 'a equipe' : 'o contato';
-    return `${quem} não responde há ${String(minutos)} min`;
+  if (data.type === 'for_each') {
+    const entidade = searchEntityOf(c);
+    if (entidade === null) return '';
+    const quantos = searchFilters(c).filter((filtro) => filtro.field !== '').length;
+    const filtro = quantos === 0 ? 'a lista inteira' : `${String(quantos)} filtro(s)`;
+    return `${CATALOGO_DE_BUSCA[entidade].label} · ${filtro}`;
   }
   if (data.type === 'move_opportunity') return texto('stageName');
   return corta(texto('text') || texto('contactName'));

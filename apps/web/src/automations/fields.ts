@@ -1,7 +1,7 @@
 import {
   CAMPOS_DO_GATILHO,
   contextFieldsFor,
-  searchFieldsFor,
+  entityFieldsOf,
   TRIGGER_TYPES,
 } from '@expedition/domain';
 import type { ContextField, TriggerType } from '@expedition/domain';
@@ -57,7 +57,7 @@ export function variaveisDoFluxo(nodes: readonly BlocoNoQuadro[]): ContextField[
 export function camposDisponiveis(nodes: readonly BlocoNoQuadro[]): ContextField[] {
   const daBusca = nodes
     .filter((no) => no.type === 'forEach')
-    .flatMap((no) => searchFieldsFor(no.data.type));
+    .flatMap((no) => entityFieldsOf(no.data.config));
 
   const todos = [
     ...contextFieldsFor(gatilhoDoQuadro(nodes)),

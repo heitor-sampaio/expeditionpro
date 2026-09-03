@@ -86,14 +86,26 @@ describe('AU-16: a lista que o seletor oferece', () => {
 describe('AU-18: os campos vindos da busca', () => {
   const comBusca = [
     { data: { type: 'recurring', config: {} }, type: 'trigger' },
-    { data: { type: 'find_stale_conversations', config: {} }, type: 'forEach' },
+    { data: { type: 'for_each', config: { entity: 'opportunities' } }, type: 'forEach' },
     { data: { type: 'send_message', config: { text: '' } }, type: 'action' },
   ];
 
-  it('a busca põe os campos dela na lista do seletor', () => {
+  it('a busca põe os campos da entidade escolhida na lista do seletor', () => {
     const caminhos = camposDisponiveis(comBusca).map((c) => c.path);
 
-    expect(caminhos).toContain('contato.nome');
+    expect(caminhos).toContain('oportunidade.etapa');
+    expect(caminhos).toContain('oportunidade.paradaHaMin');
+  });
+
+  /** Trocar a entidade troca os campos: é a mesma lista que o filtro do bloco oferece. */
+  it('percorrer conversas oferece os campos da conversa', () => {
+    const emConversas = [
+      { data: { type: 'recurring', config: {} }, type: 'trigger' },
+      { data: { type: 'for_each', config: { entity: 'conversations' } }, type: 'forEach' },
+    ];
+
+    const caminhos = camposDisponiveis(emConversas).map((c) => c.path);
+    expect(caminhos).toContain('conversa.quemDeve');
     expect(caminhos).toContain('conversa.paradaHaMin');
   });
 

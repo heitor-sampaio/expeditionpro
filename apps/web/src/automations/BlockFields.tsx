@@ -1,4 +1,10 @@
-import { switchCases, type ContextField, type SwitchCase } from '@expedition/domain';
+import {
+  searchFilters,
+  switchCases,
+  type ContextField,
+  type SearchFilter,
+  type SwitchCase,
+} from '@expedition/domain';
 import { CAMPOS, type BlockField } from './blocks.js';
 import { camposDoGatilho, gatilhoDoQuadro } from './fields.js';
 
@@ -97,6 +103,18 @@ function Campo({
       <ListaDeValores
         campo={campo}
         casos={switchCases({ cases: valor })}
+        readOnly={readOnly}
+        onChange={onChange}
+      />
+    );
+  }
+
+  if (campo.kind === 'filters') {
+    return (
+      <ListaDeFiltros
+        campo={campo}
+        filtros={searchFilters({ filters: valor })}
+        disponiveis={disponiveis}
         readOnly={readOnly}
         onChange={onChange}
       />
@@ -283,6 +301,112 @@ function ListaDeValores({
     </div>
   );
 }
+
+/**
+ * AU-18 — os filtros da busca: campo, comparação e valor, na linguagem do bloco "Se".
+ *
+ * É de propósito que a linha aqui seja igual à do "Se": quem já entendeu a condição não precisa
+ * aprender outra gramática para filtrar uma lista. E os operadores são os mesmos porque quem
+ * decide é a mesma função — filtrar e perguntar não podem discordar.
+ */
+function ListaDeFiltros({
+  campo,
+  filtros,
+  disponiveis,
+  readOnly,
+  onChange,
+}: {
+  campo: BlockField;
+  filtros: readonly SearchFilter[];
+  disponiveis: readonly ContextField[];
+  readOnly: boolean;
+  onChange: (valor: unknown) => void;
+}): React.JSX.Element {
+  const trocar = (id: string, patch: Partial<SearchFilter>) =>
+    onChange(filtros.map((filtro) => (filtro.id === id ? { ...filtro, ...patch } : filtro)));
+
+  return (
+    <div className="field">
+      <span className="field-label">{campo.label}</span>
+
+      {filtros.length === 0 && (
+        <span className="field-help">Sem filtro nenhum, percorre a lista inteira.</span>
+      )}
+
+      {filtros.map((filtro) => (
+        <div key={filtro.id} className="auto-filter">
+          <SeletorDeCampo
+            valor={filtro.field}
+            disponiveis={disponiveis}
+            readOnly={readOnly}
+            onChange={(field) => trocar(filtro.id, { field })}
+          />
+          <div className="auto-filter-line">
+            <select
+              className="field-input nodrag"
+              value={filtro.operator}
+              disabled={readOnly}
+              aria-label="Comparação"
+              onChange={(e) => trocar(filtro.id, { operator: e.target.value })}
+            >
+              {OPERADORES.map((operador) => (
+                <option key={operador.value} value={operador.value}>
+                  {operador.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm btn-danger nodrag"
+              disabled={readOnly}
+              onClick={() => onChange(filtros.filter((outro) => outro.id !== filtro.id))}
+            >
+              Remover
+            </button>
+          </div>
+          {/* "Está vazio" e "não está vazio" não comparam com nada: o campo some. */}
+          {filtro.operator !== 'empty' && filtro.operator !== 'not_empty' && (
+            <input
+              className="field-input nodrag"
+              value={filtro.value}
+              disabled={readOnly}
+              placeholder="valor"
+              aria-label="Valor"
+              onChange={(e) => trocar(filtro.id, { value: e.target.value })}
+            />
+          )}
+        </div>
+      ))}
+
+      <button
+        type="button"
+        className="btn btn-secondary btn-sm nodrag"
+        disabled={readOnly}
+        onClick={() =>
+          onChange([
+            ...filtros,
+            { id: crypto.randomUUID().slice(0, 8), field: '', operator: 'equals', value: '' },
+          ])
+        }
+      >
+        Acrescentar filtro
+      </button>
+
+      {campo.help && <span className="field-help">{campo.help}</span>}
+    </div>
+  );
+}
+
+/** As comparações, iguais às do bloco "Se" — e as numéricas, que o filtro trouxe (AU-18). */
+const OPERADORES = [
+  { value: 'equals', label: 'é igual a' },
+  { value: 'not_equals', label: 'é diferente de' },
+  { value: 'contains', label: 'contém' },
+  { value: 'greater_than', label: 'é maior que' },
+  { value: 'less_than', label: 'é menor que' },
+  { value: 'empty', label: 'está vazio' },
+  { value: 'not_empty', label: 'não está vazio' },
+] as const;
 
 /** AU-09 · AU-16 — põe `{{campo}}` no texto sem exigir que alguém saiba o nome de cor. */
 function InserirCampo({

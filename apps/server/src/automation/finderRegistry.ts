@@ -1,81 +1,124 @@
-import type { AutomationFinders, FoundItem } from '@expedition/application';
+import { matchesFilters, searchEntityOf } from '@expedition/domain';
+import type { AutomationFinderInput, AutomationFinders, FoundItem } from '@expedition/application';
+import type { RunContext } from '@expedition/domain';
 import type { ServerDeps } from '../buildServer.js';
 
 /**
  * AU-18 — o que uma automação sabe procurar, e por onde.
  *
  * O irmão do `automationActionRegistry`, e pelo mesmo motivo: este é o único lugar que conhece
- * as duas pontas — o nome do bloco que a equipe arrastou e o repositório que o cumpre. O
- * interpretador recebe o mapa pronto e não sabe o que é uma conversa.
+ * as duas pontas — a entidade que a equipe escolheu no bloco e o repositório que a carrega. O
+ * interpretador recebe o mapa pronto e não sabe o que é um cartão do funil.
  *
- * Busca **lê e mais nada**. Quem muda o mundo são as ações do fluxo que ela semeia, cada uma
- * na própria execução, com o log e os tetos que toda execução tem.
+ * **Uma busca só, com a entidade por configuração.** Uma busca por pergunta ("conversas
+ * paradas", "cartões esquecidos") seria eu decidindo as perguntas que a equipe pode fazer; aqui
+ * ela escolhe a lista e monta o filtro. Entidade nova é uma entrada no catálogo do domínio e um
+ * caso aqui — o resto do caminho já existe.
+ *
+ * Busca **lê e mais nada**. Quem muda o mundo são as ações do fluxo que ela semeia, cada uma na
+ * própria execução, com o log e os tetos que toda execução tem.
  */
 export function automationFinderRegistry(deps: ServerDeps): AutomationFinders {
   return {
-    /**
-     * AT-07 · AU-18 — as conversas paradas há mais de N minutos.
-     *
-     * "Parada" tem dois sentidos opostos, e confundi-los manda mensagem para quem não devia:
-     * `customer` é **o contato não respondeu** o que mandamos; `team` é **nós não respondemos**
-     * o que ele mandou. Quem escolhe é o desenho, e a tela nomeia os dois em português.
-     *
-     * A conta usa os dois carimbos que a caixa já mantém separados (AT-07): sem eles, "quem
-     * está esperando" precisaria abrir o fio de cada conversa.
-     */
-    async find_stale_conversations({ ctx, config, now }): Promise<readonly FoundItem[]> {
-      const minutos = Math.max(Number(config['minutes']) || 0, 1);
-      const limite = now.getTime() - minutos * 60_000;
-      const esperando = config['waiting'] === 'team' ? 'team' : 'customer';
-
-      const conversas = await deps.conversations.listConversations(ctx.tenantId);
-      const paradas = conversas.filter((conversa) => {
-        // Quem falou por último decide quem está devendo resposta.
-        const ultimaDoContato = conversa.lastInboundAt?.getTime() ?? 0;
-        const ultimaNossa = conversa.lastOutboundAt?.getTime() ?? 0;
-        const quemFalou = ultimaNossa > ultimaDoContato ? 'team' : 'customer';
-        const desde = Math.max(ultimaDoContato, ultimaNossa);
-        if (desde === 0) return false;
-
-        // `waiting: 'customer'` quer as que **nós** falamos por último e ninguém respondeu.
-        const devendo = quemFalou === 'team' ? 'customer' : 'team';
-        return devendo === esperando && desde <= limite;
-      });
-
-      const etapas = await deps.opportunities.listStages(ctx.tenantId);
-      const itens: FoundItem[] = [];
-
-      for (const conversa of paradas) {
-        const oportunidade =
-          conversa.opportunityId === null
-            ? null
-            : await deps.opportunities.findOpportunityById(ctx.tenantId, conversa.opportunityId);
-        const desde = Math.max(
-          conversa.lastInboundAt?.getTime() ?? 0,
-          conversa.lastOutboundAt?.getTime() ?? 0,
-        );
-        itens.push({
-          key: conversa.id,
-          // AU-16: estes são exatamente os campos que `CAMPOS_DA_BUSCA` promete na tela.
-          variables: {
-            conversa: {
-              id: conversa.id,
-              paradaHaMin: Math.floor((now.getTime() - desde) / 60_000),
-            },
-            contato: {
-              nome: conversa.displayName ?? conversa.phone ?? '',
-              telefone: conversa.phone ?? '',
-              ehCliente: conversa.customerId !== null,
-            },
-            oportunidade: {
-              id: oportunidade?.id ?? '',
-              etapa: etapas.find((e) => e.id === oportunidade?.stageId)?.name ?? '',
-            },
-          },
-        });
+    async for_each(input): Promise<readonly FoundItem[]> {
+      const entidade = searchEntityOf(input.config);
+      if (entidade === null) {
+        throw new Error('a busca está sem entidade escolhida');
       }
 
-      return itens;
+      const itens =
+        entidade === 'opportunities'
+          ? await cartoesDoFunil(deps, input)
+          : await conversas(deps, input);
+
+      // O filtro é do domínio, e é o **mesmo** do bloco "Se": filtrar aqui e perguntar ali
+      // precisam decidir igual, senão o quadro mostra uma regra e a execução faz outra.
+      return itens.filter((item) => matchesFilters(input.config, item.variables));
     },
   };
+}
+
+/** OP-01 — os cartões do funil, com etapa, origem e há quanto tempo ninguém mexe neles. */
+async function cartoesDoFunil(
+  deps: ServerDeps,
+  { ctx, now }: AutomationFinderInput,
+): Promise<FoundItem[]> {
+  const [cartoes, etapas, roteiros] = await Promise.all([
+    deps.opportunities.listOpportunities(ctx.tenantId),
+    deps.opportunities.listStages(ctx.tenantId),
+    deps.itineraries.list(ctx.tenantId),
+  ]);
+
+  return cartoes.map((cartao) => ({
+    key: cartao.id,
+    variables: {
+      contato: { nome: cartao.contactName, telefone: cartao.phone ?? '' },
+      oportunidade: {
+        id: cartao.id,
+        etapa: etapas.find((etapa) => etapa.id === cartao.stageId)?.name ?? '',
+        origem: cartao.source,
+        roteiro: roteiros.find((r) => r.id === cartao.itineraryId)?.name ?? '',
+        paradaHaMin: minutosDesde(cartao.updatedAt, now),
+        criadaHaMin: minutosDesde(cartao.createdAt, now),
+        // OP-08: fechada quer dizer que virou inscrição e parou de andar no funil.
+        fechada: cartao.bookingId !== null,
+      },
+    } satisfies RunContext,
+  }));
+}
+
+/**
+ * AT-07 — as conversas da caixa, com **quem deve resposta** já resolvido.
+ *
+ * Quem falou por último decide quem está devendo, e a caixa mantém os dois carimbos separados
+ * justamente para essa pergunta não precisar abrir o fio de cada conversa.
+ */
+async function conversas(
+  deps: ServerDeps,
+  { ctx, now }: AutomationFinderInput,
+): Promise<FoundItem[]> {
+  const [fios, etapas] = await Promise.all([
+    deps.conversations.listConversations(ctx.tenantId),
+    deps.opportunities.listStages(ctx.tenantId),
+  ]);
+
+  const itens: FoundItem[] = [];
+  for (const fio of fios) {
+    const doContato = fio.lastInboundAt?.getTime() ?? 0;
+    const nossa = fio.lastOutboundAt?.getTime() ?? 0;
+    const ultima = Math.max(doContato, nossa);
+    const cartao =
+      fio.opportunityId === null
+        ? null
+        : await deps.opportunities.findOpportunityById(ctx.tenantId, fio.opportunityId);
+
+    itens.push({
+      key: fio.id,
+      variables: {
+        contato: {
+          nome: fio.displayName ?? fio.phone ?? '',
+          telefone: fio.phone ?? '',
+          ehCliente: fio.customerId !== null,
+        },
+        conversa: {
+          id: fio.id,
+          canal: fio.channel,
+          naoLidas: fio.unreadCount,
+          paradaHaMin: ultima === 0 ? 0 : minutosDesde(new Date(ultima), now),
+          // Nós falamos por último: quem deve é o contato. E vice-versa.
+          quemDeve: nossa > doContato ? 'contato' : 'equipe',
+        },
+        oportunidade: {
+          id: cartao?.id ?? '',
+          etapa: etapas.find((etapa) => etapa.id === cartao?.stageId)?.name ?? '',
+        },
+      } satisfies RunContext,
+    });
+  }
+  return itens;
+}
+
+/** Minutos inteiros desde um instante. Futuro vira zero: relógio torto não faz filtro passar. */
+function minutosDesde(quando: Date, now: Date): number {
+  return Math.max(Math.floor((now.getTime() - quando.getTime()) / 60_000), 0);
 }

@@ -58,6 +58,12 @@ export function evaluateCondition(config: Record<string, unknown>, contexto: Run
       return esquerda === '';
     case 'not_empty':
       return esquerda !== '';
+    // AU-18: "parado há mais de trinta minutos" não se pergunta com `contains`. Texto que não
+    // é número devolve **não**, em vez de comparar como se fosse.
+    case 'greater_than':
+      return comparaNumero(esquerda, direita, (a, b) => a > b);
+    case 'less_than':
+      return comparaNumero(esquerda, direita, (a, b) => a < b);
     default:
       return false;
   }
@@ -139,6 +145,18 @@ const POR_UNIDADE: Record<string, number> = {
   hours: 60,
   days: 1440,
 };
+
+/** Os dois lados precisam ser número; qualquer outra coisa é "não", nunca comparação torta. */
+function comparaNumero(
+  esquerda: string,
+  direita: string,
+  decide: (a: number, b: number) => boolean,
+): boolean {
+  const a = Number(esquerda);
+  const b = Number(direita);
+  if (esquerda === '' || direita === '' || !Number.isFinite(a) || !Number.isFinite(b)) return false;
+  return decide(a, b);
+}
 
 /**
  * Sem caixa e sem acento. Quem escreve "preço" na regra espera pegar "PRECO" digitado às

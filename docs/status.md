@@ -323,11 +323,30 @@ caminhos crus do sistema inteiro, e não três.
 > explícita** de códigos (`invalid_graph`, `money_action_confirmation`), pela mesma regra do DTO
 > por audiência: mensagem de erro qualquer pode carregar nome de campo ou de regra interna.
 
-### Fatia 7 — a busca, e o fluxo que começa no relógio ✅
+### Fatia 7 — o bloco "para cada", e a lição sobre quem monta a pergunta ✅
 
 Faltava a peça que liga o gatilho de tempo ao mundo: ele não traz entidade nenhuma, então "a
-cada cinco minutos" não sabia sobre quem agir. O bloco **Para cada conversa parada** (AU-18)
-resolve — e o desenho dele é a decisão que vale registrar.
+cada cinco minutos" não sabia sobre quem agir.
+
+> **A primeira versão veio errada, e a correção é a parte que importa.** Ela era um bloco
+> "Para cada conversa parada", com "quem está devendo" e "parada há N minutos" — uma **pergunta
+> pronta**, decidida por quem escreveu o código. O dono cortou na hora: *"você está decidindo
+> limitar as opções; quero poder pegar os cards do funil, iterar, filtrar, avaliar condições —
+> fazer o que eu quiser com as entidades que já existem"*. Ele tem razão, e a diferença é de
+> natureza: uma pergunta pronta resolve o caso que eu imaginei; um mecanismo resolve os casos
+> que ele vai imaginar. O bloco virou **Para cada**, com a lista escolhida na tela e o filtro
+> montado por quem desenha.
+
+O bloco tem três coisas: **percorrer** (a entidade), **só os que** (filtros de campo, operador
+e valor, quantos quiser) e **no máximo por passada**. Os operadores são os **mesmos do bloco
+Se**, e é a mesma função do domínio que decide — filtrar e perguntar não podem discordar, senão
+o quadro mostra uma regra e a execução faz outra. Entraram `é maior que` e `é menor que`, que o
+"Se" também ganhou de brinde.
+
+As listas do primeiro corte são **oportunidades do funil** e **conversas da caixa**, com os
+campos derivados que a pergunta pede: `oportunidade.paradaHaMin`, `oportunidade.etapa`,
+`conversa.quemDeve` (contato ou equipe), `conversa.paradaHaMin`. Entidade nova é uma entrada no
+catálogo do domínio e um caso no registro de buscas — o resto do caminho já existe.
 
 **Ele não itera: semeia.** A busca abre uma execução por achado, cada uma com o contexto de um
 item, começando no bloco seguinte a ela. A alternativa — um laço dentro de uma execução só —
@@ -348,10 +367,10 @@ Tetos: 25 por passada no motor (o campo "no máximo" do bloco fica abaixo disso)
 automação — duas seriam fan-out de fan-out, e o crescimento multiplicativo só apareceria no teto
 por hora, tarde demais —, e as execuções semeadas contam no teto de 20 por hora da automação.
 
-O fluxo que o dono pediu fica assim: **Tempo: de tempos em tempos (5 minutos) → Para cada
-conversa parada (o contato não respondeu, 30 min) → Mover de etapa.** A busca põe
-`oportunidade.id` no contexto quando a conversa está ligada a um cartão (AT-10); quando não
-está, o desenho resolve com um **Se** de `oportunidade.id não está vazio` antes de mover.
+O fluxo que o dono pediu fica assim, montado por ele: **Tempo: de tempos em tempos (5 minutos)
+→ Para cada (oportunidades do funil, só as que `oportunidade.paradaHaMin é maior que 30` e
+`oportunidade.fechada é igual a false`) → Mover de etapa.** Pelo lado da caixa, a mesma coisa
+com `conversa.quemDeve é igual a contato` e `conversa.paradaHaMin é maior que 30`.
 
 ### O que ainda não foi visto por gente
 
