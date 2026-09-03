@@ -78,6 +78,8 @@ Teste de fumaça obrigatório na fase 0: um teste automatizado que prova que o t
 | **Etapa** | `opportunity_stages` | Coluna do funil. Configurável por tenant. |
 | **Conversa** | `conversations` | O fio com uma pessoa num canal de mensagem (§5.17). |
 | **Mensagem** | `messages` | Cada troca dentro de uma conversa. |
+| **Automação** | `automations` | Uma reação desenhada pela equipe: gatilho, condições e ações (§5.18). |
+| **Execução** | `automation_runs` | Uma passagem por uma automação, do gatilho até o fim ou até uma espera. |
 
 > **Oportunidade não é cliente, e a diferença é o CPF.** `customers` exige CPF
 > (`UNIQUE (tenant_id, cpf)`, §4) porque é a identidade que sustenta inscrição, contrato e
@@ -1266,6 +1268,39 @@ foi dado, quem respondeu — não existe em lugar nenhum.
 > (§10.1). O domínio conhece conversa e mensagem; não conhece Evolution nem Meta. É o que
 > permite trocar a Evolution pela API oficial do WhatsApp sem tocar em regra de negócio — e
 > essa troca é previsível, porque número pareado por QR pode ser bloqueado.
+
+---
+
+### 5.18 Automações
+
+Hoje **nada acontece sozinho**. Todo "reagir a" no sistema é um humano numa tela: a fila de
+alocação (§5.7.2), a de aprovação de identidade (§3.2.1), a de moderação (§5.12). A única
+reação automática que existe é o e-mail de inscrição, e ele é uma chamada em linha dentro da
+rota — sem fila, sem repetição, sem agendamento.
+
+Automação é a equipe escrevendo essas reações sem programar: *"entrou no funil → espere três
+dias → se não respondeu, mande esta mensagem"*.
+
+| ID | Requisito |
+|---|---|
+| AU-01 | Automação é um **grafo**: um gatilho, e daí nós de condição, definição de variável, espera, ação e fim. Editor visual em quadro infinito, com blocos arrastáveis e zoom. |
+| AU-02 | **Nasce desligada, sempre.** Ligar é ato explícito de owner ou admin — e é o momento em que ela passa a agir sobre gente de verdade. |
+| AU-03 | A automação **age como a pessoa que a ligou**, e o papel dessa pessoa é relido em `memberships` a cada execução (SEC-17). Quem perdeu acesso não age por procuração: a execução falha com motivo legível. O teto de poder de uma automação é o teto de quem a ligou. |
+| AU-04 | O gatilho **enfileira** e devolve na hora; quem executa é um relógio do servidor. Um só mecanismo para o imediato e para a espera, e o webhook do provedor continua respondendo em milissegundos. |
+| AU-05 | **Ação de automação não dispara automação.** O gatilho nasce na borda HTTP e o motor chama o caso de uso direto — a classe inteira de "automação que se alimenta" não existe. Somam-se um teto de passos por execução e um teto de execuções por hora. |
+| AU-06 | Toda execução deixa **log passo a passo**: qual nó, o que decidiu, o que fez, o que o provedor respondeu. É o que responde "por que essa mensagem foi enviada para esse cliente?". |
+| AU-07 | Grafo inválido é recusado ao salvar: mais de um gatilho, nó órfão, porta inexistente ou **ciclo sem espera** — este último é o que faria o motor girar para sempre. |
+| AU-08 | Toda ação passa pelo caso de uso que já existe, com as guardas de audiência que já existem. Automação não é caminho paralelo para o banco. |
+| AU-09 | Texto de mensagem aceita variáveis do contexto (`{{contato.nome}}`). Variável ausente vira vazio, nunca o marcador cru na cara do cliente. |
+| AU-10 | Automação é **só da equipe**: o cliente não vê, não dispara e não aparece na lista. A tabela nasce sem policy de cliente (como §5.17). |
+| AU-11 | Execução com falha guarda o motivo e não repete sozinha para sempre: há teto de tentativas, e o que estourou fica visível na tela em vez de sumir. |
+
+> **Por que a automação age como uma pessoa, e não como "sistema".** As guardas de audiência
+> (§10.2) recusam ator de sistema em quase toda escrita — é o desenho que impede um webhook de
+> criar inscrição. Criar um ator novo obrigaria a mexer em cada guarda do sistema, que é
+> exatamente o lugar onde um erro vira furo de permissão. Guardar quem ligou a automação e agir
+> como essa pessoa não mexe em guarda nenhuma, nomeia um responsável na trilha de auditoria, e
+> faz a automação perder poder junto com quem a criou.
 
 ---
 

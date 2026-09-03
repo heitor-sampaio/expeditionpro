@@ -100,6 +100,15 @@ const PATHS: Record<string, React.JSX.Element> = {
       <path d="M8.5 8.5h7M8.5 12h4" />
     </>
   ),
+  // Dois blocos ligados por uma seta: um fluxo visto de longe.
+  automacoes: (
+    <>
+      <rect x="3" y="3.5" width="8" height="6" rx="1.6" />
+      <rect x="13" y="14.5" width="8" height="6" rx="1.6" />
+      <path d="M7 9.5v5a2 2 0 0 0 2 2h4" />
+      <path d="m11.4 15-1.6 1.5 1.6 1.5" />
+    </>
+  ),
   documentos: (
     <>
       <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />

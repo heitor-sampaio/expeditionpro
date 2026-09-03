@@ -14,6 +14,7 @@ import type {
   OpportunityRepository,
   ChannelIntegrationRepository,
   ConversationRepository,
+  AutomationRepository,
   MediaStore,
   MessagingGateway,
   AuthAdminGateway,
@@ -62,6 +63,7 @@ import { registerCommunityRoutes } from './routes/community.js';
 import { registerCouponRoutes } from './routes/coupons.js';
 import { registerCrmRoutes } from './routes/crm.js';
 import { registerInboxRoutes } from './routes/inbox.js';
+import { registerAutomationRoutes } from './routes/automations.js';
 import { redactUrl } from './log/redactUrl.js';
 import { registerCompanyRoutes, registerCrewRoutes } from './routes/company.js';
 
@@ -102,6 +104,8 @@ export interface ServerDeps {
   readonly messagingGateway: MessagingGateway;
   /** §5.17: o bucket privado onde a mídia recebida fica (AT-13). */
   readonly conversationMedia: MediaStore;
+  /** §5.18: as automações desenhadas pela equipe. */
+  readonly automations: AutomationRepository;
   /** §5.13: Termo de adesão (versionamento + aceite). */
   readonly documents: LegalDocumentRepository;
   /** §5.9 · DOC-06: consentimento de comunicação por canal (marketing). */
@@ -253,6 +257,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       registerCouponRoutes(instance, deps);
       registerCrmRoutes(instance, deps);
       registerInboxRoutes(instance, deps);
+      registerAutomationRoutes(instance, deps);
       registerCompanyRoutes(instance, deps);
       registerCrewRoutes(instance, deps);
       registerTeamRoutes(instance, deps);

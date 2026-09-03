@@ -77,6 +77,7 @@ model Tenant {
   channelIntegrations    ChannelIntegration[]
   conversations          Conversation[]
   messages               Message[]
+  automations            Automation[]
 
   @@map("tenants")
 }
@@ -1163,4 +1164,34 @@ model Message {
   @@unique([tenantId, externalId])
   @@index([tenantId, conversationId, sentAt])
   @@map("messages")
+}
+
+// §5.18 — a automação: o desenho e o estado.
+//
+// O grafo inteiro vive em `graph` (nós, ligações e posição no quadro). O domínio valida antes
+// de gravar; o banco guarda o desenho como ele é. `triggerType` sai do grafo para coluna
+// própria porque é por ela que o gatilho procura, a cada evento, quem tem interesse.
+model Automation {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  name         String
+  description  String?
+  triggerType  String    @map("trigger_type")
+  graph        Json      @default("{\"nodes\":[],\"edges\":[]}")
+  // AU-02: nasce desligada, sempre.
+  enabled      Boolean   @default(false)
+  // AU-03: age como esta pessoa, e o papel dela é relido a cada execução.
+  runAsUserId  String?   @map("run_as_user_id") @db.Uuid
+  createdBy    String?   @map("created_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
+  // Automação que já rodou deixou rastro em conversa e em ficha: apagar de verdade tiraria o
+  // "por quê" de coisas que aconteceram.
+  deletedAt    DateTime? @map("deleted_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, triggerType])
+  @@map("automations")
 }

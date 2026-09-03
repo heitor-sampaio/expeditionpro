@@ -14,6 +14,7 @@ import { RelatoriosScreen } from './reports/RelatoriosScreen.js';
 import { DashboardScreen } from './reports/DashboardScreen.js';
 import { CrmScreen } from './crm/CrmScreen.js';
 import { InboxScreen } from './inbox/InboxScreen.js';
+import { AutomacoesScreen } from './automations/AutomacoesScreen.js';
 import { PortalApp } from './portal/PortalApp.js';
 import { LoginScreen } from './auth/LoginScreen.js';
 import { useAuth } from './auth/useAuth.js';
@@ -38,6 +39,7 @@ type View =
   | 'fila'
   | 'funil'
   | 'conversas'
+  | 'automacoes'
   | 'clientes'
   | 'fornecedores'
   | 'roteiros'
@@ -73,6 +75,7 @@ const NAV: readonly NavSection[] = [
     items: [
       { id: 'funil', label: 'Funil' },
       { id: 'conversas', label: 'Conversas' },
+      { id: 'automacoes', label: 'Automações' },
     ],
   },
   {
@@ -94,6 +97,7 @@ const TITLES: Record<View, string> = {
   fila: 'Inscrições',
   funil: 'Funil',
   conversas: 'Conversas',
+  automacoes: 'Automações',
   clientes: 'Clientes',
   fornecedores: 'Fornecedores',
   roteiros: 'Roteiros',
@@ -380,6 +384,8 @@ function Shell({
               <CrmScreen />
             ) : view === 'conversas' ? (
               <InboxScreen />
+            ) : view === 'automacoes' ? (
+              <AutomacoesScreen />
             ) : view === 'fornecedores' ? (
               <FornecedoresScreen onOpenFile={openSupplierFile} />
             ) : view === 'roteiros' ? (

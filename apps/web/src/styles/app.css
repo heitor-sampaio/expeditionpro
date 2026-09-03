@@ -4971,3 +4971,189 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+
+/* =====================================================================================
+ * §5.18 — automações: a lista e o editor de fluxo.
+ *
+ * O quadro é a única parte do sistema que traz CSS de biblioteca (`@xyflow/react`). Em vez
+ * de aceitar a aparência dela, as variáveis dela são reapontadas para os tokens do sistema
+ * logo abaixo: o quadro tem que parecer o resto do app nos dois modos e nas duas densidades.
+ * ===================================================================================== */
+
+.tbl-auto {
+  min-width: 720px;
+}
+.tbl-auto .tbl-row {
+  grid-template-columns: minmax(220px, 2fr) minmax(150px, 1fr) 80px 80px 96px;
+}
+.auto-name {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.auto-name:hover .cell-name {
+  color: var(--o);
+}
+
+/* editor ------------------------------------------------------------------------------ */
+.auto-editor {
+  grid-template-columns: 240px minmax(0, 1fr) 300px;
+}
+.auto-lib {
+  padding: 14px 12px;
+  gap: 6px;
+}
+.auto-lib-head {
+  padding: 0 6px 6px;
+}
+.auto-lib-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--card);
+  cursor: grab;
+  min-height: var(--tap);
+}
+.auto-lib-item:hover:not(:disabled) {
+  border-color: var(--line-2);
+  background: var(--card-2);
+}
+.auto-lib-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.auto-lib-item .cell-sub {
+  white-space: normal;
+}
+.auto-lib-foot {
+  padding: 10px 6px 0;
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+}
+.auto-canvas {
+  overflow: hidden;
+  position: relative;
+}
+
+/*
+ * O quadro herda os tokens em vez de trazer paleta própria — é assim que trocar de modo
+ * ou de tenant continua sendo trocar só as variáveis.
+ */
+.auto-canvas .react-flow {
+  --xy-background-color: var(--card);
+  --xy-edge-stroke: var(--line-2);
+  --xy-edge-stroke-selected: var(--o);
+  --xy-connectionline-stroke: var(--o);
+  --xy-handle-background-color: var(--card);
+  --xy-handle-border-color: var(--line-2);
+  --xy-controls-button-background-color: var(--card);
+  --xy-controls-button-background-color-hover: var(--card-2);
+  --xy-controls-button-color: var(--ink-2);
+  --xy-controls-button-color-hover: var(--ink);
+  --xy-controls-button-border-color: var(--line);
+  --xy-minimap-background-color: var(--card-2);
+  --xy-minimap-mask-background-color: var(--bg);
+  --xy-selection-background-color: var(--o-soft);
+  --xy-selection-border: 1px solid var(--o);
+  height: 100%;
+}
+.auto-canvas .react-flow__background-pattern {
+  color: var(--relief);
+}
+.auto-canvas .react-flow__controls {
+  box-shadow: none;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+.auto-canvas .react-flow__minimap {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+}
+.auto-canvas .react-flow__minimap-node {
+  fill: var(--relief);
+}
+.auto-canvas .react-flow__attribution {
+  background: transparent;
+  font-size: 10px;
+}
+.auto-canvas .react-flow__attribution a {
+  color: var(--ink-3);
+}
+
+/* bloco ------------------------------------------------------------------------------- */
+.auto-node {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 190px;
+  padding: 11px 13px;
+  background: var(--card);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-card);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+}
+/* Seleção é estado de interface, e é o único lugar onde o accent entra no quadro. */
+.auto-node.is-selected {
+  border-color: var(--o);
+  background: var(--o-soft);
+}
+/* O gatilho é o começo: borda cheia para achá-lo num quadro grande sem procurar. */
+.auto-node-trigger {
+  border-width: 2px;
+}
+.auto-node-end {
+  width: 130px;
+}
+.auto-node-kind {
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.auto-node-label {
+  font-family: var(--f-sans);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+.auto-node-sub {
+  font-family: var(--f-mono);
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+.auto-node-port {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.auto-canvas .react-flow__handle {
+  width: 9px;
+  height: 9px;
+  border-width: 1.5px;
+}
+.auto-canvas .react-flow__handle-connecting {
+  background: var(--o);
+}

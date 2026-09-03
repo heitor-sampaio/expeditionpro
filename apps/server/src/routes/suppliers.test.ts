@@ -21,6 +21,7 @@ import {
   inMemoryMediaStore,
   inMemoryMessagingGateway,
 } from '../dev/inMemoryMessaging.js';
+import { inMemoryAutomations } from '../dev/inMemoryAutomations.js';
 import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
 import { inMemoryLegalDocuments } from '../dev/inMemoryLegalDocuments.js';
 import { inMemoryConsents } from '../dev/inMemoryConsents.js';
@@ -86,6 +87,7 @@ describe('FO-01/GR-08/09/10: rotas de fornecedor e margem', () => {
         conversations: inMemoryConversations(),
         messagingGateway: inMemoryMessagingGateway(),
         conversationMedia: inMemoryMediaStore(),
+        automations: inMemoryAutomations(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),

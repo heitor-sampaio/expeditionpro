@@ -23,6 +23,7 @@ import {
   inMemoryMediaStore,
   inMemoryMessagingGateway,
 } from '../dev/inMemoryMessaging.js';
+import { inMemoryAutomations } from '../dev/inMemoryAutomations.js';
 import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
 import { inMemoryLegalDocuments } from '../dev/inMemoryLegalDocuments.js';
 import { inMemoryConsents } from '../dev/inMemoryConsents.js';
@@ -80,6 +81,7 @@ async function serverWith(customers: CustomerRepository): Promise<FastifyInstanc
       conversations: inMemoryConversations(),
       messagingGateway: inMemoryMessagingGateway(),
       conversationMedia: inMemoryMediaStore(),
+      automations: inMemoryAutomations(),
       documents: inMemoryLegalDocuments(),
       consents: inMemoryConsents(),
       community: inMemoryCommunity(),
@@ -621,6 +623,7 @@ describe('PC-01/PC-02: POST /v1/customers/:id/portal-invite', () => {
         conversations: inMemoryConversations(),
         messagingGateway: inMemoryMessagingGateway(),
         conversationMedia: inMemoryMediaStore(),
+        automations: inMemoryAutomations(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),

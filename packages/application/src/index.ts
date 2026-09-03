@@ -968,3 +968,26 @@ export {
   type AttachConversationDeps,
   type AttachConversationCommand,
 } from './messaging/attachConversationToOpportunity.js';
+
+// §5.18 — automações
+export type {
+  AutomationRecord,
+  AutomationRepository,
+  AutomationPatch,
+  NewAutomation,
+  TriggerType,
+} from './automation/automationRepository.js';
+export type { AutomationDeps } from './automation/automationDeps.js';
+export { createAutomation, type CreateAutomationCommand } from './automation/createAutomation.js';
+export { renameAutomation, type RenameAutomationCommand } from './automation/renameAutomation.js';
+export {
+  saveAutomationGraph,
+  type SaveAutomationGraphCommand,
+} from './automation/saveAutomationGraph.js';
+export {
+  setAutomationEnabled,
+  type SetAutomationEnabledCommand,
+} from './automation/setAutomationEnabled.js';
+export { listAutomations } from './automation/listAutomations.js';
+export { getAutomation, type AutomationRef } from './automation/getAutomation.js';
+export { deleteAutomation } from './automation/deleteAutomation.js';

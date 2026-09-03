@@ -23,6 +23,7 @@ import {
   resendNotificationGateway,
   supabaseAuthAdmin,
   prismaMembershipRepository,
+  prismaAutomationRepository,
   prismaChannelIntegrationRepository,
   prismaConversationRepository,
   supabaseMediaStore,
@@ -57,6 +58,7 @@ import { inMemoryCoupons } from './dev/inMemoryCoupons.js';
 import { inMemoryIdentityChange } from './dev/inMemoryIdentityChange.js';
 import { inMemoryAudit } from './dev/inMemoryAudit.js';
 import { inMemoryMemberships } from './dev/inMemoryMemberships.js';
+import { inMemoryAutomations } from './dev/inMemoryAutomations.js';
 import {
   inMemoryChannelIntegrations,
   inMemoryConversations,
@@ -174,6 +176,7 @@ function buildDeps(): ServerDeps {
       conversations: inMemoryConversations(),
       messagingGateway: inMemoryMessagingGateway(),
       conversationMedia: inMemoryMediaStore(),
+      automations: inMemoryAutomations(),
       vehicles: inMemoryVehicles(),
       itineraries: inMemoryItineraries(),
       schedule: inMemorySchedule(),
@@ -320,6 +323,7 @@ function messagingDeps(base: ReturnType<typeof createPrismaClient>) {
     conversations: prismaConversationRepository(base),
     messagingGateway: evolutionGateway(),
     conversationMedia: buildConversationMedia(),
+    automations: prismaAutomationRepository(base),
   };
 }
 

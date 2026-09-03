@@ -36,6 +36,19 @@ export { normalizePersonName } from './person/name.js';
 // Telefone (E.164, §3.2)
 export { parsePhone, isValidPhone, formatPhone, InvalidPhoneError } from './contact/phone.js';
 export { phoneVariants } from './contact/phoneVariants.js';
+
+// §5.18 — automações
+export {
+  validateGraph,
+  nextNode,
+  type AutomationGraph,
+  type AutomationNode,
+  type AutomationEdge,
+  type NodeKind,
+  type Port,
+  type GraphProblem,
+} from './automation/graph.js';
+export { renderTemplate } from './automation/renderTemplate.js';
 export {
   parsePixKey,
   isValidPixKey,

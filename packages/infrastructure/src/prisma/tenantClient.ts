@@ -73,6 +73,8 @@ export const SCOPED_BY_TENANT_ID = new Set([
   'ChannelIntegration',
   'Conversation',
   'Message',
+  // §5.18 — automações.
+  'Automation',
 ]);
 export const SCOPED_BY_ID = new Set(['Tenant']);
 

@@ -66,3 +66,4 @@ export {
 } from './messaging/prismaMessagingRepositories.js';
 export { evolutionGateway } from './messaging/evolutionGateway.js';
 export { supabaseMediaStore } from './messaging/supabaseMediaStore.js';
+export { prismaAutomationRepository } from './automation/prismaAutomationRepository.js';
