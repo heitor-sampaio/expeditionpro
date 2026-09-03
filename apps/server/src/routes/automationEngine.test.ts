@@ -431,3 +431,93 @@ describe('AU-04: conversa nova dispara no primeiro contato', () => {
     await app.close();
   });
 });
+
+/**
+ * AU-17 — os gatilhos novos, cobrados na borda.
+ *
+ * O que nenhum teste de unidade alcança é justamente isto: que o gatilho esteja **ligado na
+ * rota certa**. Um motor perfeito com o disparo faltando numa borda é uma automação que a
+ * equipe liga e que nunca roda — e nada acusa, porque não há erro.
+ */
+describe('AU-17: mensagem enviada dispara na caixa, e o eco não', () => {
+  async function ligarComGatilho(
+    app: Awaited<ReturnType<typeof comMotor>>['app'],
+    type: string,
+    nome: string,
+  ) {
+    const criada = (
+      await app.inject({ method: 'POST', url: '/v1/automations', payload: { name: nome } })
+    ).json() as { id: string };
+    await app.inject({
+      method: 'PUT',
+      url: `/v1/automations/${criada.id}/graph`,
+      payload: {
+        graph: {
+          nodes: [
+            { id: 'g1', kind: 'trigger', type, config: {}, position: { x: 0, y: 0 } },
+            { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 90 } },
+          ],
+          edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'f1' }],
+        },
+      },
+    });
+    await app.inject({
+      method: 'PUT',
+      url: `/v1/automations/${criada.id}/enabled`,
+      payload: { enabled: true },
+    });
+    return criada;
+  }
+
+  it('responder pela caixa abre execução', async () => {
+    const { app, runs } = await comMotor();
+    const criada = await ligarComGatilho(app, 'message_sent', 'Marcar quem respondeu');
+    // A conversa precisa existir: quem responde, responde a alguém.
+    await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev',
+      headers: { 'x-webhook-token': 'SEGREDO' },
+      payload: corpoDaEvolution('oi', 'MSG-1'),
+    });
+    const lista = (await app.inject({ method: 'GET', url: '/v1/inbox/conversations' })).json() as {
+      id: string;
+    }[];
+
+    const enviada = await app.inject({
+      method: 'POST',
+      url: `/v1/inbox/conversations/${lista[0]!.id}/messages`,
+      payload: { body: 'o valor sai por 2.400' },
+    });
+
+    expect(enviada.statusCode).toBe(201);
+    expect(await runs.automationRuns.listByAutomation(TENANT, criada.id, 10)).toHaveLength(1);
+    await app.close();
+  });
+
+  /**
+   * AU-05 — a proteção que faz o laço não existir, agora com um gatilho que a testa de frente:
+   * o eco do provedor traz a mensagem que saiu, e ele **não** pode disparar "mensagem enviada".
+   * Se disparasse, a resposta de uma automação alimentaria a próxima.
+   */
+  it('o eco do provedor não dispara mensagem enviada', async () => {
+    const { app, runs } = await comMotor();
+    const criada = await ligarComGatilho(app, 'message_sent', 'Marcar quem respondeu');
+
+    await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev',
+      headers: { 'x-webhook-token': 'SEGREDO' },
+      payload: {
+        event: 'messages.upsert',
+        data: {
+          key: { remoteJid: '5548999998877@s.whatsapp.net', fromMe: true, id: 'OUT-9' },
+          message: { conversation: 'resposta que saiu do celular' },
+          messageTimestamp: 1788000100,
+        },
+      },
+    });
+
+    expect(await runs.automationRuns.listByAutomation(TENANT, criada.id, 10)).toHaveLength(0);
+    await app.close();
+  });
+});

@@ -331,10 +331,49 @@ describe('AU-14: o tipo do gatilho', () => {
   it('todos os gatilhos do catálogo passam', () => {
     for (const tipo of TRIGGER_TYPES) {
       const graph: AutomationGraph = {
-        nodes: [{ ...gatilho, type: tipo }, fim],
+        nodes: [
+          // AU-17: o de tempo em tempo é o único que exige configuração para ser válido.
+          { ...gatilho, type: tipo, config: { amount: 1, unit: 'hours' } },
+          fim,
+        ],
         edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'f1' }],
       };
-      expect(validateGraph(graph)).toEqual([]);
+      expect(validateGraph(graph), `gatilho ${tipo}`).toEqual([]);
     }
+  });
+});
+
+/**
+ * AU-17 — o intervalo do gatilho de tempo tem o mesmo piso da espera, e pela mesma razão.
+ *
+ * A varredura de rede passa de sessenta em sessenta segundos. "A cada trinta segundos" não
+ * seria respeitado: a automação faria coisa diferente do que a tela mostra, e recusar é mais
+ * honesto que arredondar em silêncio.
+ */
+describe('AU-17: intervalo do gatilho de tempo', () => {
+  const cada = (config: Record<string, unknown>): AutomationGraph => ({
+    nodes: [{ ...gatilho, type: 'recurring', config }, fim],
+    edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'f1' }],
+  });
+
+  it('meio minuto é recusado', () => {
+    expect(validateGraph(cada({ amount: 0.5, unit: 'minutes' }))).toContain('intervalo_curto');
+  });
+
+  it('sem intervalo nenhum é recusado — não é "de tempos em tempos", é engano', () => {
+    expect(validateGraph(cada({}))).toContain('intervalo_curto');
+  });
+
+  it('um minuto passa: é o piso, não o proibido', () => {
+    expect(validateGraph(cada({ amount: 1, unit: 'minutes' }))).toEqual([]);
+  });
+
+  it('seis horas passa', () => {
+    expect(validateGraph(cada({ amount: 6, unit: 'hours' }))).toEqual([]);
+  });
+
+  /** O piso é do gatilho de tempo: os outros não têm intervalo para conferir. */
+  it('gatilho de outro tipo sem intervalo passa', () => {
+    expect(validateGraph(cada({}).nodes[0]?.type === 'recurring' ? simples : simples)).toEqual([]);
   });
 });

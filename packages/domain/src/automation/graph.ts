@@ -12,6 +12,7 @@
 
 import { ESPERA_MINIMA_MIN, minutosDaEspera as emMinutos, switchCases } from './interpreter.js';
 import { TRIGGER_TYPES, type TriggerType } from './triggers.js';
+import { INTERVALO_MINIMO_MIN, intervaloEmMinutos } from './recurring.js';
 
 export type NodeKind =
   | 'trigger'
@@ -68,6 +69,7 @@ export type GraphProblem =
   | 'gatilho_sem_caminho'
   | 'gatilho_desconhecido'
   | 'espera_curta'
+  | 'intervalo_curto'
   | 'escolha_sem_valores'
   | 'escolha_incompleta'
   | 'ciclo_sem_espera';
@@ -102,6 +104,11 @@ export function validateGraph(graph: AutomationGraph): GraphProblem[] {
   // Um tipo inventado é uma automação que nunca dispara, e ninguém descobre por quê.
   for (const no of gatilhos) {
     if (!TRIGGER_TYPES.includes(no.type as TriggerType)) problemas.add('gatilho_desconhecido');
+    // AU-17: o piso do gatilho de tempo é o mesmo da espera — a varredura de rede é de um
+    // minuto, e abaixo disso a automação faria coisa diferente do que a tela mostra.
+    if (no.type === 'recurring' && intervaloEmMinutos(no.config) < INTERVALO_MINIMO_MIN) {
+      problemas.add('intervalo_curto');
+    }
   }
 
   const usadas = new Set<string>();

@@ -5087,6 +5087,14 @@
   padding-top: 10px;
   border-top: 1px solid var(--line);
 }
+/*
+ * O campo do design system cresce (`flex: 1 1 220px`) porque nasceu em formulário de duas
+ * colunas. Aqui a coluna é uma só, e crescer viraria um vão de cem pixels entre um campo e o
+ * seguinte: dentro do bloco, cada campo ocupa a altura que tem.
+ */
+.auto-node-form > * {
+  flex: 0 0 auto;
+}
 .auto-node-block {
   display: flex;
   flex-direction: column;

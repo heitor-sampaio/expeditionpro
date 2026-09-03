@@ -141,7 +141,7 @@ página. Página e conta profissional já estão vinculadas.
 ## Automações (§5.18) — no ar, com o quadro mandando
 
 Escopo pedido em 2026-09-02: entrada **Automações** na seção CRM, com CRUD e um editor de
-blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-16`.
+blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-17`.
 
 ### Fatia 1 — desenhar, validar e guardar ✅
 
@@ -288,11 +288,50 @@ sobrepondo, ilegíveis. Agora:
 - Bloco novo entra **abaixo do último**, na coluna dele, já aberto: caindo no meio da tela, a
   primeira tarefa de quem acrescentou era desempilhar o que acabou de pôr.
 
+### Fatia 6 — três gatilhos novos, e o primeiro que rodou de verdade ✅
+
+**Mensagem enviada** (AU-17) dispara quando a equipe responde pela caixa — e **só** ali. O eco
+do provedor, que traz a mesma mensagem de volta pelo webhook, não dispara: se disparasse, a
+resposta de uma automação alimentaria a próxima, e a classe que AU-05 eliminou voltaria por uma
+porta lateral. Tem teste de rota nos dois lados.
+
+**Inscrição cancelada** leva o motivo no contexto: "cancelou por desistência" e "cancelou por
+chuva" pedem reações diferentes.
+
+**De tempo em tempo** é o gatilho que não pende de entidade nenhuma — a cada N minutos, horas
+ou dias. E é onde mora a decisão que vale relembrar: **a fatia de tempo substitui o estado.**
+Guardar "quando disparou pela última vez" seria escrever no desenho a cada passada, e some num
+restauro de banco. Em vez disso, o tempo é dividido em fatias do tamanho do intervalo, e a
+fatia vira a chave de idempotência — a mesma unique que já protegia o gatilho por saída. Duas
+varreduras na mesma fatia calculam a mesma chave e só a primeira passa. O preço é que "a cada
+seis horas" conta pelo relógio (00:00, 06:00, 12:00, 18:00), não a partir de quando alguém
+ligou; é previsível, que é o que importa em algo que roda sem ninguém olhando.
+
+Piso de um minuto, o mesmo da espera e pela mesma razão: a varredura de rede é de sessenta
+segundos, e abaixo disso a automação faria coisa diferente do que a tela mostra. **Segundos não
+entram** — para respeitá-los, a varredura teria que acordar a cada segundo, e o desenho inteiro
+é o oposto disso.
+
+Os dois gatilhos de tempo passaram a dividir **um** achado sem escopo de tenant
+(`listTimeTriggersAcrossTenants`), em vez de ganhar um segundo: continuam sendo dois os
+caminhos crus do sistema inteiro, e não três.
+
+> **O motivo da recusa não chegava à tela.** `saveAutomationGraph` monta a frase desde a fatia
+> 1 ("o gatilho não leva a lugar nenhum; há bloco que nenhum caminho alcança") e o hook sabe
+> mostrá-la — mas o tratador de erro global mandava só o código, e quem desenhava lia "o desenho
+> não fecha" sem pista de qual das dez regras quebrou. Agora a mensagem sobe por **lista
+> explícita** de códigos (`invalid_graph`, `money_action_confirmation`), pela mesma regra do DTO
+> por audiência: mensagem de erro qualquer pode carregar nome de campo ou de regra interna.
+
 ### O que ainda não foi visto por gente
 
-O motor nunca rodou em produção: a automação de exemplo ("mensagem contendo preço → responder")
-está provada ponta a ponta em teste de rota, com o webhook real da Evolution simulado. Falta
-ligar uma de verdade e mandar uma mensagem do celular.
+**O motor rodou.** Em 2026-09-03, no ambiente de desenvolvimento contra o banco de verdade, uma
+automação de "a cada um minuto" abriu duas execuções em dois minutos — uma por fatia, nenhuma
+repetida. É a primeira vez que o motor age fora de teste.
+
+Falta o que depende de gente: ligar uma automação que **fala com cliente** e mandar uma mensagem
+do celular. A de exemplo ("mensagem contendo preço → responder") continua provada só em teste de
+rota, com o webhook da Evolution simulado.
 
 **Os gatilhos de inscrição carregam pouco.** `booking_created`, `booking_confirmed` e
 `payment_registered` põem no contexto só `inscricao.id` — o seletor mostra isso com honestidade,

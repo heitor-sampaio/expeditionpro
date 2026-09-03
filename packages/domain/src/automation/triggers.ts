@@ -12,24 +12,32 @@
 
 export type TriggerType =
   | 'message_received'
+  /** AU-17: o que a equipe manda pela caixa. O eco do provedor **não** conta (AU-05). */
+  | 'message_sent'
   | 'conversation_created'
   | 'opportunity_created'
   | 'opportunity_moved'
   | 'booking_created'
   | 'booking_confirmed'
+  | 'booking_cancelled'
   | 'payment_registered'
   /** AU-12: em relação à data de início de uma saída. É varrido, não agendado. */
-  | 'scheduled';
+  | 'scheduled'
+  /** AU-17: de tempos em tempos, sem entidade por trás. Varrido por fatia de tempo. */
+  | 'recurring';
 
 export const TRIGGER_TYPES = [
   'message_received',
+  'message_sent',
   'conversation_created',
   'opportunity_created',
   'opportunity_moved',
   'booking_created',
   'booking_confirmed',
+  'booking_cancelled',
   'payment_registered',
   'scheduled',
+  'recurring',
 ] as const satisfies readonly TriggerType[];
 
 /** Um campo do contexto, como o seletor o mostra: o caminho que vale, e o nome que se lê. */
@@ -61,15 +69,23 @@ const INSCRICAO: readonly ContextField[] = [{ path: 'inscricao.id', label: 'Id d
 
 export const CAMPOS_DO_GATILHO: Record<TriggerType, readonly ContextField[]> = {
   message_received: CONVERSA,
+  message_sent: CONVERSA,
   conversation_created: CONVERSA,
   opportunity_created: OPORTUNIDADE,
   opportunity_moved: OPORTUNIDADE,
   booking_created: INSCRICAO,
   booking_confirmed: INSCRICAO,
+  booking_cancelled: [...INSCRICAO, { path: 'inscricao.motivo', label: 'Motivo do cancelamento' }],
   payment_registered: INSCRICAO,
   scheduled: [
     { path: 'saida.nome', label: 'Nome do grupo' },
     { path: 'saida.inicio', label: 'Data de início (aaaa-mm-dd)' },
+  ],
+  // AU-17: o gatilho de tempo não pende de entidade nenhuma, então não promete contato nem
+  // inscrição. Prometer o que não vem seria pior que não prometer nada.
+  recurring: [
+    { path: 'agora.data', label: 'Data de hoje (aaaa-mm-dd)' },
+    { path: 'agora.hora', label: 'Hora agora (hh:mm)' },
   ],
 };
 

@@ -226,3 +226,47 @@ describe('AU-02: ligar e desligar', () => {
     await app.close();
   });
 });
+
+/**
+ * AU-07 — o motivo da recusa precisa **chegar à tela**.
+ *
+ * O caso de uso monta a frase ("o gatilho não leva a lugar nenhum; há bloco que nenhum caminho
+ * alcança") e a tela sabe mostrá-la, mas o tratador de erro global mandava só o código: quem
+ * estava desenhando via "o desenho não fecha" e nenhuma pista de qual das dez regras quebrou.
+ *
+ * A mensagem sobe por **lista explícita**, e não para todo erro de negócio: é a mesma regra de
+ * DTO por audiência (§11.7). Estes códigos carregam texto escrito para quem lê a tela.
+ */
+describe('AU-07: o motivo da recusa sobe até a tela', () => {
+  it('grafo inválido responde com a lista do que está errado', async () => {
+    const { app } = await servidor();
+    const criada = await criar(app);
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/v1/automations/${criada.id}/graph`,
+      payload: { graph: { nodes: [GRAFO.nodes[0]], edges: [] } },
+    });
+
+    expect(res.json()).toMatchObject({
+      error: 'invalid_graph',
+      message: expect.stringContaining('gatilho não leva a lugar nenhum'),
+    });
+    await app.close();
+  });
+
+  /** Erro de negócio fora da lista continua só com o código: a tela é que traduz. */
+  it('nome repetido não vaza mensagem', async () => {
+    const { app } = await servidor();
+    await criar(app, 'Follow-up');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/automations',
+      payload: { name: 'Follow-up' },
+    });
+
+    expect(res.json()).toEqual({ error: 'duplicate_automation' });
+    await app.close();
+  });
+});

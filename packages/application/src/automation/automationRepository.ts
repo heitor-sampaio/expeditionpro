@@ -1,5 +1,15 @@
 import type { AutomationGraph, TriggerType } from '@expedition/domain';
-import type { ScheduledAutomationRef } from './scanScheduledTriggers.js';
+
+/**
+ * AU-12 · AU-17 — o achado sem escopo de tenant, reduzido ao mínimo: onde procurar e o que o
+ * gatilho pede. Quem lê a agenda, ou monta o contexto, volta ao client escopado.
+ */
+export interface TimeTriggerRef {
+  readonly tenantId: string;
+  readonly automationId: string;
+  readonly triggerType: TriggerType;
+  readonly triggerConfig: Record<string, unknown>;
+}
 
 /**
  * §5.18 — a automação guardada.
@@ -56,10 +66,16 @@ export interface AutomationRepository {
   softDelete(tenantId: string, id: string): Promise<void>;
 
   /**
-   * AU-12 — o segundo e último caminho **sem escopo de tenant** do sistema: quais automações
-   * temporais estão ligadas, em qualquer tenant. O motor roda fora de requisição e precisa
-   * saber onde procurar; devolve id, tenant e o deslocamento em dias, e nada mais. Ler a
-   * agenda de cada um continua sendo pelo client escopado.
+   * AU-12 · AU-17 — o segundo e último caminho **sem escopo de tenant** do sistema: quais
+   * automações de gatilho temporal estão ligadas, em qualquer tenant.
+   *
+   * O motor roda fora de requisição e precisa saber onde procurar. Devolve id, tenant, o tipo
+   * do gatilho e a configuração dele — e nada mais. Ler a agenda de cada tenant continua
+   * sendo pelo client escopado, com o tenant da própria linha.
+   *
+   * Os dois gatilhos de tempo passam por aqui, e é de propósito: um achado só mantém em
+   * **dois** o número de caminhos sem escopo no sistema inteiro. Um terceiro seria mais uma
+   * porta para vigiar.
    */
-  listScheduledAcrossTenants(): Promise<readonly ScheduledAutomationRef[]>;
+  listTimeTriggersAcrossTenants(): Promise<readonly TimeTriggerRef[]>;
 }

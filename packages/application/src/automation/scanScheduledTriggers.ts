@@ -3,17 +3,6 @@ import { enqueueAutomationRun } from './enqueueAutomationRun.js';
 import type { AutomationRunnerDeps } from './runnerDeps.js';
 import type { ScheduleEventWithGroup } from '../schedule/scheduleRepository.js';
 
-/**
- * O segundo — e último — caminho sem escopo de tenant do sistema: quais automações temporais
- * estão ligadas, em qualquer tenant. Devolve id, tenant e o deslocamento em dias, e nada mais.
- */
-export interface ScheduledAutomationRef {
-  readonly tenantId: string;
-  readonly automationId: string;
-  /** Negativo é antes da saída; positivo é depois. */
-  readonly offsetDays: number;
-}
-
 export interface ScanScheduledTriggersDeps extends AutomationRunnerDeps {
   readonly schedule: { listEvents(tenantId: string): Promise<ScheduleEventWithGroup[]> };
 }
@@ -39,7 +28,9 @@ export async function scanScheduledTriggers(
   deps: ScanScheduledTriggersDeps,
   command: ScanScheduledTriggersCommand,
 ): Promise<number> {
-  const temporais = await deps.automations.listScheduledAcrossTenants();
+  // AU-12 · AU-17: o achado devolve os dois gatilhos de tempo; aqui só o da saída interessa.
+  const todas = await deps.automations.listTimeTriggersAcrossTenants();
+  const temporais = todas.filter((alvo) => alvo.triggerType === 'scheduled');
   if (temporais.length === 0) return 0;
 
   // Uma leitura de agenda por tenant, e não uma por automação: dois lembretes no mesmo tenant
@@ -58,7 +49,7 @@ export async function scanScheduledTriggers(
     }
 
     // "Três dias antes da saída" visto de hoje: a saída que procuramos começa hoje + 3.
-    const alvoDaData = addDays(command.today, -alvo.offsetDays);
+    const alvoDaData = addDays(command.today, -offsetDe(alvo.triggerConfig));
 
     for (const { event, group } of agenda) {
       if (compareLocalDate(event.startDate, alvoDaData) !== 0) continue;
@@ -70,7 +61,7 @@ export async function scanScheduledTriggers(
         variables: { saida: { nome: group.name, inicio: isoDe(event.startDate) } },
         // A chave que impede o segundo disparo. O deslocamento entra nela porque duas
         // automações podem olhar a mesma saída em dias diferentes.
-        idempotencyKey: `${event.id}:${String(alvo.offsetDays)}`,
+        idempotencyKey: `${event.id}:${String(offsetDe(alvo.triggerConfig))}`,
         now: command.now,
       });
       abertas += criadas.length;
@@ -78,6 +69,15 @@ export async function scanScheduledTriggers(
   }
 
   return abertas;
+}
+
+/**
+ * Quantos dias antes (negativo) ou depois (positivo) da saída. Configuração torta vira zero —
+ * o dia da própria saída, que é o palpite menos surpreendente.
+ */
+function offsetDe(triggerConfig: Record<string, unknown>): number {
+  const bruto = Number(triggerConfig['offsetDays']);
+  return Number.isFinite(bruto) ? Math.trunc(bruto) : 0;
 }
 
 function isoDe(data: LocalDate): string {

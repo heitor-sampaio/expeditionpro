@@ -54,14 +54,20 @@ export function fakeAutomationRepository(): AutomationRepository & { rows: Row[]
       return Promise.resolve(rows[i]!);
     },
 
-    listScheduledAcrossTenants: () =>
+    listTimeTriggersAcrossTenants: () =>
       Promise.resolve(
         rows
-          .filter((r) => r.deletedAt === null && r.enabled && r.triggerType === 'scheduled')
+          .filter(
+            (r) =>
+              r.deletedAt === null &&
+              r.enabled &&
+              (r.triggerType === 'scheduled' || r.triggerType === 'recurring'),
+          )
           .map((r) => ({
             tenantId: r.tenantId,
             automationId: r.id,
-            offsetDays: Number(r.triggerConfig['offsetDays'] ?? 0),
+            triggerType: r.triggerType!,
+            triggerConfig: r.triggerConfig,
           })),
       ),
 

@@ -305,6 +305,36 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
           },
         );
 
+        /*
+         * AU-17 — "mensagem enviada" dispara **aqui**, e só aqui.
+         *
+         * Esta é a rota por onde uma pessoa da equipe responde. O eco do provedor, que traz a
+         * mesma mensagem de volta pelo webhook, não dispara nada (AU-05): se disparasse, a
+         * resposta de uma automação alimentaria a próxima, e a classe de "automação que se
+         * alimenta" voltaria a existir por uma porta lateral.
+         */
+        const conversa = await deps.conversations.findConversationById(
+          ctx.tenantId,
+          request.params.conversationId,
+        );
+        if (conversa) {
+          fireAutomation(
+            app,
+            ctx.tenantId,
+            'message_sent',
+            { conversationId: conversa.id },
+            {
+              conversa: { id: conversa.id },
+              contato: {
+                nome: conversa.displayName ?? conversa.phone ?? '',
+                telefone: conversa.phone ?? '',
+                ehCliente: conversa.customerId !== null,
+              },
+              mensagem: { texto: enviada.body },
+            },
+          );
+        }
+
         // O anexo enviado precisa voltar com URL assinada, como o que chega: é o mesmo fio,
         // e a tela mostra os dois do mesmo jeito.
         const urls =

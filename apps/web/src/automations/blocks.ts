@@ -28,6 +28,13 @@ export const GATILHOS: readonly BlockType[] = [
     config: {},
   },
   {
+    type: 'message_sent',
+    kind: 'trigger',
+    label: 'Mensagem enviada',
+    hint: 'A equipe respondeu pela caixa',
+    config: {},
+  },
+  {
     type: 'conversation_created',
     kind: 'trigger',
     label: 'Conversa nova',
@@ -63,6 +70,13 @@ export const GATILHOS: readonly BlockType[] = [
     config: {},
   },
   {
+    type: 'booking_cancelled',
+    kind: 'trigger',
+    label: 'Inscrição cancelada',
+    hint: 'Alguém saiu da saída, com motivo',
+    config: {},
+  },
+  {
     type: 'payment_registered',
     kind: 'trigger',
     label: 'Pagamento registrado',
@@ -72,9 +86,16 @@ export const GATILHOS: readonly BlockType[] = [
   {
     type: 'scheduled',
     kind: 'trigger',
-    label: 'Perto de uma saída',
+    label: 'Tempo: antes ou depois de uma saída',
     hint: 'Tantos dias antes ou depois da data de início',
     config: { offsetDays: -3 },
+  },
+  {
+    type: 'recurring',
+    kind: 'trigger',
+    label: 'Tempo: de tempos em tempos',
+    hint: 'A cada tantos minutos, horas ou dias',
+    config: { amount: 1, unit: 'days' },
   },
 ];
 
@@ -299,6 +320,22 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
       kind: 'number',
       placeholder: '-3',
       help: 'Negativo é antes da saída; positivo, depois. Zero é o dia dela.',
+    },
+  ],
+  // AU-17: as mesmas chaves do bloco de espera, de propósito — é a mesma pergunta ("quanto
+  // tempo?"), e uma conversão só é uma coisa a menos para discordar de si mesma.
+  recurring: [
+    { key: 'amount', label: 'A cada', kind: 'number', placeholder: '1' },
+    {
+      key: 'unit',
+      label: 'Unidade',
+      kind: 'select',
+      options: [
+        { value: 'minutes', label: 'minutos' },
+        { value: 'hours', label: 'horas' },
+        { value: 'days', label: 'dias' },
+      ],
+      help: 'Mínimo de um minuto, e abaixo de três o teto de 20 execuções por hora barra o resto.',
     },
   ],
   confirm_booking: [

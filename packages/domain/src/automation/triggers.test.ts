@@ -51,3 +51,34 @@ describe('AU-16: os campos do gatilho escolhido', () => {
     expect(contextFieldsFor(null)).toEqual([]);
   });
 });
+
+/**
+ * AU-17 — os gatilhos que faltavam.
+ *
+ * "Mensagem enviada" e "inscrição cancelada" são acontecimentos que a equipe já vivia e não
+ * podia reagir a eles. O de tempo em tempo é de outra natureza: não pende de entidade nenhuma,
+ * e por isso não traz contato nem inscrição — o contexto dele é o relógio.
+ */
+describe('AU-17: gatilhos novos', () => {
+  it('mensagem enviada traz o texto e a conversa', () => {
+    const caminhos = CAMPOS_DO_GATILHO.message_sent.map((campo) => campo.path);
+    expect(caminhos).toContain('mensagem.texto');
+    expect(caminhos).toContain('conversa.id');
+  });
+
+  /** O motivo é o que faz "cancelou por desistência" ser diferente de "cancelou por chuva". */
+  it('inscrição cancelada traz o motivo', () => {
+    const caminhos = CAMPOS_DO_GATILHO.booking_cancelled.map((campo) => campo.path);
+    expect(caminhos).toContain('inscricao.id');
+    expect(caminhos).toContain('inscricao.motivo');
+  });
+
+  it('de tempos em tempos traz o relógio, e nada de contato ou inscrição', () => {
+    const caminhos = CAMPOS_DO_GATILHO.recurring.map((campo) => campo.path);
+    expect(caminhos).toContain('agora.data');
+    expect(caminhos).toContain('agora.hora');
+    expect(caminhos.some((c) => c.startsWith('contato.') || c.startsWith('inscricao.'))).toBe(
+      false,
+    );
+  });
+});

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   enqueueAutomationRun,
   resumeDueRuns,
+  scanRecurringTriggers,
   scanScheduledTriggers,
   type AutomationRunnerDeps,
   type EnqueueAutomationRunCommand,
@@ -89,6 +90,13 @@ export function automationRunner(
     return feitas;
   };
 
+  /**
+   * AU-12 · AU-17 — a mesma passada cobre os dois gatilhos de tempo, com um `try` cada.
+   *
+   * Separados de propósito: uma agenda que falha não pode engolir a varredura do recorrente.
+   * Quem tem "a cada um minuto" perde a fatia inteira quando a passada morre no meio — e
+   * fatia perdida não volta, porque a chave de idempotência é do intervalo, não da tentativa.
+   */
   const varrer = async (now: Date): Promise<void> => {
     try {
       await scanScheduledTriggers(
@@ -96,7 +104,12 @@ export function automationRunner(
         { today: hojeEm(now), now },
       );
     } catch (error) {
-      log.error({ err: error }, 'varredura de gatilho temporal falhou');
+      log.error({ err: error }, 'varredura de gatilho por saída falhou');
+    }
+    try {
+      await scanRecurringTriggers(motor, { now });
+    } catch (error) {
+      log.error({ err: error }, 'varredura de gatilho de tempo em tempo falhou');
     }
   };
 

@@ -982,6 +982,7 @@ export type {
   AutomationRepository,
   AutomationPatch,
   NewAutomation,
+  TimeTriggerRef,
   TriggerType,
 } from './automation/automationRepository.js';
 export type { AutomationDeps } from './automation/automationDeps.js';
@@ -1032,8 +1033,11 @@ export {
   scanScheduledTriggers,
   type ScanScheduledTriggersDeps,
   type ScanScheduledTriggersCommand,
-  type ScheduledAutomationRef,
 } from './automation/scanScheduledTriggers.js';
+export {
+  scanRecurringTriggers,
+  type ScanRecurringTriggersCommand,
+} from './automation/scanRecurringTriggers.js';
 export {
   listAutomationRuns,
   getAutomationRunSteps,

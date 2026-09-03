@@ -3,7 +3,7 @@ import type {
   AutomationRecord,
   AutomationRepository,
   NewAutomation,
-  ScheduledAutomationRef,
+  TimeTriggerRef,
   TriggerType,
 } from '@expedition/application';
 import type { AutomationGraph } from '@expedition/domain';
@@ -81,25 +81,29 @@ export function prismaAutomationRepository(base: PrismaClient): AutomationReposi
     },
 
     /**
-     * AU-12 — o achado **sem escopo de tenant**, e um dos dois do sistema inteiro.
+     * AU-12 · AU-17 — o achado **sem escopo de tenant**, e um dos dois do sistema inteiro.
      *
      * O motor roda fora de requisição: não há tenant no contexto, e ele precisa saber em quais
-     * tenants existe automação temporal ligada. Por isso usa o client cru, de propósito — e
-     * seleciona **só** id, tenant e a configuração do gatilho. Ler a agenda de cada tenant
-     * continua sendo pelo client escopado, dentro de `scanScheduledTriggers`.
+     * tenants existe automação de tempo ligada. Por isso usa o client cru, de propósito — e
+     * seleciona **só** id, tenant, o tipo do gatilho e a configuração dele. Ler a agenda de
+     * cada tenant continua sendo pelo client escopado, dentro da varredura.
      *
-     * O `select` explícito é a parte que importa: sem ele, este caminho viraria uma porta
-     * lateral por onde dado de qualquer tenant sairia sem filtro.
+     * Os dois gatilhos de tempo vêm juntos, num achado só: um segundo caminho cru seria mais
+     * uma porta lateral para vigiar, e o filtro por tipo é barato de fazer na varredura.
+     *
+     * O `select` explícito é a parte que importa: sem ele, este caminho viraria uma porta por
+     * onde dado de qualquer tenant sairia sem filtro.
      */
-    async listScheduledAcrossTenants(): Promise<readonly ScheduledAutomationRef[]> {
+    async listTimeTriggersAcrossTenants(): Promise<readonly TimeTriggerRef[]> {
       const rows = await base.automation.findMany({
-        where: { enabled: true, deletedAt: null, triggerType: 'scheduled' },
-        select: { id: true, tenantId: true, triggerConfig: true },
+        where: { enabled: true, deletedAt: null, triggerType: { in: ['scheduled', 'recurring'] } },
+        select: { id: true, tenantId: true, triggerType: true, triggerConfig: true },
       });
       return rows.map((row) => ({
         tenantId: row.tenantId,
         automationId: row.id,
-        offsetDays: offsetDe(row.triggerConfig),
+        triggerType: row.triggerType as TriggerType,
+        triggerConfig: (row.triggerConfig ?? {}) as Record<string, unknown>,
       }));
     },
 
@@ -125,11 +129,4 @@ function toRecord(row: PrismaAutomation): AutomationRecord {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
-}
-
-/** Negativo é antes da saída; positivo, depois. Configuração torta vira zero — o dia da saída. */
-function offsetDe(triggerConfig: unknown): number {
-  if (triggerConfig === null || typeof triggerConfig !== 'object') return 0;
-  const bruto = Number((triggerConfig as Record<string, unknown>)['offsetDays']);
-  return Number.isFinite(bruto) ? Math.trunc(bruto) : 0;
 }

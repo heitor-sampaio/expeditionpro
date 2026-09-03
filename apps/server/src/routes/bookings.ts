@@ -502,6 +502,15 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
         ctx,
         { bookingId: request.params.bookingId, reason: request.body.reason },
       );
+      // AU-17: o motivo vai junto — "cancelou por desistência" e "cancelou por chuva" pedem
+      // reações diferentes, e sem ele a automação só saberia que alguém saiu.
+      fireAutomation(
+        app,
+        ctx.tenantId,
+        'booking_cancelled',
+        { bookingId: request.params.bookingId },
+        { inscricao: { id: request.params.bookingId, motivo: request.body.reason } },
+      );
       return reply.send(statusDto(booking));
     },
   );

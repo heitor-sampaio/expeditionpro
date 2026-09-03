@@ -128,10 +128,11 @@ function resumo(data: BlockData): string {
   const c = data.config;
   const texto = (chave: string): string => (typeof c[chave] === 'string' ? c[chave] : '');
 
-  if (data.type === 'wait') {
+  if (data.type === 'wait' || data.type === 'recurring') {
     const quanto = typeof c['amount'] === 'number' ? c['amount'] : Number(c['amount'] ?? 0);
     const unidade = UNIDADE[texto('unit')] ?? '';
-    return quanto > 0 ? `${quanto} ${unidade}` : '';
+    if (quanto <= 0) return '';
+    return data.type === 'wait' ? `${quanto} ${unidade}` : `a cada ${quanto} ${unidade}`;
   }
   if (data.type === 'field') {
     const campo = texto('field');

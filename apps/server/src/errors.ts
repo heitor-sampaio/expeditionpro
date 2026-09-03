@@ -25,6 +25,17 @@ import type { FastifyInstance } from 'fastify';
  * código estável, nunca stack, query ou nome de tabela. Erro de negócio é tipo,
  * então o mapeamento é por instância, não por string.
  */
+/**
+ * AU-07 · AU-13 — os erros cuja **mensagem** é feita para a tela, e por isso sobe junto.
+ *
+ * É lista explícita, e não "todo erro de negócio manda texto", pela mesma razão do DTO por
+ * audiência (§11.7): a mensagem de um erro qualquer pode carregar nome de campo, de tabela ou
+ * de regra interna. Estas duas são escritas para quem está desenhando o fluxo — a lista do que
+ * está errado no grafo, e o que a automação vai fazer sozinha com dinheiro —, e sem elas a
+ * tela só consegue dizer "não deu", que não conserta nada.
+ */
+const COM_MOTIVO = new Set(['invalid_graph', 'money_action_confirmation']);
+
 export function installErrorHandler(app: FastifyInstance): void {
   /*
    * SEC — rota inexistente responde no formato do sistema.
@@ -73,7 +84,15 @@ export function installErrorHandler(app: FastifyInstance): void {
     if (error instanceof UnauthorizedError) return reply.status(401).send({ error: error.code });
     if (error instanceof ForbiddenError) return reply.status(403).send({ error: error.code });
     if (error instanceof NotFoundError) return reply.status(404).send({ error: error.code });
-    if (error instanceof ApplicationError) return reply.status(400).send({ error: error.code });
+    if (error instanceof ApplicationError) {
+      return reply
+        .status(400)
+        .send(
+          COM_MOTIVO.has(error.code)
+            ? { error: error.code, message: error.message }
+            : { error: error.code },
+        );
+    }
 
     // Erros HTTP do Fastify/plugins já trazem status (ex.: 429 do rate limit, SEC-14).
     // Repassa o 4xx com código estável em vez de mascarar como 500.
