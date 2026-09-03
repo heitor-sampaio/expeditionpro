@@ -29,7 +29,7 @@ export function AutomacoesScreen(): React.JSX.Element {
    */
   if (abertaId !== null && aberta === null && state.status !== 'error') {
     return (
-      <main className="page">
+      <main className="page page-wide">
         <div className="skeleton" aria-hidden>
           {Array.from({ length: 3 }, (_, i) => (
             <div key={i} className="skel-card">
@@ -57,7 +57,7 @@ export function AutomacoesScreen(): React.JSX.Element {
   }
 
   return (
-    <main className="page">
+    <main className="page page-wide">
       <div className="page-header">
         <div className="toolbar">
           <div>

@@ -1,104 +1,72 @@
 import { switchCases, type ContextField, type SwitchCase } from '@expedition/domain';
-import { blockLabel, CAMPOS, type BlockField } from './blocks.js';
+import { CAMPOS, type BlockField } from './blocks.js';
 import { camposDoGatilho, gatilhoDoQuadro } from './fields.js';
-import type { BlockNodeType } from './BlockNode.js';
 
 /**
- * AU-01 · AU-16 — o inspetor do bloco selecionado.
+ * AU-01 · AU-16 — a configuração de um bloco, desenhada **dentro do próprio bloco**.
  *
- * Não sabe nada de bloco nenhum: desenha os campos que `CAMPOS` descreve. Bloco novo entra
- * no catálogo e aparece aqui sem uma linha de código a mais — que é o ponto de ter o catálogo
- * separado da tela.
+ * Era uma coluna à direita do quadro, e a coluna custava duas coisas: espaço que o quadro
+ * queria, e a viagem do olho entre o bloco selecionado e o formulário longe dele. Configurar
+ * onde a coisa está é o que deixa ler o fluxo e mexer nele no mesmo lugar.
  *
- * Os campos disponíveis chegam de fora, do editor, porque metade deles vem do desenho aberto
- * (as variáveis que o fluxo define) e o inspetor não conhece o quadro inteiro.
+ * Continua não sabendo nada de bloco nenhum: desenha os campos que `CAMPOS` descreve. Bloco
+ * novo entra no catálogo e aparece aqui sem uma linha de código a mais.
  */
-export function BlockInspector({
-  node,
+export function BlockFields({
+  type,
+  config,
   campos: disponiveis,
   readOnly,
   onChange,
-  onDelete,
 }: {
-  node: BlockNodeType | null;
+  type: string;
+  config: Record<string, unknown>;
   campos: readonly ContextField[];
   readOnly: boolean;
   onChange: (config: Record<string, unknown>) => void;
-  onDelete: () => void;
 }): React.JSX.Element {
-  if (node === null) {
-    return (
-      <aside className="inbox-side">
-        <span className="inbox-side-title">Bloco</span>
-        <p className="field-help">
-          Escolha um bloco no quadro para configurar. Arraste da biblioteca para acrescentar, e
-          ligue a saída de um bloco na entrada do próximo.
-        </p>
-      </aside>
-    );
-  }
-
-  const campos = CAMPOS[node.data.type] ?? [];
-  const gatilho = node.type === 'trigger';
+  const campos = CAMPOS[type] ?? [];
+  const doGatilho = gatilhoDoQuadro([{ type: 'trigger', data: { type, config } }]);
 
   return (
-    <aside className="inbox-side">
-      <div className="inbox-side-id">
-        <span className="card-title">{blockLabel(node.data.type)}</span>
-      </div>
-
-      {campos.length === 0 && (
-        <p className="field-help">
-          {gatilho
-            ? 'O gatilho não tem o que configurar: ele só diz quando a automação começa.'
-            : 'Este bloco não tem configuração.'}
-        </p>
+    <div className="auto-node-form">
+      {campos.length === 0 && doGatilho === null && (
+        <span className="field-help">Este bloco não tem configuração.</span>
       )}
 
       {campos.map((campo) => (
         <Campo
           key={campo.key}
           campo={campo}
-          valor={node.data.config[campo.key]}
+          valor={config[campo.key]}
           disponiveis={disponiveis}
           readOnly={readOnly}
-          onChange={(valor) => onChange({ ...node.data.config, [campo.key]: valor })}
+          onChange={(valor) => onChange({ ...config, [campo.key]: valor })}
         />
       ))}
 
-      {gatilho && <CamposDoGatilho type={node.data.type} />}
-
-      <div className="inbox-side-block">
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm btn-danger"
-          disabled={readOnly}
-          onClick={onDelete}
-        >
-          Remover bloco
-        </button>
-      </div>
-    </aside>
+      {doGatilho !== null && <CamposDoGatilho type={doGatilho} />}
+    </div>
   );
 }
 
 /**
- * AU-16 — o que este gatilho traz, listado no próprio inspetor dele.
+ * AU-16 — o que este gatilho traz, listado no próprio bloco de gatilho.
  *
  * Quem escolhe o gatilho está decidindo, sem saber, quais campos vai ter adiante. Ver a lista
  * na hora da escolha é o que evita desenhar um fluxo inteiro que precisa de `contato.nome`
  * pendurado num gatilho que só entrega o id da inscrição.
  */
-function CamposDoGatilho({ type }: { type: string }): React.JSX.Element | null {
-  const conhecido = gatilhoDoQuadro([{ type: 'trigger', data: { type, config: {} } }]);
-  if (conhecido === null) return null;
-  const campos = camposDoGatilho(conhecido);
-
+function CamposDoGatilho({
+  type,
+}: {
+  type: Parameters<typeof camposDoGatilho>[0];
+}): React.JSX.Element {
   return (
-    <div className="inbox-side-block">
+    <div className="auto-node-block">
       <span className="field-label">Campos que este gatilho traz</span>
       <ul className="auto-fieldlist">
-        {campos.map((campo) => (
+        {camposDoGatilho(type).map((campo) => (
           <li key={campo.path}>
             <span className="auto-field-path">{campo.path}</span>
             <span className="cell-sub">{campo.label}</span>
@@ -148,8 +116,8 @@ function Campo({
         />
       ) : campo.kind === 'textarea' ? (
         <textarea
-          className="field-input field-textarea"
-          rows={4}
+          className="field-input field-textarea nodrag nowheel"
+          rows={3}
           value={texto}
           disabled={readOnly}
           placeholder={campo.placeholder}
@@ -157,7 +125,7 @@ function Campo({
         />
       ) : campo.kind === 'select' ? (
         <select
-          className="field-input"
+          className="field-input nodrag"
           value={texto}
           disabled={readOnly}
           onChange={(e) => onChange(e.target.value)}
@@ -170,7 +138,7 @@ function Campo({
         </select>
       ) : (
         <input
-          className="field-input"
+          className="field-input nodrag"
           type={campo.kind === 'number' ? 'number' : 'text'}
           inputMode={campo.kind === 'number' ? 'numeric' : undefined}
           value={texto}
@@ -198,9 +166,8 @@ function Campo({
  * AU-16 — o campo do contexto, escolhido em vez de digitado.
  *
  * O escrito à mão continua possível, e por dois motivos: um grafo salvo antes desta tela pode
- * ter um caminho que não está na lista, e some da tela o que não se reconhece seria apagar o
- * trabalho de alguém. A opção "outro" é o caminho para isso, e o valor atual entra na lista
- * quando não é nenhum dos oferecidos.
+ * ter um caminho que não está na lista, e sumir da tela o que não se reconhece seria apagar o
+ * trabalho de alguém. A opção "outro" é o caminho para isso.
  */
 function SeletorDeCampo({
   valor,
@@ -213,12 +180,13 @@ function SeletorDeCampo({
   readOnly: boolean;
   onChange: (valor: string) => void;
 }): React.JSX.Element {
-  const conhecido = disponiveis.some((campo) => campo.path === valor);
+  // Campo ainda em branco não é "outro campo": é o convite a escolher um.
+  const conhecido = valor === '' || disponiveis.some((campo) => campo.path === valor);
 
   return (
     <>
       <select
-        className="field-input"
+        className="field-input nodrag"
         value={conhecido ? valor : OUTRO}
         disabled={readOnly}
         onChange={(e) => onChange(e.target.value === OUTRO ? '' : e.target.value)}
@@ -234,14 +202,14 @@ function SeletorDeCampo({
 
       {!conhecido && valor !== '' && (
         <input
-          className="field-input"
+          className="field-input nodrag"
           value={valor}
           disabled={readOnly}
           placeholder="mensagem.texto"
           onChange={(e) => onChange(e.target.value)}
         />
       )}
-      {!conhecido && valor === '' && disponiveis.length === 0 && (
+      {disponiveis.length === 0 && (
         <span className="field-help">
           Ponha o bloco de gatilho no quadro para ver os campos que ele traz.
         </span>
@@ -284,7 +252,7 @@ function ListaDeValores({
       {casos.map((caso) => (
         <div key={caso.id} className="auto-case">
           <input
-            className="field-input"
+            className="field-input nodrag"
             value={caso.value}
             disabled={readOnly}
             placeholder="preço"
@@ -293,7 +261,7 @@ function ListaDeValores({
           />
           <button
             type="button"
-            className="btn btn-secondary btn-sm btn-danger"
+            className="btn btn-secondary btn-sm btn-danger nodrag"
             disabled={readOnly}
             onClick={() => onChange(casos.filter((outro) => outro.id !== caso.id))}
           >
@@ -304,7 +272,7 @@ function ListaDeValores({
 
       <button
         type="button"
-        className="btn btn-secondary btn-sm"
+        className="btn btn-secondary btn-sm nodrag"
         disabled={readOnly}
         onClick={() => onChange([...casos, { id: crypto.randomUUID().slice(0, 8), value: '' }])}
       >
@@ -330,7 +298,7 @@ function InserirCampo({
 
   return (
     <select
-      className="field-input auto-insert"
+      className="field-input auto-insert nodrag"
       value=""
       disabled={readOnly}
       aria-label="Inserir campo no texto"

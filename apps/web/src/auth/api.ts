@@ -1,4 +1,5 @@
 import { API_BASE, apiUrl } from './apiUrl.js';
+import { semCorpoSemTipo } from './jsonRequest.js';
 import { supabase } from './supabaseClient.js';
 
 /**
@@ -31,9 +32,12 @@ function refreshAccessToken(): Promise<string | null> {
 }
 
 function withAuth(init: RequestInit, token: string | null): RequestInit {
-  const headers = new Headers(init.headers);
+  // Sem corpo, sem tipo de corpo: o servidor recusa `content-type: application/json` com
+  // corpo vazio, e era assim que todo DELETE dos hooks morria com 400 antes da rota.
+  const limpo = semCorpoSemTipo(init);
+  const headers = new Headers(limpo.headers);
   if (token) headers.set('Authorization', `Bearer ${token}`);
-  return { ...init, headers };
+  return { ...limpo, headers };
 }
 
 export async function api(path: string, init: RequestInit = {}): Promise<Response> {

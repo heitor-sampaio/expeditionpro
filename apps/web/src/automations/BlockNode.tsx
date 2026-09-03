@@ -1,14 +1,17 @@
-import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
+import { createContext, useContext } from 'react';
+import { Handle, Position, useNodes, useReactFlow, type Node, type NodeProps } from '@xyflow/react';
 import { switchCases } from '@expedition/domain';
 import { blockLabel, saidasDe } from './blocks.js';
+import { camposDisponiveis } from './fields.js';
+import { BlockFields } from './BlockFields.js';
 import type { NodeKind } from '@expedition/domain';
 
 /**
- * AU-01 — o desenho de um bloco no quadro.
+ * AU-01 · AU-16 — o bloco no quadro, com a configuração dentro dele.
  *
- * Um bloco só por espécie: o mesmo cartão, com as alças que a espécie tem. Condição mostra
- * duas saídas rotuladas ("sim" e "não"), porque a diferença entre elas é a coisa mais fácil
- * de errar num fluxo — e o erro só aparece quando a automação já respondeu errado a alguém.
+ * O cartão fechado mostra o que o bloco faz, numa linha, para o fluxo inteiro ser legível sem
+ * abrir nada. **Selecionado, ele abre os campos ali mesmo** — sem coluna lateral, sem viagem do
+ * olho entre o bloco e um formulário longe dele.
  *
  * A cor da borda é de **interface**: `--o` marca o bloco selecionado, nada mais. Verde e
  * vermelho não entram aqui; neste sistema eles significam dinheiro.
@@ -16,6 +19,13 @@ import type { NodeKind } from '@expedition/domain';
 
 export type BlockData = { type: string; config: Record<string, unknown> };
 export type BlockNodeType = Node<BlockData, NodeKind>;
+
+/**
+ * O quadro só de leitura chega aos blocos por contexto, e não por `data`: é estado da tela
+ * inteira, e copiá-lo em cada nó faria "automação ligada" virar dezoito verdades que podem
+ * discordar entre si.
+ */
+export const QuadroContext = createContext<{ readOnly: boolean }>({ readOnly: false });
 
 const ESPECIE: Record<NodeKind, string> = {
   trigger: 'quando',
@@ -27,22 +37,71 @@ const ESPECIE: Record<NodeKind, string> = {
   end: 'fim',
 };
 
-export function BlockNode({ data, type, selected }: NodeProps<BlockNodeType>): React.JSX.Element {
+export function BlockNode({
+  id,
+  data,
+  type,
+  selected,
+}: NodeProps<BlockNodeType>): React.JSX.Element {
   const kind = (type ?? 'action') as NodeKind;
   const saidas = saidasDe(kind, data.config);
+  const { readOnly } = useContext(QuadroContext);
+  const { updateNodeData, setNodes, setEdges } = useReactFlow<BlockNodeType>();
+  // AU-16: metade dos campos vem do gatilho e metade do próprio desenho — por isso o bloco
+  // pergunta ao quadro, e não a si mesmo.
+  const campos = camposDisponiveis(useNodes<BlockNodeType>());
+
+  const mudarConfig = (config: Record<string, unknown>) => {
+    updateNodeData(id, { config });
+    /*
+     * AU-15 — apagar um valor da escolha múltipla apaga a saída dele, e a ligação que saía
+     * dali deixa de ter porta. Limpar aqui é o que evita salvar um desenho com ligação
+     * pendurada numa saída que não existe mais: recusado no servidor, e sem nada no quadro
+     * explicando por quê.
+     */
+    const portas = new Set(saidasDe(kind, config).map((saida) => saida.port));
+    setEdges((atuais) =>
+      atuais.filter((e) => e.source !== id || portas.has(e.sourceHandle ?? 'next')),
+    );
+  };
+
+  const remover = () => {
+    setNodes((atuais) => atuais.filter((n) => n.id !== id));
+    setEdges((atuais) => atuais.filter((e) => e.source !== id && e.target !== id));
+  };
 
   return (
     <div
       className={`auto-node auto-node-${kind}${selected ? ' is-selected' : ''}`}
       // AU-15: a escolha múltipla cresce com o número de valores. Sem largura por saída, as
       // alças se amontoam e ligar no caminho certo vira sorte.
-      style={saidas.length > 2 ? { width: `${String(saidas.length * 84)}px` } : undefined}
+      style={saidas.length > 2 && !selected ? { width: `${String(saidas.length * 96)}px` } : {}}
     >
       {kind !== 'trigger' && <Handle type="target" position={Position.Top} />}
 
       <span className="auto-node-kind">{ESPECIE[kind]}</span>
       <span className="auto-node-label">{blockLabel(data.type)}</span>
-      {resumo(data) && <span className="auto-node-sub">{resumo(data)}</span>}
+      {!selected && resumo(data) !== '' && <span className="auto-node-sub">{resumo(data)}</span>}
+
+      {selected && (
+        <>
+          <BlockFields
+            type={data.type}
+            config={data.config}
+            campos={campos}
+            readOnly={readOnly}
+            onChange={mudarConfig}
+          />
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm btn-danger nodrag auto-node-remove"
+            disabled={readOnly}
+            onClick={remover}
+          >
+            Remover bloco
+          </button>
+        </>
+      )}
 
       {saidas.map((saida, i) => (
         <Handle
@@ -88,6 +147,11 @@ function resumo(data: BlockData): string {
   if (data.type === 'set') {
     const nome = texto('name');
     return nome === '' ? '' : `${nome} = ${texto('value')}`;
+  }
+  if (data.type === 'scheduled') {
+    const dias = Number(c['offsetDays'] ?? 0);
+    if (dias === 0) return 'no dia da saída';
+    return dias < 0 ? `${String(-dias)} dias antes` : `${String(dias)} dias depois`;
   }
   if (data.type === 'move_opportunity') return texto('stageName');
   return corta(texto('text') || texto('contactName'));

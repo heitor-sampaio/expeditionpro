@@ -262,6 +262,32 @@ nenhum para investigar.
 > visível, então foi fechada: o webhook agora dispara **os dois** no primeiro contato de
 > alguém, e quem separa é o desenho.
 
+### Fatia 5 — o quadro é a tela, e dois bugs que só apareciam usando ✅
+
+Pedido do dono em 2026-09-03, depois de abrir a tela pela primeira vez.
+
+**Apagar automação nunca funcionou, por dois motivos empilhados.** O primeiro era largura: a
+lista usava `.page` (720px) com uma tabela de 720px de mínimo, então o botão "Apagar" ficava
+fora da área visível, atrás da barra de rolagem horizontal. O segundo estava embaixo dele — os
+hooks põem `content-type: application/json` em toda chamada, e o Fastify recusa com **400** um
+corpo JSON vazio (`FST_ERR_CTP_EMPTY_JSON_BODY`) antes de a requisição chegar à rota. A tela
+dizia "não foi possível concluir", o servidor respondia em dois milissegundos e não havia erro
+de negócio nenhum no log para investigar. O conserto ficou em `api()`, no caminho por onde toda
+chamada passa: **sem corpo, sem tipo de corpo** — o mesmo defeito estava em desconectar canal, e
+o próximo `DELETE` escrito o herdaria.
+
+**O editor perdeu as duas colunas.** A biblioteca à esquerda e o inspetor à direita cobravam do
+desenho justamente o espaço que ele mais precisa — e a biblioteca ainda tinha os rótulos se
+sobrepondo, ilegíveis. Agora:
+
+- **O quadro ocupa o container inteiro.** Barra flutuante sobre ele com um botão por espécie;
+  gatilho e ação, que têm muitos tipos, abrem menu — menu de um item só é clique a mais por nada.
+- **A configuração mora dentro do bloco.** Selecionou, o cartão abre os campos ali mesmo, com o
+  botão de remover no rodapé. Some a viagem do olho entre o bloco e um formulário longe dele.
+- **As ligações são retas em ângulo.** A curva não dizia nada e disputava a leitura com o bloco.
+- Bloco novo entra **abaixo do último**, na coluna dele, já aberto: caindo no meio da tela, a
+  primeira tarefa de quem acrescentou era desempilhar o que acabou de pôr.
+
 ### O que ainda não foi visto por gente
 
 O motor nunca rodou em produção: a automação de exemplo ("mensagem contendo preço → responder")

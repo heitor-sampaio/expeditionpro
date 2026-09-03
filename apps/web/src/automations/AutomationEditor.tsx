@@ -2,44 +2,50 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   addEdge,
   Background,
+  ConnectionLineType,
   Controls,
   MiniMap,
+  Panel,
   ReactFlow,
   ReactFlowProvider,
   useEdgesState,
   useNodesState,
   useReactFlow,
   type Connection,
+  type DefaultEdgeOptions,
   type Edge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import {
-  ACOES_DE_DINHEIRO,
-  BLOCOS,
-  GATILHOS,
-  blockLabel,
-  saidasDe,
-  type BlockType,
-} from './blocks.js';
-import { camposDisponiveis } from './fields.js';
+import { ACOES_DE_DINHEIRO, BLOCOS, GATILHOS, blockLabel, type BlockType } from './blocks.js';
 import { RunLog } from './RunLog.js';
-import { NODE_TYPES, type BlockNodeType } from './BlockNode.js';
-import { BlockInspector } from './BlockInspector.js';
+import { NODE_TYPES, QuadroContext, type BlockNodeType } from './BlockNode.js';
 import { fromFlow, toFlow } from './flowMapping.js';
 import type { Automation } from './useAutomations.js';
-import type { AutomationGraph, NodeKind } from '@expedition/domain';
+import type { AutomationGraph } from '@expedition/domain';
 
 /**
  * AU-01 · AU-07 — o editor de fluxo.
  *
- * Três colunas, como a caixa de conversas: biblioteca de blocos · quadro · inspetor. O quadro
- * é infinito, com zoom e arrasto; a posição de cada bloco viaja no grafo, então o desenho que
- * a pessoa deixou é o desenho que ela encontra depois.
+ * **O quadro é a tela inteira.** Tinha uma coluna de biblioteca à esquerda e uma de inspetor à
+ * direita, e as duas cobravam do desenho o espaço que ele mais precisa: um fluxo de dez blocos
+ * não cabe em setecentos pixels. A biblioteca virou barra flutuante sobre o quadro, e a
+ * configuração foi para dentro do próprio bloco.
+ *
+ * O quadro é infinito, com zoom e arrasto; a posição de cada bloco viaja no grafo, então o
+ * desenho que a pessoa deixou é o desenho que ela encontra depois.
  *
  * **Automação ligada não se edita.** O servidor recusa (é lá que a regra mora e está testada),
  * e aqui o quadro fica só de leitura em vez de deixar mexer e falhar no salvar — a pessoa
  * descobre a regra antes de perder o trabalho, não depois.
  */
+
+/** Linha reta em ângulo, sem curva e sem seta: o que importa é de onde para onde. */
+const LIGACAO: DefaultEdgeOptions = { type: 'step' };
+
+/** As espécies de um tipo só viram botão direto; gatilho e ação têm muitos, e viram menu. */
+const ACOES = BLOCOS.filter((bloco) => bloco.kind === 'action');
+const SOLTOS = BLOCOS.filter((bloco) => bloco.kind !== 'action');
+
 export function AutomationEditor(props: {
   automation: Automation;
   busy: boolean;
@@ -79,29 +85,60 @@ function Editor({
   }, [automation.graph]);
   const [nodes, setNodes, onNodesChange] = useNodesState<BlockNodeType>(inicial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(inicial.edges);
-  const [selecionado, setSelecionado] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [sujo, setSujo] = useState(false);
   const [verLog, setVerLog] = useState(false);
+  const [menu, setMenu] = useState<'trigger' | 'action' | null>(null);
   const [confirmarDinheiro, setConfirmarDinheiro] = useState(false);
   const quadro = useRef<HTMLDivElement | null>(null);
   const { screenToFlowPosition } = useReactFlow();
 
   const readOnly = automation.enabled || busy;
 
-  const acrescentar = useCallback(
-    (bloco: BlockType, tela: { x: number; y: number }) => {
+  /** Põe o bloco numa posição do **quadro** — a que o grafo guarda. */
+  const acrescentarEm = useCallback(
+    (bloco: BlockType, posicao: { x: number; y: number }) => {
       const novo: BlockNodeType = {
         id: crypto.randomUUID(),
         type: bloco.kind,
-        position: screenToFlowPosition(tela),
+        position: posicao,
         data: { type: bloco.type, config: { ...bloco.config } },
+        // O bloco novo nasce aberto: quem acabou de pôr um bloco no quadro vai configurá-lo.
+        selected: true,
       };
-      setNodes((atuais) => [...atuais, novo]);
-      setSelecionado(novo.id);
+      setNodes((atuais) => [...atuais.map((n) => ({ ...n, selected: false })), novo]);
+      setMenu(null);
       setSujo(true);
     },
-    [screenToFlowPosition, setNodes],
+    [setNodes],
+  );
+
+  /** O mesmo, a partir de uma posição da **tela** — é o que o arrastar-e-soltar tem. */
+  const acrescentar = useCallback(
+    (bloco: BlockType, tela: { x: number; y: number }) =>
+      acrescentarEm(bloco, screenToFlowPosition(tela)),
+    [acrescentarEm, screenToFlowPosition],
+  );
+
+  /**
+   * Pelo botão da barra, o bloco entra **abaixo do último**, na coluna dele. Cair no meio da
+   * tela punha um bloco em cima do outro, e a primeira tarefa de quem acrescentou passava a
+   * ser desempilhar o que acabou de pôr.
+   */
+  const acrescentarAbaixo = useCallback(
+    (bloco: BlockType) => {
+      const ultimo = [...nodes].sort((a, b) => a.position.y - b.position.y).pop();
+      if (ultimo) {
+        acrescentarEm(bloco, {
+          x: ultimo.position.x,
+          y: ultimo.position.y + (ultimo.measured?.height ?? 90) + 70,
+        });
+        return;
+      }
+      const r = quadro.current?.getBoundingClientRect();
+      if (r) acrescentar(bloco, { x: r.left + r.width / 2, y: r.top + r.height / 3 });
+    },
+    [acrescentar, acrescentarEm, nodes],
   );
 
   const conectar = useCallback(
@@ -126,13 +163,9 @@ function Editor({
     else setAviso(r.message ?? 'Não foi possível salvar.');
   }, [edges, nodes, onSave]);
 
-  const noSelecionado = nodes.find((n) => n.id === selecionado) ?? null;
-  // AU-14: um gatilho por quadro. A biblioteca desabilita os outros em vez de deixar pôr dois
-  // e recusar no salvar — o erro aparece antes de a pessoa desenhar o resto em cima dele.
+  // AU-14: um gatilho por quadro. A barra fecha o menu dos outros em vez de deixar pôr dois e
+  // recusar no salvar — o erro aparece antes de a pessoa desenhar o resto em cima dele.
   const temGatilho = nodes.some((n) => n.type === 'trigger');
-  // AU-16: metade dos campos vem do gatilho e metade do próprio desenho, então a lista é
-  // recalculada a cada mudança do quadro.
-  const campos = camposDisponiveis(nodes);
 
   return (
     <main className="page page-wide page-chat">
@@ -146,7 +179,7 @@ function Editor({
             <p className="page-meta">
               {automation.enabled
                 ? 'Ligada: está agindo sobre clientes agora. Desligue para editar o fluxo.'
-                : 'Arraste um bloco da biblioteca para o quadro e ligue as saídas.'}
+                : 'Ponha os blocos pela barra do quadro e ligue a saída de um na entrada do próximo.'}
             </p>
           </div>
           <div className="link-actions">
@@ -202,47 +235,9 @@ function Editor({
       {verLog ? (
         <RunLog automationId={automation.id} />
       ) : (
-        <div className="inbox auto-editor">
-          <nav className="inbox-list auto-lib" aria-label="Biblioteca de blocos">
-            <span className="inbox-side-title auto-lib-head">Gatilhos</span>
-            {GATILHOS.map((bloco) => (
-              <ItemDaBiblioteca
-                key={bloco.type}
-                bloco={bloco}
-                readOnly={readOnly}
-                // AU-14: com um gatilho no quadro, os outros ficam fora de alcance. Trocar de
-                // gatilho é remover o que está lá e pôr outro — decisão, não acidente.
-                disabled={readOnly || temGatilho}
-                titulo={temGatilho ? 'Já existe um gatilho no quadro' : undefined}
-                onAcrescentar={() => {
-                  const r = quadro.current?.getBoundingClientRect();
-                  if (r) acrescentar(bloco, { x: r.left + r.width / 2, y: r.top + 90 });
-                }}
-              />
-            ))}
-
-            <span className="inbox-side-title auto-lib-head auto-lib-sep">Blocos</span>
-            {BLOCOS.map((bloco) => (
-              <ItemDaBiblioteca
-                key={bloco.type}
-                bloco={bloco}
-                readOnly={readOnly}
-                disabled={readOnly}
-                onAcrescentar={() => {
-                  const r = quadro.current?.getBoundingClientRect();
-                  if (r) acrescentar(bloco, { x: r.left + r.width / 2, y: r.top + r.height / 3 });
-                }}
-              />
-            ))}
-
-            <p className="field-help auto-lib-foot">
-              Comece pelo gatilho: é ele que decide quando a automação roda e quais campos o fluxo
-              vai ter.
-            </p>
-          </nav>
-
+        <QuadroContext value={{ readOnly }}>
           <div
-            className="inbox-thread auto-canvas"
+            className="auto-canvas"
             ref={quadro}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
@@ -256,6 +251,13 @@ function Editor({
               nodes={nodes}
               edges={edges}
               nodeTypes={NODE_TYPES}
+              /*
+               * Linha reta em ângulo, sem curva: num fluxograma a curva não diz nada e ainda
+               * disputa a leitura com o próprio bloco. O segmento reto mostra de onde para
+               * onde, e só.
+               */
+              defaultEdgeOptions={LIGACAO}
+              connectionLineType={ConnectionLineType.Step}
               onNodesChange={(mudancas) => {
                 onNodesChange(mudancas);
                 if (mudancas.some((m) => m.type !== 'select' && m.type !== 'dimensions')) {
@@ -267,14 +269,13 @@ function Editor({
                 if (mudancas.some((m) => m.type !== 'select')) setSujo(true);
               }}
               onConnect={conectar}
-              onSelectionChange={({ nodes: escolhidos }) =>
-                setSelecionado(escolhidos[0]?.id ?? null)
-              }
               nodesDraggable={!readOnly}
               nodesConnectable={!readOnly}
               elementsSelectable
               deleteKeyCode={readOnly ? null : ['Backspace', 'Delete']}
               fitView
+              /* Um bloco só não pode nascer ampliado ao dobro: o quadro abre em escala real. */
+              fitViewOptions={{ maxZoom: 1, padding: 0.25 }}
               minZoom={0.2}
               maxZoom={2}
               proOptions={{ hideAttribution: false }}
@@ -282,49 +283,57 @@ function Editor({
               <Background gap={22} size={1.4} />
               <Controls showInteractive={false} />
               <MiniMap pannable zoomable />
+
+              {/*
+               * A biblioteca virou barra flutuante **sobre** o quadro: a coluna que ela ocupava
+               * era espaço que o desenho queria, e um fluxo de dez blocos não cabe em setecentos
+               * pixels. Aqui ela custa a altura de um botão.
+               */}
+              <Panel position="top-left" className="auto-bar">
+                <MenuDeBlocos
+                  rotulo="Gatilho"
+                  blocos={GATILHOS}
+                  // AU-14: com um gatilho no quadro, o menu fecha. Trocar de gatilho é remover
+                  // o que está lá e pôr outro — decisão, não acidente.
+                  disabled={readOnly || temGatilho}
+                  titulo={temGatilho ? 'Já existe um gatilho no quadro' : undefined}
+                  aberto={menu === 'trigger'}
+                  onAbrir={() => setMenu(menu === 'trigger' ? null : 'trigger')}
+                  onEscolher={acrescentarAbaixo}
+                />
+                {SOLTOS.map((bloco) => (
+                  <button
+                    key={bloco.type}
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={readOnly}
+                    title={bloco.hint}
+                    onClick={() => acrescentarAbaixo(bloco)}
+                  >
+                    {bloco.label}
+                  </button>
+                ))}
+                <MenuDeBlocos
+                  rotulo="Ação"
+                  blocos={ACOES}
+                  disabled={readOnly}
+                  aberto={menu === 'action'}
+                  onAbrir={() => setMenu(menu === 'action' ? null : 'action')}
+                  onEscolher={acrescentarAbaixo}
+                />
+              </Panel>
+
+              {nodes.length === 0 && (
+                <Panel position="top-center" className="auto-hint">
+                  <span className="cell-sub">
+                    Comece pelo gatilho: é ele que decide quando a automação roda e quais campos o
+                    fluxo vai ter.
+                  </span>
+                </Panel>
+              )}
             </ReactFlow>
           </div>
-
-          <BlockInspector
-            node={noSelecionado}
-            campos={campos}
-            readOnly={readOnly}
-            onChange={(config) => {
-              setNodes((atuais) =>
-                atuais.map((n) =>
-                  n.id === selecionado ? { ...n, data: { ...n.data, config } } : n,
-                ),
-              );
-              /*
-               * AU-15 — apagar um valor da escolha múltipla apaga a saída dele, e a ligação
-               * que saía dali deixa de ter porta. Limpar aqui é o que evita salvar um desenho
-               * com ligação pendurada numa saída que não existe mais — recusado no servidor,
-               * e sem nada no quadro explicando por quê.
-               */
-              if (noSelecionado !== null) {
-                const portas = new Set(
-                  saidasDe((noSelecionado.type ?? 'action') as NodeKind, config).map(
-                    (saida) => saida.port,
-                  ),
-                );
-                setEdges((atuais) =>
-                  atuais.filter(
-                    (e) => e.source !== selecionado || portas.has(e.sourceHandle ?? 'next'),
-                  ),
-                );
-              }
-              setSujo(true);
-            }}
-            onDelete={() => {
-              setNodes((atuais) => atuais.filter((n) => n.id !== selecionado));
-              setEdges((atuais) =>
-                atuais.filter((e) => e.source !== selecionado && e.target !== selecionado),
-              );
-              setSelecionado(null);
-              setSujo(true);
-            }}
-          />
-        </div>
+        </QuadroContext>
       )}
 
       {confirmarDinheiro && (
@@ -344,35 +353,56 @@ function Editor({
 }
 
 /**
- * Um bloco na biblioteca. Arrastar é o gesto no computador; clicar é o que funciona no toque,
- * onde arrastar de uma coluna para outra não existe — e o app do Capacitor é toque.
+ * Um grupo de blocos que não cabe em botão único: os oito gatilhos e as cinco ações. O resto
+ * das espécies tem um tipo só, e vira botão direto — menu de um item é clique a mais por nada.
  */
-function ItemDaBiblioteca({
-  bloco,
-  readOnly,
+function MenuDeBlocos({
+  rotulo,
+  blocos,
   disabled,
   titulo,
-  onAcrescentar,
+  aberto,
+  onAbrir,
+  onEscolher,
 }: {
-  bloco: BlockType;
-  readOnly: boolean;
+  rotulo: string;
+  blocos: readonly BlockType[];
   disabled: boolean;
   titulo?: string | undefined;
-  onAcrescentar: () => void;
+  aberto: boolean;
+  onAbrir: () => void;
+  onEscolher: (bloco: BlockType) => void;
 }): React.JSX.Element {
   return (
-    <button
-      type="button"
-      className="auto-lib-item"
-      draggable={!readOnly && !disabled}
-      disabled={disabled}
-      title={titulo}
-      onDragStart={(e) => e.dataTransfer.setData('text/plain', bloco.type)}
-      onClick={onAcrescentar}
-    >
-      <span className="cell-name">{bloco.label}</span>
-      <span className="cell-sub">{bloco.hint}</span>
-    </button>
+    <div className="auto-menu-wrap">
+      <button
+        type="button"
+        className="btn btn-secondary btn-sm"
+        disabled={disabled}
+        title={titulo}
+        aria-expanded={aberto}
+        onClick={onAbrir}
+      >
+        {rotulo} ▾
+      </button>
+
+      {aberto && (
+        <div className="menu auto-menu" role="menu">
+          {blocos.map((bloco) => (
+            <button
+              key={bloco.type}
+              type="button"
+              className="menu-item"
+              role="menuitem"
+              onClick={() => onEscolher(bloco)}
+            >
+              <span className="cell-name">{bloco.label}</span>
+              <span className="cell-sub">{bloco.hint}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

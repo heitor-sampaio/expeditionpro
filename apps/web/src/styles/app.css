@@ -5002,48 +5002,15 @@
 }
 
 /* editor ------------------------------------------------------------------------------ */
-.auto-editor {
-  grid-template-columns: 240px minmax(0, 1fr) 300px;
-}
-.auto-lib {
-  padding: 14px 12px;
-  gap: 6px;
-}
-.auto-lib-head {
-  padding: 0 6px 6px;
-}
-.auto-lib-item {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  width: 100%;
-  text-align: left;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--card);
-  cursor: grab;
-  min-height: var(--tap);
-}
-.auto-lib-item:hover:not(:disabled) {
-  border-color: var(--line-2);
-  background: var(--card-2);
-}
-.auto-lib-item:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-.auto-lib-item .cell-sub {
-  white-space: normal;
-}
-.auto-lib-foot {
-  padding: 10px 6px 0;
-  border-top: 1px solid var(--line);
-  margin-top: 6px;
-}
+/* O quadro é a tela: largura inteira do container e toda a altura que sobra do cabeçalho. */
 .auto-canvas {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
   position: relative;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card-lg);
 }
 
 /*
@@ -5103,6 +5070,39 @@
   border: 1px solid var(--line-2);
   border-radius: var(--r-card);
   box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+}
+/*
+ * Selecionado, o bloco abre a própria configuração: é o que substituiu a coluna do inspetor.
+ * Fica mais largo porque campo de pílula abaixo de 260px vira caixa que não cabe o que se
+ * digita, e o quadro tem espaço de sobra agora que as colunas saíram.
+ */
+.auto-node.is-selected {
+  width: 300px;
+}
+.auto-node-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.auto-node-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.auto-node-remove {
+  margin-top: 10px;
+  align-self: flex-start;
+}
+/* O formulário dentro do bloco não arrasta o bloco nem o quadro: `nodrag` no controle. */
+.auto-node .field-input {
+  cursor: text;
+}
+.auto-node select.field-input,
+.auto-node button {
+  cursor: pointer;
 }
 /* Seleção é estado de interface, e é o único lugar onde o accent entra no quadro. */
 .auto-node.is-selected {
@@ -5248,13 +5248,48 @@
   flex-direction: column;
   gap: 4px;
 }
-/* AU-14 · AU-15 · AU-16 — gatilho na biblioteca, valores da escolha e campos disponíveis ---- */
+/* AU-14 · AU-15 · AU-16 — barra flutuante, valores da escolha e campos disponíveis --------- */
 
-/* A biblioteca tem duas seções; o segundo título precisa de ar e de uma linha que o separe. */
-.auto-lib-sep {
-  margin-top: 10px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
+/*
+ * A biblioteca sobre o quadro, e não ao lado dele: a coluna cobrava do desenho o espaço que
+ * ele mais precisa, e aqui custa a altura de um botão. Fundo opaco porque ela flutua sobre as
+ * ligações — barra translúcida sobre linha vira ruído nos dois.
+ */
+.auto-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card-lg);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 10%);
+  max-width: calc(100% - 24px);
+}
+.auto-menu-wrap {
+  position: relative;
+}
+/* O menu desce alinhado ao botão que o abriu, e não à direita como o do cabeçalho. */
+.auto-menu {
+  right: auto;
+  left: 0;
+  min-width: 230px;
+}
+.auto-menu .menu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* O convite do quadro vazio: some assim que o primeiro bloco entra. */
+.auto-hint {
+  max-width: 460px;
+  padding: 10px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  text-align: center;
 }
 
 /*
