@@ -97,26 +97,24 @@ aplicada no Supabase e as duas tabelas do fio na publicação `supabase_realtime
 - **Conexão do canal** em Configurações → Integrações, no molde do gateway: chave cifrada
   (mesma `PAYMENT_TOKEN_KEY`, porque é o mesmo tipo de segredo), segredo do webhook hasheado e
   mostrado **uma vez**; reconectar mantém o segredo, para a mensagem não parar de chegar.
-- **Webhook** `POST /v1/webhooks/evolution/:tenantSlug`: 401 uniforme, rate limit pela chave do
-  cabeçalho, idempotência pelo id da mensagem antes de qualquer escrita, corpo cru em `payload`
-  e fora do log. O gate de enumeração (`webhookEnumeration.test.ts`) virou tabela: webhook novo
+- **Webhook** `POST /v1/webhooks/evolution/:tenantSlug`: 401 uniforme, rate limit pela origem,
+  idempotência pelo id da mensagem antes de qualquer escrita, corpo cru em `payload` e fora do
+  log. O gate de enumeração (`webhookEnumeration.test.ts`) virou tabela: webhook novo
   sem entrada lá não passa.
 - **CRM → Conversas**: lista à esquerda, fio à direita, cinco estados, filtro por canal, ao vivo
   pelo Realtime, e o botão que cria a oportunidade já com nome e telefone do canal (AT-10).
-- **Não implementado de propósito:** responder pela tela (é a fatia 3 — a tela diz isso e oferece
-  o `wa.me`) e mídia (AT-13, fora de escopo).
+- **Fatia 3 entregue junto:** responder pela tela, anexo e áudio, formatação nativa do WhatsApp,
+  busca por nome ou telefone, marca de “já é cliente” pelo número (com o nono dígito
+  conciliado) e os horários de última enviada e última recebida separados.
 
-**Precisa de você:** URL e chave da instância Evolution, coladas na tela de Integrações; e
-configurar lá o webhook com o evento `messages.upsert` e o cabeçalho que a tela mostra.
-
-**Não verificado por gente:** nenhuma mensagem real passou pelo caminho ainda.
+**Verificado em produção:** mensagem real da Evolution chegando, contato com o nome certo, e a
+cerca por IP de origem no lugar do cabeçalho — a Evolution não deixa configurar cabeçalho.
 
 ### O que falta nas outras fatias
 
-**Fatia 3 — WhatsApp enviando.** Port `MessagingGateway` + adapter no molde do `asaasGateway`
-(`fetchImpl` injetável, `AbortSignal.timeout`); composer ligado, `sentByUserId` gravado. Mídia
-entra aqui, não antes: exige baixar do provedor **no servidor**, caminho diferente do upload
-pelo navegador.
+**Fatia 3 — WhatsApp enviando.** ✅ Entregue. Port `MessagingGateway` + adapter no molde do
+`asaasGateway`, composer ligado com `sentByUserId`, e a mídia baixada no servidor e servida por
+URL assinada de 10 minutos.
 
 **Fatia 4 — Instagram e Messenger.** Um webhook Meta para os dois (`object: instagram | page`),
 autenticado por **HMAC `X-Hub-Signature-256`** com comparação em tempo constante — mecanismo
@@ -137,6 +135,57 @@ página. Página e conta profissional já estão vinculadas.
 - **`position` sem unique**: etapa arquivada guarda a posição, e unique impediria a ativa
   seguinte de ocupar o número. Daí a reordenação exigir a lista inteira.
 - **Sem policy de cliente** nas duas tabelas (OP-11). O portal não ganha nada disso nesta fase.
+
+---
+
+## Automações (§5.18) — fatia 1 entregue
+
+Escopo pedido em 2026-09-02: entrada **Automações** na seção CRM, com CRUD e um editor de
+blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-11`.
+
+### Fatia 1 — desenhar, validar e guardar ✅
+
+| Camada | Estado |
+|---|---|
+| PRD §5.18, vocabulário, schema | ✅ |
+| Domínio: `validateGraph`, `nextNode`, `renderTemplate` — 44 testes | ✅ |
+| Aplicação: 7 casos de uso com trilha de auditoria | ✅ |
+| Persistência: tabela `automations`, RLS só de equipe, migration no Supabase | ✅ |
+| Rotas: 7 endpoints em `/v1/automations`, 11 testes | ✅ |
+| Tela: lista com os cinco estados + editor de fluxo | ✅ |
+| **O motor que executa** | ⏳ fatia 2 |
+
+**O grafo se recusa a ficar torto.** `validateGraph` devolve o motivo em código estável, e a
+tela traduz: sem gatilho, gatilho duplicado, gatilho sem caminho, nó órfão, ligação quebrada,
+porta inválida, porta ambígua, condição incompleta e **ciclo sem espera**. O último é o caro:
+sem espera no caminho, o motor percorreria os mesmos nós para sempre, mandando a mesma mensagem
+para o mesmo cliente até alguém desligar. Com espera, o ciclo é legítimo — é como se escreve
+uma cobrança recorrente.
+
+**Nasce desligada, e ligar valida antes.** No instante em que liga, a automação passa a agir
+sobre gente de verdade, em escala e sem ninguém olhando; uma regra ruim manda a mesma mensagem
+para trinta pessoas antes de alguém perceber. Ligada não se edita nem se apaga — desligar
+primeiro é a decisão consciente. Quem liga fica em `runAsUserId`: a automação vai agir com o
+poder dessa pessoa.
+
+**O editor** é `@xyflow/react` em versão fixa, a única dependência de interface do projeto. As
+variáveis CSS dela são reapontadas para os tokens em `.auto-canvas .react-flow`, então o quadro
+segue modo e densidade como o resto do app, e `--o` só marca seleção e foco. A tradução entre o
+grafo e o formato da biblioteca é função pura com teste de ida e volta: o que se perde numa
+tradução dessas some em silêncio, e o sintoma só aparece depois de salvar, quando o desenho
+volta diferente do que a pessoa deixou.
+
+### Fatia 2 — o motor
+
+Tabelas `automation_runs` e `automation_run_steps`; interpretador (`enqueueAutomationRun`,
+`advanceAutomationRun`, `resumeDueRuns`); ticker de 5s com `SKIP LOCKED` dentro do processo da
+API; `fireAutomationTrigger` nas rotas, no molde de `notify.ts`; tela de log de execução.
+**Não existe scheduler, fila, worker nem cron em lugar nenhum do projeto** — o ticker dentro do
+processo da API é a decisão que essa fatia precisa assumir.
+
+### Fatia 3 — ações que tocam dinheiro
+
+Ações de inscrição e pagamento, e o porto de aviso à equipe.
 
 ---
 
