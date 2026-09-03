@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { nextNode, validateGraph, type AutomationGraph } from './graph.js';
+import { nextNode, portsOf, validateGraph, type AutomationGraph } from './graph.js';
+import { TRIGGER_TYPES } from './triggers.js';
 
 /**
  * AU-01 · AU-07 — o grafo de uma automação, validado antes de existir.
@@ -214,5 +215,126 @@ describe('AU-07: espera abaixo do piso', () => {
 
   it('três dias passa', () => {
     expect(validateGraph(comEspera({ amount: 3, unit: 'days' }))).toEqual([]);
+  });
+});
+
+/**
+ * AU-15 — a escolha múltipla.
+ *
+ * A condição separa em dois; a escolha múltipla separa em quantos a equipe precisar, mais o
+ * padrão. É o bloco que evita a escada de cinco condições encadeadas para responder a cinco
+ * roteiros diferentes — e escada de condição é onde se erra o lado do "sim".
+ *
+ * Cada caso tem **id próprio**, e a saída é `case_<id>`: se a porta fosse a posição na lista,
+ * apagar o primeiro valor faria a ligação do segundo passar a apontar para o terceiro, em
+ * silêncio, depois de salvo.
+ */
+describe('AU-15: as saídas de uma escolha múltipla', () => {
+  const escolha = {
+    id: 's1',
+    kind: 'switch',
+    type: 'match',
+    config: {
+      field: 'mensagem.texto',
+      cases: [
+        { id: 'c1', value: 'preço' },
+        { id: 'c2', value: 'data' },
+      ],
+    },
+    position: { x: 0, y: 60 },
+  } as const;
+
+  const completo: AutomationGraph = {
+    nodes: [gatilho, escolha, fim],
+    edges: [
+      { id: 'e1', from: 'g1', port: 'next', to: 's1' },
+      { id: 'e2', from: 's1', port: 'case_c1', to: 'f1' },
+      { id: 'e3', from: 's1', port: 'case_c2', to: 'f1' },
+      { id: 'e4', from: 's1', port: 'default', to: 'f1' },
+    ],
+  };
+
+  it('uma saída por valor, mais o padrão', () => {
+    expect(portsOf(escolha)).toEqual(['case_c1', 'case_c2', 'default']);
+  });
+
+  it('com todos os caminhos ligados, passa', () => {
+    expect(validateGraph(completo)).toEqual([]);
+  });
+
+  /** Sem valor nenhum, todo mundo cai no padrão: o bloco está ali sem separar nada. */
+  it('escolha sem valor nenhum é recusada', () => {
+    const vazia = {
+      nodes: [gatilho, { ...escolha, config: { field: 'mensagem.texto', cases: [] } }, fim],
+      edges: [
+        { id: 'e1', from: 'g1', port: 'next', to: 's1' },
+        { id: 'e2', from: 's1', port: 'default', to: 'f1' },
+      ],
+    } as AutomationGraph;
+    expect(validateGraph(vazia)).toContain('escolha_sem_valores');
+  });
+
+  it('caso sem caminho é recusado — o valor existe e não leva a lugar nenhum', () => {
+    const semUm = { ...completo, edges: completo.edges.filter((e) => e.port !== 'case_c2') };
+    expect(validateGraph(semUm)).toContain('escolha_incompleta');
+  });
+
+  it('padrão sem caminho é recusado: o que não casa com nada precisa ir para algum lugar', () => {
+    const semPadrao = { ...completo, edges: completo.edges.filter((e) => e.port !== 'default') };
+    expect(validateGraph(semPadrao)).toContain('escolha_incompleta');
+  });
+
+  /** Valor apagado no editor: a ligação que sobrou aponta para uma saída que não existe mais. */
+  it('ligação de um valor que não existe mais é porta inválida', () => {
+    const semCaso = {
+      ...completo,
+      nodes: [
+        gatilho,
+        { ...escolha, config: { field: 'mensagem.texto', cases: [{ id: 'c1', value: 'preço' }] } },
+        fim,
+      ],
+    } as AutomationGraph;
+    expect(validateGraph(semCaso)).toContain('porta_invalida');
+  });
+
+  it('a escolha quebra ciclo? não: sem espera, o ciclo continua proibido', () => {
+    const emCiclo = {
+      nodes: [gatilho, escolha],
+      edges: [
+        { id: 'e1', from: 'g1', port: 'next', to: 's1' },
+        { id: 'e2', from: 's1', port: 'case_c1', to: 's1' },
+        { id: 'e3', from: 's1', port: 'case_c2', to: 's1' },
+        { id: 'e4', from: 's1', port: 'default', to: 's1' },
+      ],
+    } as AutomationGraph;
+    expect(validateGraph(emCiclo)).toContain('ciclo_sem_espera');
+  });
+});
+
+/**
+ * AU-14 — o bloco de gatilho precisa ser um gatilho que existe.
+ *
+ * Com o gatilho virando bloco do quadro, o `type` dele deixou de passar por uma lista fechada
+ * na borda HTTP. A lista continua existindo — só mudou de lugar, para onde ela vale para
+ * qualquer caminho: um gatilho inventado é uma automação que nunca dispara, e ninguém
+ * descobre por quê.
+ */
+describe('AU-14: o tipo do gatilho', () => {
+  it('gatilho que não existe é recusado', () => {
+    const inventado: AutomationGraph = {
+      nodes: [{ ...gatilho, type: 'quando_der_vontade' }, fim],
+      edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'f1' }],
+    };
+    expect(validateGraph(inventado)).toContain('gatilho_desconhecido');
+  });
+
+  it('todos os gatilhos do catálogo passam', () => {
+    for (const tipo of TRIGGER_TYPES) {
+      const graph: AutomationGraph = {
+        nodes: [{ ...gatilho, type: tipo }, fim],
+        edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'f1' }],
+      };
+      expect(validateGraph(graph)).toEqual([]);
+    }
   });
 });

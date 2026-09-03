@@ -107,3 +107,43 @@ describe('AU-01: do quadro de volta para o grafo', () => {
     expect(fromFlow(torto, edges).nodes[0]?.position).toEqual({ x: 41, y: 80 });
   });
 });
+
+/**
+ * AU-15 — a escolha múltipla atravessa a fronteira igual ao resto.
+ *
+ * A saída dela carrega o id do caso, e é justamente esse tipo de detalhe que some numa
+ * tradução: se a alça voltasse como `next`, todos os caminhos da escolha viram um só e o
+ * sintoma aparece semanas depois, na conversa de um cliente.
+ */
+describe('AU-15: a escolha múltipla no quadro', () => {
+  const comEscolha: AutomationGraph = {
+    nodes: [
+      { id: 'g1', kind: 'trigger', type: 'message_received', config: {}, position: { x: 0, y: 0 } },
+      {
+        id: 's1',
+        kind: 'switch',
+        type: 'match',
+        config: { field: 'mensagem.texto', cases: [{ id: 'c1', value: 'preço' }] },
+        position: { x: 0, y: 120 },
+      },
+      { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 240 } },
+    ],
+    edges: [
+      { id: 'e1', from: 'g1', port: 'next', to: 's1' },
+      { id: 'e2', from: 's1', port: 'case_c1', to: 'f1' },
+      { id: 'e3', from: 's1', port: 'default', to: 'f1' },
+    ],
+  };
+
+  it('ida e volta preserva a saída de cada valor e a do padrão', () => {
+    const { nodes, edges } = toFlow(comEscolha);
+
+    expect(fromFlow(nodes, edges)).toEqual(comEscolha);
+  });
+
+  it('a saída do caso vira alça com o id do valor', () => {
+    const { edges } = toFlow(comEscolha);
+
+    expect(edges.map((e) => e.sourceHandle)).toEqual(['next', 'case_c1', 'default']);
+  });
+});

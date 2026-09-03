@@ -6,6 +6,8 @@
  * parâmetro. É o que permite provar "mensagem contendo preço vai pelo sim" sem subir Postgres.
  */
 
+import type { Port } from './graph.js';
+
 /** O piso da espera, em minutos. A varredura de rede é dessa ordem; menos que isso mentiria. */
 export const ESPERA_MINIMA_MIN = 1;
 
@@ -59,6 +61,56 @@ export function evaluateCondition(config: Record<string, unknown>, contexto: Run
     default:
       return false;
   }
+}
+
+/** Um valor da escolha múltipla: o id é a porta, e o valor é o que se compara. */
+export interface SwitchCase {
+  readonly id: string;
+  readonly value: string;
+}
+
+/**
+ * AU-15 — a lista de valores de uma escolha múltipla, lida com desconfiança.
+ *
+ * Caso sem id é descartado: sem id não há porta para ligar, e um valor sem saída seria um
+ * caminho invisível no quadro.
+ */
+export function switchCases(config: Record<string, unknown>): SwitchCase[] {
+  const bruto = config['cases'];
+  if (!Array.isArray(bruto)) return [];
+
+  const casos: SwitchCase[] = [];
+  for (const item of bruto) {
+    if (item === null || typeof item !== 'object') continue;
+    const { id, value } = item as Record<string, unknown>;
+    if (typeof id !== 'string' || id === '') continue;
+    casos.push({ id, value: typeof value === 'string' ? value : '' });
+  }
+  return casos;
+}
+
+/**
+ * AU-15 — por onde sai uma escolha múltipla.
+ *
+ * O primeiro valor que casa ganha, e por isso a ordem da lista é a ordem da regra. O que não
+ * casa com nada vai pelo **padrão**: execução que para sem saída é a que ninguém descobre, e
+ * "não pensei neste caso" é exatamente o que o padrão existe para receber.
+ *
+ * A comparação é a mesma de `contains` na condição — sem caixa, sem acento e por trecho —,
+ * porque o uso é o mesmo: casar a palavra que o cliente digitou no meio de uma frase.
+ */
+export function resolveSwitch(config: Record<string, unknown>, contexto: RunContext): Port {
+  const campo = typeof config['field'] === 'string' ? config['field'] : '';
+  if (campo === '') return 'default';
+
+  const lido = normalizar(readPath(contexto, campo));
+  if (lido === '') return 'default';
+
+  for (const caso of switchCases(config)) {
+    const valor = normalizar(caso.value);
+    if (valor !== '' && lido.includes(valor)) return `case_${caso.id}`;
+  }
+  return 'default';
 }
 
 /**

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateCondition, readPath, resolveDelay, ESPERA_MINIMA_MIN } from './interpreter.js';
+import {
+  evaluateCondition,
+  readPath,
+  resolveDelay,
+  resolveSwitch,
+  switchCases,
+  ESPERA_MINIMA_MIN,
+} from './interpreter.js';
 
 /**
  * AU-01 · AU-07 — as decisões que o motor toma, sem ser o motor.
@@ -133,5 +140,71 @@ describe('AU-07: a espera resolve para um instante', () => {
 
   it('o piso está declarado, para o validador de grafo usar o mesmo número', () => {
     expect(ESPERA_MINIMA_MIN).toBe(1);
+  });
+});
+
+/**
+ * AU-15 — por onde sai uma escolha múltipla.
+ *
+ * A mesma normalização da condição: quem escreve "preço" na regra espera pegar "PRECO"
+ * digitado às pressas no celular. O que não casa com valor nenhum vai pelo padrão — nunca
+ * fica parado, porque execução que para sem motivo é a que ninguém descobre.
+ */
+describe('AU-15: a saída de uma escolha múltipla', () => {
+  const config = {
+    field: 'mensagem.texto',
+    cases: [
+      { id: 'c1', value: 'preço' },
+      { id: 'c2', value: 'data' },
+    ],
+  };
+
+  it('casa o valor e sai pela porta daquele caso', () => {
+    expect(resolveSwitch(config, { mensagem: { texto: 'qual o preço?' } })).toBe('case_c1');
+  });
+
+  it('sem caixa e sem acento, como a condição', () => {
+    expect(resolveSwitch(config, { mensagem: { texto: 'QUAL O PRECO?' } })).toBe('case_c1');
+  });
+
+  it('o primeiro valor que casa ganha, e a ordem é a da lista', () => {
+    expect(resolveSwitch(config, { mensagem: { texto: 'preço e data da saída' } })).toBe('case_c1');
+  });
+
+  it('o que não casa com nada vai pelo padrão', () => {
+    expect(resolveSwitch(config, { mensagem: { texto: 'bom dia' } })).toBe('default');
+  });
+
+  it('campo vazio vai pelo padrão, em vez de casar com valor vazio', () => {
+    expect(resolveSwitch(config, {})).toBe('default');
+    expect(resolveSwitch({ ...config, field: '' }, { mensagem: { texto: 'preço' } })).toBe(
+      'default',
+    );
+  });
+
+  /** Configuração torta vem de grafo salvo por outra versão do editor: desvia, não explode. */
+  it('lista de casos ausente vai pelo padrão', () => {
+    expect(resolveSwitch({ field: 'mensagem.texto' }, { mensagem: { texto: 'preço' } })).toBe(
+      'default',
+    );
+  });
+});
+
+describe('AU-15: os casos de uma escolha múltipla', () => {
+  it('lê a lista com id e valor', () => {
+    expect(switchCases({ cases: [{ id: 'c1', value: 'preço' }] })).toEqual([
+      { id: 'c1', value: 'preço' },
+    ]);
+  });
+
+  it('descarta caso sem id: sem ele não há porta para ligar', () => {
+    expect(switchCases({ cases: [{ value: 'preço' }, { id: 'c2', value: 'data' }] })).toEqual([
+      { id: 'c2', value: 'data' },
+    ]);
+  });
+
+  it('configuração sem lista é lista vazia', () => {
+    expect(switchCases({})).toEqual([]);
+    expect(switchCases({ cases: 'preço' })).toEqual([]);
   });
 });

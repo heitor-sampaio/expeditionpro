@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../auth/api.js';
-import type { AutomationGraph } from '@expedition/domain';
+import type { AutomationGraph, TriggerType } from '@expedition/domain';
 
 /**
  * §5.18 — a lista de automações e o que se faz com elas.
@@ -10,20 +10,12 @@ import type { AutomationGraph } from '@expedition/domain';
  * para português — o mesmo desenho de `useBoard` e `useInbox`.
  */
 
-export type TriggerType =
-  | 'message_received'
-  | 'conversation_created'
-  | 'opportunity_created'
-  | 'opportunity_moved'
-  | 'booking_created'
-  | 'booking_confirmed'
-  | 'payment_registered';
-
 export interface Automation {
   id: string;
   name: string;
   description: string | null;
-  triggerType: TriggerType;
+  /** AU-14: `null` enquanto o quadro não tem bloco de gatilho. */
+  triggerType: TriggerType | null;
   graph: AutomationGraph;
   enabled: boolean;
   runAsUserId: string | null;
@@ -37,7 +29,7 @@ export type AutomationsState =
   | { status: 'error' }
   | { status: 'forbidden' };
 
-export type ActionResult = { ok: true } | { ok: false; message: string };
+export type ActionResult = { ok: true; id?: string } | { ok: false; message: string };
 
 export function useAutomations() {
   const [state, setState] = useState<AutomationsState>({ status: 'loading' });
@@ -81,7 +73,9 @@ export function useAutomations() {
           return { ok: false, message: mensagem(corpo, res.status) };
         }
         refresh();
-        return { ok: true };
+        // AU-14: quem cria vai direto para o quadro, e para isso precisa do id de volta.
+        const criada = (await res.json().catch(() => ({}))) as { id?: string };
+        return criada.id === undefined ? { ok: true } : { ok: true, id: criada.id };
       } catch {
         return { ok: false, message: 'Falha de conexão.' };
       } finally {
@@ -92,7 +86,7 @@ export function useAutomations() {
   );
 
   const criar = useCallback(
-    (dados: { name: string; triggerType: TriggerType; description?: string }) =>
+    (dados: { name: string; description?: string }) =>
       chamar('/v1/automations', { method: 'POST', body: JSON.stringify(dados) }),
     [chamar],
   );

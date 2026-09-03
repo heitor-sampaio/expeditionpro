@@ -3,6 +3,7 @@ import {
   nextNode,
   renderTemplate,
   resolveDelay,
+  resolveSwitch,
   type AutomationGraph,
   type AutomationNode,
   type Port,
@@ -116,6 +117,11 @@ export async function advanceAutomationRun(
 
     if (atual.kind === 'condition') {
       porta = evaluateCondition(atual.config, variaveis) ? 'true' : 'false';
+      await registrar(deps, ref, atual, porta, { campo: atual.config['field'] });
+    } else if (atual.kind === 'switch') {
+      // AU-15: a porta escolhida é o que o log guarda. "Por que este cliente recebeu a
+      // mensagem do outro roteiro?" só tem resposta se o desvio ficar escrito.
+      porta = resolveSwitch(atual.config, variaveis);
       await registrar(deps, ref, atual, porta, { campo: atual.config['field'] });
     } else if (atual.kind === 'setVariable') {
       const nome = String(atual.config['name'] ?? '').trim();

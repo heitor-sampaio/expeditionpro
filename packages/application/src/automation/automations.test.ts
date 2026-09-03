@@ -39,10 +39,7 @@ const GRAFO_BOM: AutomationGraph = {
 };
 
 async function comAutomacao(d: ReturnType<typeof deps>, role: 'owner' | 'admin' = 'owner') {
-  return createAutomation(d, ctxCom(role), {
-    name: 'Responder quem pergunta preço',
-    triggerType: 'message_received',
-  });
+  return createAutomation(d, ctxCom(role), { name: 'Responder quem pergunta preço' });
 }
 
 /**
@@ -61,21 +58,28 @@ describe('AU-02: criar automação', () => {
     expect(criada.enabled).toBe(false);
   });
 
-  it('nasce com o grafo só do gatilho — é por onde a tela começa', async () => {
+  /**
+   * AU-14 — criar pede o nome e nada mais.
+   *
+   * O gatilho é um bloco do quadro como qualquer outro, e escolher qual é já é desenhar. Pedir
+   * essa escolha num formulário, antes de a pessoa ver o quadro, é decidir a regra sem ver o
+   * fluxo — e depois não deixar trocar de ideia sem apagar tudo e recomeçar.
+   */
+  it('nasce com o quadro vazio e sem gatilho — quem escolhe é o desenho', async () => {
     const d = deps();
 
     const criada = await comAutomacao(d);
 
-    expect(criada.graph.nodes).toHaveLength(1);
-    expect(criada.graph.nodes[0]?.kind).toBe('trigger');
+    expect(criada.graph.nodes).toHaveLength(0);
+    expect(criada.triggerType).toBeNull();
   });
 
   it('nome em branco é recusado', async () => {
     const d = deps();
 
-    await expect(
-      createAutomation(d, ctxCom('owner'), { name: '   ', triggerType: 'message_received' }),
-    ).rejects.toBeInstanceOf(RequiredFieldError);
+    await expect(createAutomation(d, ctxCom('owner'), { name: '   ' })).rejects.toBeInstanceOf(
+      RequiredFieldError,
+    );
   });
 
   it('nome repetido é recusado — dois iguais viram engano na conversa da equipe', async () => {
@@ -87,17 +91,14 @@ describe('AU-02: criar automação', () => {
 
   it('operator não cria: automação age com poder de quem a liga', async () => {
     await expect(
-      createAutomation(deps(), ctxCom('operator'), {
-        name: 'X',
-        triggerType: 'message_received',
-      }),
+      createAutomation(deps(), ctxCom('operator'), { name: 'X' }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it('cliente não chega aqui (AU-10)', async () => {
-    await expect(
-      createAutomation(deps(), cliente, { name: 'X', triggerType: 'message_received' }),
-    ).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(createAutomation(deps(), cliente, { name: 'X' })).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
   });
 });
 
@@ -350,5 +351,93 @@ describe('AU-13: ligar automação que toca dinheiro', () => {
     });
 
     expect(desligada.enabled).toBe(false);
+  });
+});
+
+/**
+ * AU-14 — o gatilho mora no quadro, e a linha só o copia.
+ *
+ * `triggerType` continua existindo como coluna porque é por ela que cada evento procura, em
+ * milissegundos, quem tem interesse — vasculhar `jsonb` a cada mensagem recebida seria caro à
+ * toa. Mas a **verdade** é o bloco que a equipe pôs no desenho: a coluna é derivada dele ao
+ * salvar, e nunca digitada em outro lugar. Duas fontes para o mesmo fato é como uma automação
+ * passa a reagir a um evento que ninguém desenhou.
+ */
+describe('AU-14: o gatilho vem do quadro', () => {
+  const comGatilho = (type: string, config: Record<string, unknown> = {}): AutomationGraph => ({
+    nodes: [
+      { id: 'g1', kind: 'trigger', type, config, position: { x: 0, y: 0 } },
+      { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 120 } },
+    ],
+    edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'f1' }],
+  });
+
+  it('salvar o desenho grava na linha o gatilho que está no quadro', async () => {
+    const d = deps();
+    const criada = await comAutomacao(d);
+
+    const salva = await saveAutomationGraph(d, ctxCom('owner'), {
+      automationId: criada.id,
+      graph: comGatilho('opportunity_created'),
+    });
+
+    expect(salva.triggerType).toBe('opportunity_created');
+  });
+
+  it('trocar o bloco de gatilho troca o gatilho da automação', async () => {
+    const d = deps();
+    const criada = await comAutomacao(d);
+    await saveAutomationGraph(d, ctxCom('owner'), {
+      automationId: criada.id,
+      graph: comGatilho('message_received'),
+    });
+
+    const salva = await saveAutomationGraph(d, ctxCom('owner'), {
+      automationId: criada.id,
+      graph: comGatilho('booking_confirmed'),
+    });
+
+    expect(salva.triggerType).toBe('booking_confirmed');
+  });
+
+  /**
+   * AU-12 — o "quantos dias antes" é configurado no bloco, no inspetor, como todo o resto.
+   * A varredura lê da coluna, então o que o bloco diz precisa chegar lá; senão a equipe
+   * desenha "três dias antes" e o motor procura pelo dia da saída.
+   */
+  it('a configuração do gatilho temporal desce do bloco para a linha', async () => {
+    const d = deps();
+    const criada = await comAutomacao(d);
+
+    const salva = await saveAutomationGraph(d, ctxCom('owner'), {
+      automationId: criada.id,
+      graph: comGatilho('scheduled', { offsetDays: -3 }),
+    });
+
+    expect(salva.triggerConfig).toEqual({ offsetDays: -3 });
+  });
+
+  it('desenho sem gatilho nenhum é recusado, e a linha continua sem gatilho', async () => {
+    const d = deps();
+    const criada = await comAutomacao(d);
+
+    await expect(
+      saveAutomationGraph(d, ctxCom('owner'), {
+        automationId: criada.id,
+        graph: { nodes: [], edges: [] },
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_graph' });
+    expect((await getAutomation(d, ctxCom('owner'), { automationId: criada.id })).triggerType).toBe(
+      null,
+    );
+  });
+
+  it('sem gatilho no quadro, não liga', async () => {
+    const d = deps();
+    const criada = await comAutomacao(d);
+
+    await expect(
+      setAutomationEnabled(d, ctxCom('owner'), { automationId: criada.id, enabled: true }),
+    ).rejects.toMatchObject({ code: 'invalid_graph' });
   });
 });

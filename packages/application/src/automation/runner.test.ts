@@ -61,18 +61,27 @@ function deps(actions: AutomationActions = {}) {
 
 type Deps = ReturnType<typeof deps>;
 
-/** Uma automação ligada, com o papel de quem a ligou já registrado. */
+/**
+ * Uma automação ligada, com o papel de quem a ligou já registrado.
+ *
+ * AU-14: o gatilho da linha vem do bloco do desenho — aqui pelo mesmo caminho da vida real,
+ * o salvamento, para a fixture não inventar uma combinação que o sistema não produz.
+ */
 async function ligada(d: Deps, graph: AutomationGraph = SIMPLES) {
   const criada = await d.automations.create({
     tenantId: 't1',
     name: 'Responder preço',
     description: null,
-    triggerType: 'message_received',
-    triggerConfig: {},
     graph,
     createdBy: 'u-ana',
   });
-  await d.automations.update('t1', criada.id, { enabled: true, runAsUserId: 'u-ana' });
+  const gatilho = graph.nodes.find((no) => no.kind === 'trigger');
+  await d.automations.update('t1', criada.id, {
+    enabled: true,
+    runAsUserId: 'u-ana',
+    triggerType: (gatilho?.type ?? null) as 'message_received' | null,
+    triggerConfig: gatilho?.config ?? {},
+  });
   await d.memberships.grant('t1', 'u-ana', 'ana@drakkar.com.br', 'admin');
   return criada;
 }
@@ -485,3 +494,84 @@ function ref(d: Deps) {
   const row = d.runs.rows[0]!;
   return { id: row.id, tenantId: row.tenantId, automationId: row.automationId };
 }
+
+/**
+ * AU-15 — a escolha múltipla no motor.
+ *
+ * A alternativa que ela substitui é uma escada de condições encadeadas, e escada de condição é
+ * onde se troca o lado do "sim" sem perceber. Aqui a prova é dupla: sai pelo caminho do valor
+ * que casou, e o log guarda **qual** foi — sem isso, "por que esse cliente recebeu a mensagem
+ * do roteiro errado?" não tem resposta.
+ */
+describe('AU-15: a escolha múltipla desvia por valor', () => {
+  const comEscolha = (): AutomationGraph => ({
+    nodes: [
+      { id: 'g1', kind: 'trigger', type: 'message_received', config: {}, position: { x: 0, y: 0 } },
+      {
+        id: 's1',
+        kind: 'switch',
+        type: 'match',
+        config: {
+          field: 'mensagem.texto',
+          cases: [
+            { id: 'c1', value: 'custa' },
+            { id: 'c2', value: 'data' },
+          ],
+        },
+        position: { x: 0, y: 60 },
+      },
+      { id: 'a1', kind: 'action', type: 'send_message', config: {}, position: { x: 0, y: 120 } },
+      { id: 'a2', kind: 'action', type: 'notify_team', config: {}, position: { x: 90, y: 120 } },
+      { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 180, y: 120 } },
+    ],
+    edges: [
+      { id: 'e1', from: 'g1', port: 'next', to: 's1' },
+      { id: 'e2', from: 's1', port: 'case_c1', to: 'a1' },
+      { id: 'e3', from: 's1', port: 'case_c2', to: 'a2' },
+      { id: 'e4', from: 's1', port: 'default', to: 'f1' },
+    ],
+  });
+
+  async function rodarCom(texto: string) {
+    const preco = vi.fn().mockResolvedValue({});
+    const data = vi.fn().mockResolvedValue({});
+    const d = deps({ send_message: preco, notify_team: data });
+    await ligada(d, comEscolha());
+    await enqueueAutomationRun(d, {
+      tenantId: 't1',
+      triggerType: 'message_received',
+      triggerRef: { conversationId: 'c1' },
+      variables: { mensagem: { texto } },
+      now: AGORA,
+    });
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    return { d, preco, data };
+  }
+
+  it('vai pelo caminho do valor que casou, e o log diz qual foi', async () => {
+    const { d, preco, data } = await rodarCom('quanto custa?');
+
+    expect(preco).toHaveBeenCalledOnce();
+    expect(data).not.toHaveBeenCalled();
+    expect(d.steps.rows.find((s) => s.nodeId === 's1')?.outcome).toBe('case_c1');
+  });
+
+  it('o segundo valor tem o caminho dele', async () => {
+    const { preco, data } = await rodarCom('qual a data da saída?');
+
+    expect(data).toHaveBeenCalledOnce();
+    expect(preco).not.toHaveBeenCalled();
+  });
+
+  /** O que não casa com nada segue pelo padrão e termina — nunca fica parado no meio. */
+  it('o que não casa com nada vai pelo padrão', async () => {
+    const { d, preco, data } = await rodarCom('bom dia!');
+
+    expect(preco).not.toHaveBeenCalled();
+    expect(data).not.toHaveBeenCalled();
+    expect(d.steps.rows.find((s) => s.nodeId === 's1')?.outcome).toBe('default');
+    expect(d.runs.rows[0]?.status).toBe('done');
+  });
+});

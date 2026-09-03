@@ -184,21 +184,25 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
        */
       if (outcome.trigger) {
         const { trigger } = outcome;
-        fireAutomation(
-          app,
-          tenantId,
-          'message_received',
-          { conversationId: trigger.conversationId },
-          {
-            conversa: { id: trigger.conversationId },
-            contato: {
-              nome: trigger.contactName,
-              telefone: trigger.phone,
-              ehCliente: trigger.customerId !== null,
-            },
-            mensagem: { texto: trigger.text },
+        // AU-16: o que vai aqui é o que o seletor da tela promete em `CAMPOS_DO_GATILHO`, e
+        // um teste de rota cobra os dois lados. Campo que sumisse daqui viraria variável
+        // vazia em silêncio na mensagem do cliente.
+        const contexto = {
+          conversa: { id: trigger.conversationId },
+          contato: {
+            nome: trigger.contactName,
+            telefone: trigger.phone,
+            ehCliente: trigger.customerId !== null,
           },
-        );
+          mensagem: { texto: trigger.text },
+        };
+        const referencia = { conversationId: trigger.conversationId };
+        // A primeira mensagem de alguém é as duas coisas: conversa nova e mensagem recebida.
+        // Quem separa é a automação que a equipe desenhou, não a borda.
+        if (trigger.conversationCreated) {
+          fireAutomation(app, tenantId, 'conversation_created', referencia, contexto);
+        }
+        fireAutomation(app, tenantId, 'message_received', referencia, contexto);
       }
 
       return reply.send({ handled: outcome.handled });

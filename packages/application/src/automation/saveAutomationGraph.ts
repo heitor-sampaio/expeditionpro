@@ -5,7 +5,7 @@ import { exigir } from './getAutomation.js';
 import type { AutomationGraph } from '@expedition/domain';
 import type { RequestContext } from '../context.js';
 import type { AutomationDeps } from './automationDeps.js';
-import type { AutomationRecord } from './automationRepository.js';
+import type { AutomationRecord, TriggerType } from './automationRepository.js';
 
 export interface SaveAutomationGraphCommand {
   readonly automationId: string;
@@ -39,7 +39,22 @@ export async function saveAutomationGraph(
 
   assertGrafoValido(command.graph);
 
-  return deps.automations.update(ctx.tenantId, automacao.id, { graph: command.graph });
+  /*
+   * AU-14 — a coluna do gatilho é **cópia** do bloco que está no quadro.
+   *
+   * Ela existe por desempenho: cada evento procura por ela, em milissegundos, quem tem
+   * interesse. Mas a verdade é o desenho, e por isso a cópia se refaz a cada salvamento — em
+   * vez de ser escolhida num formulário à parte, que é como uma automação passaria a reagir a
+   * um evento que ninguém desenhou. A configuração desce junto: a varredura temporal lê o
+   * "quantos dias antes" da coluna, e ele é digitado no inspetor do bloco.
+   */
+  const gatilho = command.graph.nodes.find((no) => no.kind === 'trigger');
+
+  return deps.automations.update(ctx.tenantId, automacao.id, {
+    graph: command.graph,
+    triggerType: (gatilho?.type ?? null) as TriggerType | null,
+    triggerConfig: gatilho?.config ?? {},
+  });
 }
 
 const EXPLICACAO: Record<string, string> = {
@@ -51,8 +66,11 @@ const EXPLICACAO: Record<string, string> = {
   porta_ambigua: 'há duas ligações saindo da mesma saída',
   condicao_incompleta: 'há condição sem os dois caminhos, sim e não',
   gatilho_sem_caminho: 'o gatilho não leva a lugar nenhum',
+  gatilho_desconhecido: 'o bloco de gatilho não é um gatilho que este sistema conhece',
   ciclo_sem_espera: 'há um ciclo sem espera, e ele rodaria para sempre',
   espera_curta: 'há espera menor que um minuto, e o motor não respeitaria esse intervalo',
+  escolha_sem_valores: 'há escolha múltipla sem valor nenhum, e ela não separaria caminho',
+  escolha_incompleta: 'há escolha múltipla com saída sem caminho, inclusive o padrão',
 };
 
 export function assertGrafoValido(graph: AutomationGraph): void {

@@ -1,4 +1,4 @@
-import type { AutomationGraph } from '@expedition/domain';
+import type { AutomationGraph, TriggerType } from '@expedition/domain';
 import type { ScheduledAutomationRef } from './scanScheduledTriggers.js';
 
 /**
@@ -6,25 +6,18 @@ import type { ScheduledAutomationRef } from './scanScheduledTriggers.js';
  *
  * O grafo entra e sai como dado: quem valida é o domínio, quem guarda é isto. `triggerType`
  * vive fora do grafo porque é por ele que o gatilho procura, a cada evento, quem tem interesse
- * — e uma consulta por dentro de `jsonb` a cada mensagem recebida seria cara à toa.
+ * — e uma consulta por dentro de `jsonb` a cada mensagem recebida seria cara à toa. AU-14: é
+ * **cópia** do bloco de gatilho do desenho, derivada ao salvar, nunca escolhida à parte.
  */
 
-export type TriggerType =
-  | 'message_received'
-  | 'conversation_created'
-  | 'opportunity_created'
-  | 'opportunity_moved'
-  | 'booking_created'
-  | 'booking_confirmed'
-  | 'payment_registered'
-  /** AU-12: em relação à data de início de uma saída. É varrido, não agendado. */
-  | 'scheduled';
+export type { TriggerType };
 
 export interface AutomationRecord {
   readonly id: string;
   readonly name: string;
   readonly description: string | null;
-  readonly triggerType: TriggerType;
+  /** AU-14: `null` enquanto o quadro ainda não tem bloco de gatilho. Rascunho não liga. */
+  readonly triggerType: TriggerType | null;
   /** AU-12: `{ offsetDays }` no temporal. Os gatilhos de evento não têm o que configurar. */
   readonly triggerConfig: Record<string, unknown>;
   readonly graph: AutomationGraph;
@@ -39,8 +32,6 @@ export interface NewAutomation {
   readonly tenantId: string;
   readonly name: string;
   readonly description: string | null;
-  readonly triggerType: TriggerType;
-  readonly triggerConfig: Record<string, unknown>;
   readonly graph: AutomationGraph;
   readonly createdBy: string | null;
 }
@@ -48,6 +39,7 @@ export interface NewAutomation {
 export interface AutomationPatch {
   readonly name?: string;
   readonly description?: string | null;
+  readonly triggerType?: TriggerType | null;
   readonly triggerConfig?: Record<string, unknown>;
   readonly graph?: AutomationGraph;
   readonly enabled?: boolean;

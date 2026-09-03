@@ -138,10 +138,10 @@ página. Página e conta profissional já estão vinculadas.
 
 ---
 
-## Automações (§5.18) — fatia 1 entregue
+## Automações (§5.18) — no ar, com o quadro mandando
 
 Escopo pedido em 2026-09-02: entrada **Automações** na seção CRM, com CRUD e um editor de
-blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-11`.
+blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-16`.
 
 ### Fatia 1 — desenhar, validar e guardar ✅
 
@@ -223,11 +223,56 @@ dessas exige confirmação à parte, e a tela nomeia em texto o que vai acontece
 olhando. Porto novo de aviso à equipe (`TeamNoticeGateway`), com a lista de destinatários
 saindo de `memberships` e nunca da configuração do bloco.
 
+### Fatia 4 — o quadro manda ✅
+
+Três ajustes pedidos pelo dono em 2026-09-03, e todos empurram na mesma direção: **o desenho é
+a verdade, e o formulário não decide nada que o quadro possa decidir.**
+
+**AU-14 — o gatilho virou bloco.** Criar pede o nome e cai no quadro. O gatilho é um item da
+biblioteca como os outros, com um limite: **um por automação**, e a biblioteca desabilita os
+demais quando já existe um, em vez de deixar pôr dois e recusar no salvar. Trocar de gatilho é
+remover e pôr outro, o que antes exigia apagar a automação e recomeçar.
+
+A coluna `trigger_type` continua existindo — é por ela que cada evento acha, em milissegundos,
+quem tem interesse —, mas passou a ser **cópia derivada do desenho**, refeita a cada
+salvamento, e ficou nula: o rascunho sem gatilho é um estado legítimo, que não liga e que
+evento nenhum procura. A lista fechada de gatilhos mudou de lugar junto: quem recusa
+`quando_der_vontade` agora é o domínio, não o Zod da borda. E a configuração do temporal desce
+do bloco para a linha no mesmo caminho — antes o "três dias antes" digitado no inspetor não
+chegava à varredura, que lia da coluna.
+
+**AU-15 — escolha múltipla.** Um caminho por valor, mais o padrão, no lugar da escada de cinco
+condições encadeadas — que é onde se troca o lado do "sim" sem perceber. A saída carrega o
+**id do valor**: com a posição na lista, apagar o primeiro valor faria a ligação do segundo
+apontar para o terceiro, em silêncio, depois de salvo. O que não casa com nada vai pelo padrão
+e o log guarda por onde saiu; toda saída precisa de caminho, e escolha sem valor nenhum é
+recusada como condição pela metade.
+
+**AU-16 — os campos deixaram de ser adivinhação.** `CAMPOS_DO_GATILHO` diz, por gatilho, o que
+o contexto traz; o inspetor oferece a lista no campo de condição e de escolha, e um inseridor
+de `{{campo}}` nos textos que vão para o cliente. As variáveis definidas por blocos de variável
+entram na mesma lista, marcadas como do fluxo. O catálogo vive no domínio, e não na tela, por
+uma razão: **um teste de rota cobra que o webhook entregue tudo o que o seletor promete.** Sem
+ele, um campo que sumisse da borda viraria variável vazia (AU-09) numa mensagem real, sem erro
+nenhum para investigar.
+
+> **O gatilho "conversa nova" não estava ligado em borda nenhuma.** Estava na lista desde a
+> fatia 1 e nenhum evento o disparava: a equipe desenharia, ligaria, esperaria o efeito e nada
+> aconteceria — sem erro, sem log. Com o gatilho virando bloco da biblioteca, a dívida ficava
+> visível, então foi fechada: o webhook agora dispara **os dois** no primeiro contato de
+> alguém, e quem separa é o desenho.
+
 ### O que ainda não foi visto por gente
 
 O motor nunca rodou em produção: a automação de exemplo ("mensagem contendo preço → responder")
 está provada ponta a ponta em teste de rota, com o webhook real da Evolution simulado. Falta
 ligar uma de verdade e mandar uma mensagem do celular.
+
+**Os gatilhos de inscrição carregam pouco.** `booking_created`, `booking_confirmed` e
+`payment_registered` põem no contexto só `inscricao.id` — o seletor mostra isso com honestidade,
+e é pouco para escrever "seu pagamento entrou, {{contato.nome}}". Enriquecer essas bordas é
+decisão à parte: são variáveis com dado pessoal e valor, e merecem a mesma conversa que o DTO
+teve.
 
 ---
 

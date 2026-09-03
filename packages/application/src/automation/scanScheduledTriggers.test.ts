@@ -68,14 +68,14 @@ async function comAutomacaoTemporal(d: Deps, offsetDays: number) {
     tenantId: 't1',
     name: 'Lembrar três dias antes',
     description: null,
-    triggerType: 'scheduled',
-    triggerConfig: { offsetDays },
     graph: { nodes: [], edges: [] },
     createdBy: 'u-ana',
   });
+  // AU-14: o gatilho e o "quantos dias antes" chegam à linha pelo salvamento do desenho.
   await d.automations.update('t1', criada.id, {
     enabled: true,
     runAsUserId: 'u-ana',
+    triggerType: 'scheduled',
     triggerConfig: { offsetDays },
   });
   return criada;

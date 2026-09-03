@@ -44,36 +44,57 @@ async function criar(app: Awaited<ReturnType<typeof servidor>>['app'], name = 'F
   const res = await app.inject({
     method: 'POST',
     url: '/v1/automations',
-    payload: { name, triggerType: 'message_received' },
+    payload: { name },
   });
   return res.json() as { id: string };
 }
 
 describe('AU-02: criar e listar', () => {
-  it('cria desligada e devolve 201', async () => {
+  /** AU-14: criar pede o nome. O gatilho é bloco do quadro, e chega com o desenho. */
+  it('cria desligada e sem gatilho, e devolve 201', async () => {
     const { app } = await servidor();
 
     const res = await app.inject({
       method: 'POST',
       url: '/v1/automations',
-      payload: { name: 'Follow-up', triggerType: 'message_received' },
+      payload: { name: 'Follow-up' },
     });
 
     expect(res.statusCode).toBe(201);
-    expect(res.json()).toMatchObject({ enabled: false, triggerType: 'message_received' });
+    expect(res.json()).toMatchObject({ enabled: false, triggerType: null });
     await app.close();
   });
 
-  it('gatilho fora da lista é recusado na borda', async () => {
+  /**
+   * AU-14 — a lista fechada de gatilhos mudou de lugar, não deixou de existir: quem recusa
+   * agora é o domínio, ao salvar o desenho, e o motivo sobe junto.
+   */
+  it('gatilho fora da lista é recusado ao salvar o desenho', async () => {
     const { app } = await servidor();
+    const { id } = await criar(app);
 
     const res = await app.inject({
-      method: 'POST',
-      url: '/v1/automations',
-      payload: { name: 'X', triggerType: 'quando_der_vontade' },
+      method: 'PUT',
+      url: `/v1/automations/${id}/graph`,
+      payload: {
+        graph: {
+          nodes: [
+            {
+              id: 'g1',
+              kind: 'trigger',
+              type: 'quando_der_vontade',
+              config: {},
+              position: { x: 0, y: 0 },
+            },
+            { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 90 } },
+          ],
+          edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'f1' }],
+        },
+      },
     });
 
     expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_graph' });
     await app.close();
   });
 
@@ -92,7 +113,7 @@ describe('AU-02: criar e listar', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/v1/automations',
-      payload: { name: 'X', triggerType: 'message_received' },
+      payload: { name: 'X' },
     });
 
     expect(res.statusCode).toBe(403);

@@ -41,6 +41,7 @@ export { phoneVariants } from './contact/phoneVariants.js';
 export {
   validateGraph,
   nextNode,
+  portsOf,
   type AutomationGraph,
   type AutomationNode,
   type AutomationEdge,
@@ -53,10 +54,20 @@ export {
   evaluateCondition,
   readPath,
   resolveDelay,
+  resolveSwitch,
+  switchCases,
   minutosDaEspera,
   ESPERA_MINIMA_MIN,
   type RunContext,
+  type SwitchCase,
 } from './automation/interpreter.js';
+export {
+  CAMPOS_DO_GATILHO,
+  contextFieldsFor,
+  TRIGGER_TYPES,
+  type ContextField,
+  type TriggerType,
+} from './automation/triggers.js';
 export {
   parsePixKey,
   isValidPixKey,

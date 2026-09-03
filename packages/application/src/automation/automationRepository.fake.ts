@@ -34,8 +34,9 @@ export function fakeAutomationRepository(): AutomationRepository & { rows: Row[]
         id: `auto-${seq}`,
         name: automation.name,
         description: automation.description,
-        triggerType: automation.triggerType,
-        triggerConfig: automation.triggerConfig,
+        // AU-14: o gatilho chega no primeiro salvamento do desenho, não na criação.
+        triggerType: null,
+        triggerConfig: {},
         graph: automation.graph,
         enabled: false,
         runAsUserId: null,

@@ -1,3 +1,4 @@
+import { switchCases } from '@expedition/domain';
 import type { NodeKind } from '@expedition/domain';
 
 /**
@@ -86,6 +87,13 @@ export const BLOCOS: readonly BlockType[] = [
     config: { field: '', operator: 'contains', value: '' },
   },
   {
+    type: 'match',
+    kind: 'switch',
+    label: 'Escolha múltipla',
+    hint: 'Um caminho por valor do campo, mais o padrão',
+    config: { field: '', cases: [] },
+  },
+  {
     type: 'set',
     kind: 'setVariable',
     label: 'Definir variável',
@@ -159,8 +167,7 @@ export function blockLabel(type: string): string {
   return POR_TIPO.get(type)?.label ?? type;
 }
 
-/** As saídas de cada espécie, para o desenho do bloco saber quantas alças mostrar. */
-export const SAIDAS: Record<NodeKind, readonly { port: string; label: string }[]> = {
+const SAIDAS_FIXAS: Record<Exclude<NodeKind, 'switch'>, readonly Saida[]> = {
   trigger: [{ port: 'next', label: '' }],
   condition: [
     { port: 'true', label: 'sim' },
@@ -172,14 +179,43 @@ export const SAIDAS: Record<NodeKind, readonly { port: string; label: string }[]
   end: [],
 };
 
+export interface Saida {
+  readonly port: string;
+  readonly label: string;
+}
+
+/**
+ * As saídas de um bloco, para o quadro saber quantas alças mostrar e com que rótulo.
+ *
+ * A escolha múltipla depende da configuração, e por isso a pergunta é feita ao bloco e não à
+ * espécie. O rótulo é o **valor** que a equipe escreveu: alça sem rótulo num bloco de cinco
+ * saídas é onde se liga o caminho errado.
+ */
+export function saidasDe(kind: NodeKind, config: Record<string, unknown>): readonly Saida[] {
+  if (kind !== 'switch') return SAIDAS_FIXAS[kind];
+  return [
+    ...switchCases(config).map((caso) => ({
+      port: `case_${caso.id}`,
+      label: caso.value.trim() === '' ? 'sem valor' : caso.value,
+    })),
+    { port: 'default', label: 'padrão' },
+  ];
+}
+
 /** Um campo de configuração do bloco, como o inspetor deve desenhá-lo. */
 export interface BlockField {
   readonly key: string;
   readonly label: string;
-  readonly kind: 'text' | 'number' | 'textarea' | 'select';
+  /**
+   * `path` é o seletor de campo do contexto (AU-16); `cases`, a lista de valores da escolha
+   * múltipla. Os dois existem porque digitar de cabeça é onde o erro não dá erro.
+   */
+  readonly kind: 'text' | 'number' | 'textarea' | 'select' | 'path' | 'cases';
   readonly help?: string;
   readonly placeholder?: string;
   readonly options?: readonly { readonly value: string; readonly label: string }[];
+  /** AU-09: aceita `{{variável}}`, e por isso o inspetor oferece o inseridor de campo. */
+  readonly template?: boolean;
 }
 
 /**
@@ -188,13 +224,7 @@ export interface BlockField {
  */
 export const CAMPOS: Record<string, readonly BlockField[]> = {
   field: [
-    {
-      key: 'field',
-      label: 'Campo',
-      kind: 'text',
-      placeholder: 'mensagem.texto',
-      help: 'Disponíveis: contato.nome, contato.telefone, mensagem.texto, oportunidade.etapa.',
-    },
+    { key: 'field', label: 'Campo', kind: 'path' },
     {
       key: 'operator',
       label: 'Comparação',
@@ -209,6 +239,15 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
     },
     { key: 'value', label: 'Valor', kind: 'text', placeholder: 'preço' },
   ],
+  match: [
+    { key: 'field', label: 'Campo', kind: 'path' },
+    {
+      key: 'cases',
+      label: 'Valores',
+      kind: 'cases',
+      help: 'Um caminho por valor, na ordem. O que não casar com nenhum sai pelo padrão.',
+    },
+  ],
   set: [
     { key: 'name', label: 'Nome da variável', kind: 'text', placeholder: 'saudacao' },
     {
@@ -216,7 +255,7 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
       label: 'Valor',
       kind: 'text',
       placeholder: 'Bom dia, {{contato.nome}}',
-      help: 'Aceita variáveis entre chaves duplas.',
+      template: true,
     },
   ],
   wait: [
@@ -238,11 +277,17 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
       label: 'Mensagem',
       kind: 'textarea',
       placeholder: 'Oi {{contato.nome}}! O valor sai por…',
-      help: 'Aceita variáveis entre chaves duplas.',
+      template: true,
     },
   ],
   create_opportunity: [
-    { key: 'contactName', label: 'Nome do contato', kind: 'text', placeholder: '{{contato.nome}}' },
+    {
+      key: 'contactName',
+      label: 'Nome do contato',
+      kind: 'text',
+      placeholder: '{{contato.nome}}',
+      template: true,
+    },
   ],
   move_opportunity: [
     { key: 'stageName', label: 'Etapa', kind: 'text', placeholder: 'Em conversa' },
@@ -271,6 +316,7 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
       label: 'Aviso',
       kind: 'textarea',
       placeholder: '{{contato.nome}} perguntou preço fora do horário.',
+      template: true,
     },
   ],
 };

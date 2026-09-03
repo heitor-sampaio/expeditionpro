@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAutomations, type Automation, type TriggerType } from './useAutomations.js';
+import { useAutomations, type Automation } from './useAutomations.js';
 import { AutomationEditor } from './AutomationEditor.js';
 import { GATILHOS } from './blocks.js';
 
@@ -21,6 +21,28 @@ export function AutomacoesScreen(): React.JSX.Element {
 
   const aberta =
     state.status === 'ready' ? (state.automations.find((a) => a.id === abertaId) ?? null) : null;
+
+  /*
+   * AU-14 — criar já abre o quadro, e entre a criação e a lista recarregada há um instante em
+   * que o id existe e a automação ainda não chegou. O esqueleto cobre esse instante; mostrar a
+   * lista de novo, por um piscar, faria parecer que criar não funcionou.
+   */
+  if (abertaId !== null && aberta === null && state.status !== 'error') {
+    return (
+      <main className="page">
+        <div className="skeleton" aria-hidden>
+          {Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="skel-card">
+              <span className="skel-bars">
+                <span className="skel-bar" />
+                <span className="skel-bar short" />
+              </span>
+            </div>
+          ))}
+        </div>
+      </main>
+    );
+  }
 
   if (aberta) {
     return (
@@ -154,9 +176,11 @@ export function AutomacoesScreen(): React.JSX.Element {
           onClose={() => setNova(false)}
           onCriar={async (dados) => {
             const r = await criar(dados);
-            if (r.ok) {
+            // AU-14: nomear e cair no quadro. O gatilho é a primeira decisão do desenho, e ela
+            // se toma vendo o fluxo — não num formulário antes de o quadro existir.
+            if (r.ok && r.id !== undefined) {
               setNova(false);
-              setAviso(`${dados.name} foi criada, desligada. Desenhe o fluxo e ligue depois.`);
+              setAbertaId(r.id);
             }
             return r;
           }}
@@ -179,7 +203,10 @@ function Linha({
   onToggle: () => void;
   onDelete: () => void;
 }): React.JSX.Element {
-  const gatilho = GATILHOS.find((g) => g.type === automation.triggerType);
+  // AU-14: o gatilho é o bloco que está no quadro. A coluna lê o desenho, que é a verdade —
+  // a linha só guarda a cópia por onde os eventos procuram.
+  const noQuadro = automation.graph.nodes.find((no) => no.kind === 'trigger');
+  const gatilho = GATILHOS.find((g) => g.type === noQuadro?.type);
 
   return (
     <div className="tbl-row">
@@ -189,7 +216,9 @@ function Linha({
           {automation.description ?? `${automation.graph.edges.length} ligações`}
         </span>
       </button>
-      <span className="cell-name">{gatilho?.label ?? automation.triggerType}</span>
+      <span className={gatilho ? 'cell-name' : 'cell-sub'}>
+        {gatilho?.label ?? 'Sem gatilho ainda'}
+      </span>
       <span className="col-num mono">{automation.graph.nodes.length}</span>
       {/*
        * O interruptor é o estado e a ação na mesma coisa — desligar é um clique, sem
@@ -229,20 +258,17 @@ function NovaAutomacao({
   onClose: () => void;
   onCriar: (dados: {
     name: string;
-    triggerType: TriggerType;
     description?: string;
   }) => Promise<{ ok: boolean; message?: string }>;
 }): React.JSX.Element {
   const [nome, setNome] = useState('');
   const [descricao, setDescricao] = useState('');
-  const [gatilho, setGatilho] = useState<TriggerType>('message_received');
   const [erro, setErro] = useState<string | null>(null);
 
   const enviar = async () => {
     setErro(null);
     const r = await onCriar({
       name: nome.trim(),
-      triggerType: gatilho,
       ...(descricao.trim() ? { description: descricao.trim() } : {}),
     });
     if (!r.ok) setErro(r.message ?? 'Não foi possível criar.');
@@ -253,8 +279,7 @@ function NovaAutomacao({
       <div className="modal">
         <h2 className="modal-title">Criar automação</h2>
         <p className="modal-sub">
-          O gatilho é o que faz a automação começar, e não muda depois. O resto do fluxo se desenha
-          no editor.
+          Dê um nome e o quadro abre em seguida. O gatilho é o primeiro bloco a pôr lá.
         </p>
 
         {erro && (
@@ -273,23 +298,6 @@ function NovaAutomacao({
               onChange={(e) => setNome(e.target.value)}
               placeholder="Responder quem pergunta preço"
             />
-          </label>
-          <label className="field field-wide">
-            <span className="field-label">Gatilho</span>
-            <select
-              className="field-input"
-              value={gatilho}
-              onChange={(e) => setGatilho(e.target.value as TriggerType)}
-            >
-              {GATILHOS.map((g) => (
-                <option key={g.type} value={g.type}>
-                  {g.label}
-                </option>
-              ))}
-            </select>
-            <span className="field-help">
-              {GATILHOS.find((g) => g.type === gatilho)?.hint ?? ''}
-            </span>
           </label>
           <label className="field field-wide">
             <span className="field-label">Descrição</span>

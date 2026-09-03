@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCOS, CAMPOS, GATILHOS, SAIDAS, blockLabel } from './blocks.js';
+import { BLOCOS, CAMPOS, GATILHOS, blockLabel, saidasDe } from './blocks.js';
 
 /**
  * AU-01 — o catálogo de blocos, conferido contra o que a tela precisa dele.
@@ -49,16 +49,42 @@ describe('AU-01: o catálogo fecha com o inspetor', () => {
 describe('AU-01: o catálogo fecha com o quadro', () => {
   it('toda espécie usada tem saídas declaradas', () => {
     for (const bloco of TODOS) {
-      expect(SAIDAS[bloco.kind], `espécie ${bloco.kind}`).toBeDefined();
+      expect(saidasDe(bloco.kind, bloco.config), `espécie ${bloco.kind}`).toBeDefined();
     }
   });
 
   /** Só o fim encerra um caminho. Qualquer outro bloco sem saída deixaria o fluxo sem seguir. */
   it('só o bloco de fim não tem saída', () => {
     for (const bloco of TODOS) {
-      const temSaida = SAIDAS[bloco.kind].length > 0;
+      const temSaida = saidasDe(bloco.kind, bloco.config).length > 0;
       expect(temSaida, `bloco ${bloco.type}`).toBe(bloco.kind !== 'end');
     }
+  });
+
+  /**
+   * AU-15 — a escolha múltipla nasce com o padrão e ganha uma saída por valor, com o valor
+   * como rótulo. Alça sem rótulo num bloco de cinco saídas é onde se liga o caminho errado.
+   */
+  it('a escolha múltipla tem uma saída por valor, mais o padrão', () => {
+    const saidas = saidasDe('switch', {
+      field: 'mensagem.texto',
+      cases: [
+        { id: 'c1', value: 'preço' },
+        { id: 'c2', value: 'data' },
+      ],
+    });
+
+    expect(saidas).toEqual([
+      { port: 'case_c1', label: 'preço' },
+      { port: 'case_c2', label: 'data' },
+      { port: 'default', label: 'padrão' },
+    ]);
+  });
+
+  it('escolha múltipla recém-posta no quadro já tem o padrão', () => {
+    expect(saidasDe('switch', { field: '', cases: [] })).toEqual([
+      { port: 'default', label: 'padrão' },
+    ]);
   });
 
   it('não existem dois blocos com o mesmo tipo', () => {

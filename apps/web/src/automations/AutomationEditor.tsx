@@ -13,13 +13,21 @@ import {
   type Edge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { ACOES_DE_DINHEIRO, BLOCOS, GATILHOS, blockLabel, type BlockType } from './blocks.js';
+import {
+  ACOES_DE_DINHEIRO,
+  BLOCOS,
+  GATILHOS,
+  blockLabel,
+  saidasDe,
+  type BlockType,
+} from './blocks.js';
+import { camposDisponiveis } from './fields.js';
 import { RunLog } from './RunLog.js';
 import { NODE_TYPES, type BlockNodeType } from './BlockNode.js';
 import { BlockInspector } from './BlockInspector.js';
 import { fromFlow, toFlow } from './flowMapping.js';
 import type { Automation } from './useAutomations.js';
-import type { AutomationGraph } from '@expedition/domain';
+import type { AutomationGraph, NodeKind } from '@expedition/domain';
 
 /**
  * AU-01 · AU-07 — o editor de fluxo.
@@ -67,12 +75,7 @@ function Editor({
 }): React.JSX.Element {
   const inicial = useMemo(() => {
     const { nodes: blocos, edges: ligacoes } = toFlow(automation.graph);
-    // O gatilho é a porta de entrada do fluxo: apagá-lo com a tecla deixaria a automação sem
-    // começo, e o erro só apareceria no salvar. Mais barato não deixar apagar.
-    return {
-      nodes: blocos.map((n) => ({ ...n, deletable: n.type !== 'trigger' })) as BlockNodeType[],
-      edges: ligacoes as Edge[],
-    };
+    return { nodes: blocos as BlockNodeType[], edges: ligacoes as Edge[] };
   }, [automation.graph]);
   const [nodes, setNodes, onNodesChange] = useNodesState<BlockNodeType>(inicial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(inicial.edges);
@@ -124,6 +127,12 @@ function Editor({
   }, [edges, nodes, onSave]);
 
   const noSelecionado = nodes.find((n) => n.id === selecionado) ?? null;
+  // AU-14: um gatilho por quadro. A biblioteca desabilita os outros em vez de deixar pôr dois
+  // e recusar no salvar — o erro aparece antes de a pessoa desenhar o resto em cima dele.
+  const temGatilho = nodes.some((n) => n.type === 'trigger');
+  // AU-16: metade dos campos vem do gatilho e metade do próprio desenho, então a lista é
+  // recalculada a cada mudança do quadro.
+  const campos = camposDisponiveis(nodes);
 
   return (
     <main className="page page-wide page-chat">
@@ -195,31 +204,40 @@ function Editor({
       ) : (
         <div className="inbox auto-editor">
           <nav className="inbox-list auto-lib" aria-label="Biblioteca de blocos">
-            <span className="inbox-side-title auto-lib-head">Blocos</span>
-            {BLOCOS.map((bloco) => (
-              <button
+            <span className="inbox-side-title auto-lib-head">Gatilhos</span>
+            {GATILHOS.map((bloco) => (
+              <ItemDaBiblioteca
                 key={bloco.type}
-                type="button"
-                className="auto-lib-item"
-                draggable={!readOnly}
+                bloco={bloco}
+                readOnly={readOnly}
+                // AU-14: com um gatilho no quadro, os outros ficam fora de alcance. Trocar de
+                // gatilho é remover o que está lá e pôr outro — decisão, não acidente.
+                disabled={readOnly || temGatilho}
+                titulo={temGatilho ? 'Já existe um gatilho no quadro' : undefined}
+                onAcrescentar={() => {
+                  const r = quadro.current?.getBoundingClientRect();
+                  if (r) acrescentar(bloco, { x: r.left + r.width / 2, y: r.top + 90 });
+                }}
+              />
+            ))}
+
+            <span className="inbox-side-title auto-lib-head auto-lib-sep">Blocos</span>
+            {BLOCOS.map((bloco) => (
+              <ItemDaBiblioteca
+                key={bloco.type}
+                bloco={bloco}
+                readOnly={readOnly}
                 disabled={readOnly}
-                onDragStart={(e) => e.dataTransfer.setData('text/plain', bloco.type)}
-                /*
-                 * Clicar acrescenta no meio do quadro. É o caminho que funciona no toque, onde
-                 * arrastar de uma coluna para outra não existe — e o app do Capacitor é toque.
-                 */
-                onClick={() => {
+                onAcrescentar={() => {
                   const r = quadro.current?.getBoundingClientRect();
                   if (r) acrescentar(bloco, { x: r.left + r.width / 2, y: r.top + r.height / 3 });
                 }}
-              >
-                <span className="cell-name">{bloco.label}</span>
-                <span className="cell-sub">{bloco.hint}</span>
-              </button>
+              />
             ))}
+
             <p className="field-help auto-lib-foot">
-              Os blocos já se desenham e se salvam. Executar o fluxo vem na próxima etapa — até lá,
-              uma automação ligada não dispara nada.
+              Comece pelo gatilho: é ele que decide quando a automação roda e quais campos o fluxo
+              vai ter.
             </p>
           </nav>
 
@@ -269,6 +287,7 @@ function Editor({
 
           <BlockInspector
             node={noSelecionado}
+            campos={campos}
             readOnly={readOnly}
             onChange={(config) => {
               setNodes((atuais) =>
@@ -276,6 +295,24 @@ function Editor({
                   n.id === selecionado ? { ...n, data: { ...n.data, config } } : n,
                 ),
               );
+              /*
+               * AU-15 — apagar um valor da escolha múltipla apaga a saída dele, e a ligação
+               * que saía dali deixa de ter porta. Limpar aqui é o que evita salvar um desenho
+               * com ligação pendurada numa saída que não existe mais — recusado no servidor,
+               * e sem nada no quadro explicando por quê.
+               */
+              if (noSelecionado !== null) {
+                const portas = new Set(
+                  saidasDe((noSelecionado.type ?? 'action') as NodeKind, config).map(
+                    (saida) => saida.port,
+                  ),
+                );
+                setEdges((atuais) =>
+                  atuais.filter(
+                    (e) => e.source !== selecionado || portas.has(e.sourceHandle ?? 'next'),
+                  ),
+                );
+              }
               setSujo(true);
             }}
             onDelete={() => {
@@ -303,6 +340,39 @@ function Editor({
         />
       )}
     </main>
+  );
+}
+
+/**
+ * Um bloco na biblioteca. Arrastar é o gesto no computador; clicar é o que funciona no toque,
+ * onde arrastar de uma coluna para outra não existe — e o app do Capacitor é toque.
+ */
+function ItemDaBiblioteca({
+  bloco,
+  readOnly,
+  disabled,
+  titulo,
+  onAcrescentar,
+}: {
+  bloco: BlockType;
+  readOnly: boolean;
+  disabled: boolean;
+  titulo?: string | undefined;
+  onAcrescentar: () => void;
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      className="auto-lib-item"
+      draggable={!readOnly && !disabled}
+      disabled={disabled}
+      title={titulo}
+      onDragStart={(e) => e.dataTransfer.setData('text/plain', bloco.type)}
+      onClick={onAcrescentar}
+    >
+      <span className="cell-name">{bloco.label}</span>
+      <span className="cell-sub">{bloco.hint}</span>
+    </button>
   );
 }
 

@@ -12,6 +12,7 @@ import {
 } from '@expedition/application';
 import { z } from 'zod';
 import type { AutomationRunRecord, AutomationRecord, RunStepRecord } from '@expedition/application';
+import type { Port } from '@expedition/domain';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { ServerDeps } from '../buildServer.js';
@@ -24,29 +25,15 @@ import type { ServerDeps } from '../buildServer.js';
  * são do caso de uso, e é lá que estão testadas.
  */
 
-const triggerType = z.enum([
-  'message_received',
-  'conversation_created',
-  'opportunity_created',
-  'opportunity_moved',
-  'booking_created',
-  'booking_confirmed',
-  'payment_registered',
-  'scheduled',
-]);
-
-/** AU-12: o único gatilho com o que configurar — quantos dias antes (negativo) ou depois. */
-const triggerConfig = z.object({ offsetDays: z.number().int().min(-365).max(365) }).partial();
-
 /**
  * O grafo é validado de verdade no domínio. Aqui só se garante que é a **forma** de um grafo:
- * duplicar as oito regras em Zod seria manter a mesma decisão em dois lugares.
+ * duplicar as dez regras em Zod seria manter a mesma decisão em dois lugares.
  */
 const graph = z.object({
   nodes: z.array(
     z.object({
       id: z.string().min(1),
-      kind: z.enum(['trigger', 'condition', 'setVariable', 'delay', 'action', 'end']),
+      kind: z.enum(['trigger', 'condition', 'switch', 'setVariable', 'delay', 'action', 'end']),
       type: z.string().min(1),
       config: z.record(z.string(), z.unknown()),
       position: z.object({ x: z.number(), y: z.number() }),
@@ -56,7 +43,16 @@ const graph = z.object({
     z.object({
       id: z.string().min(1),
       from: z.string().min(1),
-      port: z.enum(['next', 'true', 'false']),
+      /*
+       * AU-15: a saída da escolha múltipla carrega o id do caso, então a lista não é fechada.
+       * O formato é conferido aqui e vira `Port` na saída do parse — depois da borda o tipo é
+       * verdade. Se a porta existe **naquele bloco** é outra pergunta, e quem responde é o
+       * domínio, com o nome do problema junto.
+       */
+      port: z
+        .string()
+        .regex(/^(next|true|false|default|case_[\w-]+)$/)
+        .transform((valor) => valor as Port),
       to: z.string().min(1),
     }),
   ),
@@ -95,12 +91,8 @@ export function registerAutomationRoutes(
     '/v1/automations',
     {
       schema: {
-        body: z.object({
-          name: z.string().trim().min(1),
-          description: z.string().optional(),
-          triggerType,
-          triggerConfig: triggerConfig.optional(),
-        }),
+        // AU-14: só o nome. O gatilho é um bloco, e chega com o desenho.
+        body: z.object({ name: z.string().trim().min(1), description: z.string().optional() }),
       },
     },
     async (request, reply) => {

@@ -52,8 +52,6 @@ export function prismaAutomationRepository(base: PrismaClient): AutomationReposi
           tenantId: automation.tenantId,
           name: automation.name,
           description: automation.description,
-          triggerType: automation.triggerType,
-          triggerConfig: automation.triggerConfig as Prisma.InputJsonValue,
           graph: automation.graph as unknown as Prisma.InputJsonValue,
           createdBy: automation.createdBy,
         },
@@ -67,6 +65,8 @@ export function prismaAutomationRepository(base: PrismaClient): AutomationReposi
         data: {
           ...(patch.name === undefined ? {} : { name: patch.name }),
           ...(patch.description === undefined ? {} : { description: patch.description }),
+          // AU-14: chega junto com o desenho, derivado do bloco de gatilho.
+          ...(patch.triggerType === undefined ? {} : { triggerType: patch.triggerType }),
           ...(patch.triggerConfig === undefined
             ? {}
             : { triggerConfig: patch.triggerConfig as Prisma.InputJsonValue }),
@@ -117,7 +117,7 @@ function toRecord(row: PrismaAutomation): AutomationRecord {
     id: row.id,
     name: row.name,
     description: row.description,
-    triggerType: row.triggerType as TriggerType,
+    triggerType: row.triggerType as TriggerType | null,
     triggerConfig: (row.triggerConfig ?? {}) as Record<string, unknown>,
     graph: row.graph as unknown as AutomationGraph,
     enabled: row.enabled,

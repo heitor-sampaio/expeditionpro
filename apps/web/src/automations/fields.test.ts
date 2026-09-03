@@ -1,0 +1,77 @@
+import { describe, expect, it } from 'vitest';
+import { camposDisponiveis, gatilhoDoQuadro, variaveisDoFluxo } from './fields.js';
+
+/**
+ * AU-16 — o seletor de campos.
+ *
+ * O problema que ele resolve é de quem desenha: hoje é preciso saber de cor que existe
+ * `contato.nome` e que não existe `contato.fone`. Errar não dá erro nenhum — a variável
+ * ausente vira vazio (AU-09), a mensagem sai sem o nome e ninguém descobre.
+ *
+ * A lista tem duas origens: o que o gatilho põe no contexto (catálogo do domínio) e o que o
+ * próprio fluxo definiu em blocos de variável, que só o quadro conhece.
+ */
+
+const quadro = [
+  { data: { type: 'message_received', config: {} }, type: 'trigger' },
+  { data: { type: 'set', config: { name: 'saudacao', value: 'Bom dia' } }, type: 'setVariable' },
+  { data: { type: 'send_message', config: { text: 'oi' } }, type: 'action' },
+];
+
+describe('AU-16: as variáveis que o próprio fluxo define', () => {
+  it('o nome do bloco de variável entra na lista', () => {
+    expect(variaveisDoFluxo(quadro).map((c) => c.path)).toEqual(['saudacao']);
+  });
+
+  it('variável sem nome não entra — não há o que oferecer', () => {
+    const semNome = [{ data: { type: 'set', config: { name: '  ' } }, type: 'setVariable' }];
+    expect(variaveisDoFluxo(semNome)).toEqual([]);
+  });
+
+  it('o mesmo nome definido duas vezes aparece uma vez só', () => {
+    const duas = [
+      { data: { type: 'set', config: { name: 'saudacao' } }, type: 'setVariable' },
+      { data: { type: 'set', config: { name: 'saudacao' } }, type: 'setVariable' },
+    ];
+    expect(variaveisDoFluxo(duas)).toHaveLength(1);
+  });
+});
+
+describe('AU-16: o gatilho que está no quadro', () => {
+  it('devolve o tipo do bloco de gatilho', () => {
+    expect(gatilhoDoQuadro(quadro)).toBe('message_received');
+  });
+
+  it('quadro sem gatilho devolve nulo', () => {
+    expect(gatilhoDoQuadro([{ data: { type: 'end', config: {} }, type: 'end' }])).toBeNull();
+  });
+
+  /** Gatilho que este editor não conhece não vira promessa de campo nenhum. */
+  it('gatilho de tipo desconhecido devolve nulo', () => {
+    const estranho = [{ data: { type: 'quando_der', config: {} }, type: 'trigger' }];
+    expect(gatilhoDoQuadro(estranho)).toBeNull();
+  });
+});
+
+describe('AU-16: a lista que o seletor oferece', () => {
+  it('junta os campos do gatilho com as variáveis do fluxo', () => {
+    const caminhos = camposDisponiveis(quadro).map((c) => c.path);
+
+    expect(caminhos).toContain('contato.nome');
+    expect(caminhos).toContain('mensagem.texto');
+    expect(caminhos).toContain('saudacao');
+  });
+
+  /** Sem gatilho no quadro, o contexto é desconhecido: só o que o fluxo mesmo definiu. */
+  it('sem gatilho, oferece apenas as variáveis do fluxo', () => {
+    const semGatilho = [
+      { data: { type: 'set', config: { name: 'saudacao' } }, type: 'setVariable' },
+    ];
+    expect(camposDisponiveis(semGatilho).map((c) => c.path)).toEqual(['saudacao']);
+  });
+
+  it('não repete caminho', () => {
+    const caminhos = camposDisponiveis(quadro).map((c) => c.path);
+    expect(new Set(caminhos).size).toBe(caminhos.length);
+  });
+});

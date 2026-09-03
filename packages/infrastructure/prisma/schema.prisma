@@ -1178,7 +1178,9 @@ model Automation {
   tenantId     String    @map("tenant_id") @db.Uuid
   name         String
   description  String?
-  triggerType  String    @map("trigger_type")
+  // AU-14: cópia do bloco de gatilho do desenho, derivada ao salvar. Nulo enquanto o quadro
+  // não tem gatilho — rascunho, que não liga e que evento nenhum procura.
+  triggerType  String?   @map("trigger_type")
   // AU-12: quantos dias antes ou depois da saída, no gatilho temporal. Vazio nos de evento.
   triggerConfig Json     @default("{}") @map("trigger_config")
   graph        Json      @default("{\"nodes\":[],\"edges\":[]}")

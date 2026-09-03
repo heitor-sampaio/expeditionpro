@@ -1,5 +1,6 @@
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
-import { blockLabel, SAIDAS } from './blocks.js';
+import { switchCases } from '@expedition/domain';
+import { blockLabel, saidasDe } from './blocks.js';
 import type { NodeKind } from '@expedition/domain';
 
 /**
@@ -19,6 +20,7 @@ export type BlockNodeType = Node<BlockData, NodeKind>;
 const ESPECIE: Record<NodeKind, string> = {
   trigger: 'quando',
   condition: 'se',
+  switch: 'conforme',
   setVariable: 'variável',
   delay: 'espera',
   action: 'faz',
@@ -27,10 +29,15 @@ const ESPECIE: Record<NodeKind, string> = {
 
 export function BlockNode({ data, type, selected }: NodeProps<BlockNodeType>): React.JSX.Element {
   const kind = (type ?? 'action') as NodeKind;
-  const saidas = SAIDAS[kind];
+  const saidas = saidasDe(kind, data.config);
 
   return (
-    <div className={`auto-node auto-node-${kind}${selected ? ' is-selected' : ''}`}>
+    <div
+      className={`auto-node auto-node-${kind}${selected ? ' is-selected' : ''}`}
+      // AU-15: a escolha múltipla cresce com o número de valores. Sem largura por saída, as
+      // alças se amontoam e ligar no caminho certo vira sorte.
+      style={saidas.length > 2 ? { width: `${String(saidas.length * 84)}px` } : undefined}
+    >
       {kind !== 'trigger' && <Handle type="target" position={Position.Top} />}
 
       <span className="auto-node-kind">{ESPECIE[kind]}</span>
@@ -43,7 +50,8 @@ export function BlockNode({ data, type, selected }: NodeProps<BlockNodeType>): R
           type="source"
           id={saida.port}
           position={Position.Bottom}
-          // Duas saídas se dividem a base do bloco; uma só fica no meio, onde o padrão a põe.
+          // Duas ou mais saídas se dividem a base do bloco; uma só fica no meio, onde o padrão
+          // a põe.
           style={saidas.length > 1 ? { left: `${(i + 1) * (100 / (saidas.length + 1))}%` } : {}}
         >
           {saida.label && <span className="auto-node-port">{saida.label}</span>}
@@ -69,6 +77,13 @@ function resumo(data: BlockData): string {
   if (data.type === 'field') {
     const campo = texto('field');
     return campo === '' ? '' : `${campo} ${OPERADOR[texto('operator')] ?? ''} ${texto('value')}`;
+  }
+  if (data.type === 'match') {
+    const campo = texto('field');
+    const quantos = switchCases(c).length;
+    return campo === ''
+      ? ''
+      : `${campo} · ${String(quantos)} ${quantos === 1 ? 'valor' : 'valores'}`;
   }
   if (data.type === 'set') {
     const nome = texto('name');
@@ -100,6 +115,7 @@ const OPERADOR: Record<string, string> = {
 export const NODE_TYPES = {
   trigger: BlockNode,
   condition: BlockNode,
+  switch: BlockNode,
   setVariable: BlockNode,
   delay: BlockNode,
   action: BlockNode,

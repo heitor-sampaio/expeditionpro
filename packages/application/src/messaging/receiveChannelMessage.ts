@@ -44,6 +44,12 @@ export interface ReceiveOutcome {
     readonly phone: string;
     readonly text: string;
     readonly customerId: string | null;
+    /**
+     * AU-04 — esta mensagem abriu a conversa. É o que separa o gatilho de "conversa nova" do
+     * de "mensagem recebida": quem responde ao primeiro contato de alguém precisa saber que é
+     * o primeiro, e só quem procurou a conversa antes de criá-la sabe disso.
+     */
+    readonly conversationCreated: boolean;
   };
 }
 
@@ -195,6 +201,7 @@ export async function receiveChannelMessage(
       phone: evento.phone ?? '',
       text: evento.body,
       customerId,
+      conversationCreated: existente === null,
     },
   };
 }

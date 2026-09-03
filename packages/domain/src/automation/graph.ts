@@ -10,12 +10,26 @@
  * alguém desligar; um nó órfão é trabalho que a equipe desenhou achando que ia rodar.
  */
 
-import { ESPERA_MINIMA_MIN, minutosDaEspera as emMinutos } from './interpreter.js';
+import { ESPERA_MINIMA_MIN, minutosDaEspera as emMinutos, switchCases } from './interpreter.js';
+import { TRIGGER_TYPES, type TriggerType } from './triggers.js';
 
-export type NodeKind = 'trigger' | 'condition' | 'setVariable' | 'delay' | 'action' | 'end';
+export type NodeKind =
+  | 'trigger'
+  | 'condition'
+  /** AU-15: separa em quantos caminhos a equipe precisar, mais o padrão. */
+  | 'switch'
+  | 'setVariable'
+  | 'delay'
+  | 'action'
+  | 'end';
 
-/** As saídas de cada espécie de bloco. Condição tem duas; o resto tem uma; fim não tem. */
-export type Port = 'next' | 'true' | 'false';
+/**
+ * As saídas de um bloco. Condição tem duas; o resto tem uma; fim não tem; a escolha múltipla
+ * tem uma por valor mais o padrão, e por isso a porta dela carrega o **id do caso** — se
+ * fosse a posição na lista, apagar o primeiro valor faria a ligação do segundo passar a
+ * apontar para o terceiro, em silêncio, depois de salvo.
+ */
+export type Port = 'next' | 'true' | 'false' | 'default' | `case_${string}`;
 
 export interface AutomationNode {
   readonly id: string;
@@ -52,10 +66,13 @@ export type GraphProblem =
   | 'porta_ambigua'
   | 'condicao_incompleta'
   | 'gatilho_sem_caminho'
+  | 'gatilho_desconhecido'
   | 'espera_curta'
+  | 'escolha_sem_valores'
+  | 'escolha_incompleta'
   | 'ciclo_sem_espera';
 
-const PORTAS: Record<NodeKind, readonly Port[]> = {
+const PORTAS_FIXAS: Record<Exclude<NodeKind, 'switch'>, readonly Port[]> = {
   trigger: ['next'],
   condition: ['true', 'false'],
   setVariable: ['next'],
@@ -64,6 +81,16 @@ const PORTAS: Record<NodeKind, readonly Port[]> = {
   end: [],
 };
 
+/**
+ * As saídas que **este** bloco tem. Só a escolha múltipla depende da configuração, e é por
+ * isso que a pergunta é feita ao nó e não à espécie: o quadro desenha as alças a partir daqui,
+ * e o validador recusa ligação que saia de porta inexistente com a mesma resposta.
+ */
+export function portsOf(node: AutomationNode): readonly Port[] {
+  if (node.kind !== 'switch') return PORTAS_FIXAS[node.kind];
+  return [...switchCases(node.config).map((caso): Port => `case_${caso.id}`), 'default'];
+}
+
 export function validateGraph(graph: AutomationGraph): GraphProblem[] {
   const problemas = new Set<GraphProblem>();
   const porId = new Map(graph.nodes.map((no) => [no.id, no]));
@@ -71,6 +98,11 @@ export function validateGraph(graph: AutomationGraph): GraphProblem[] {
   const gatilhos = graph.nodes.filter((no) => no.kind === 'trigger');
   if (gatilhos.length === 0) problemas.add('sem_gatilho');
   if (gatilhos.length > 1) problemas.add('gatilho_duplicado');
+  // AU-14: a lista fechada de gatilhos mora aqui desde que o gatilho virou bloco do quadro.
+  // Um tipo inventado é uma automação que nunca dispara, e ninguém descobre por quê.
+  for (const no of gatilhos) {
+    if (!TRIGGER_TYPES.includes(no.type as TriggerType)) problemas.add('gatilho_desconhecido');
+  }
 
   const usadas = new Set<string>();
   for (const ligacao of graph.edges) {
@@ -79,7 +111,7 @@ export function validateGraph(graph: AutomationGraph): GraphProblem[] {
       problemas.add('ligacao_quebrada');
       continue;
     }
-    if (!PORTAS[origem.kind].includes(ligacao.port)) {
+    if (!portsOf(origem).includes(ligacao.port)) {
       problemas.add('porta_invalida');
       continue;
     }
@@ -103,6 +135,15 @@ export function validateGraph(graph: AutomationGraph): GraphProblem[] {
     const temSim = graph.edges.some((e) => e.from === no.id && e.port === 'true');
     const temNao = graph.edges.some((e) => e.from === no.id && e.port === 'false');
     if (!temSim || !temNao) problemas.add('condicao_incompleta');
+  }
+
+  // AU-15: pela mesma razão da condição, e mais uma — escolha sem valor nenhum manda todo
+  // mundo pelo padrão, e é um bloco que está no quadro sem separar nada.
+  for (const no of graph.nodes) {
+    if (no.kind !== 'switch') continue;
+    if (switchCases(no.config).length === 0) problemas.add('escolha_sem_valores');
+    const ligadas = new Set(graph.edges.filter((e) => e.from === no.id).map((e) => e.port));
+    if (portsOf(no).some((porta) => !ligadas.has(porta))) problemas.add('escolha_incompleta');
   }
 
   const inicio = gatilhos[0];

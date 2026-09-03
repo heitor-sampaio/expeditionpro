@@ -4,6 +4,7 @@ import { inMemoryServerDeps } from '../dev/inMemoryServerDeps.js';
 import { inMemoryAutomations, inMemoryAutomationRuns } from '../dev/inMemoryAutomations.js';
 import { inMemoryChannelIntegrations, inMemoryConversations } from '../dev/inMemoryMessaging.js';
 import type { ServerDeps } from '../buildServer.js';
+import { CAMPOS_DO_GATILHO } from '@expedition/domain';
 import type { RequestContext } from '@expedition/application';
 
 /**
@@ -106,7 +107,7 @@ async function ligarAutomacao(app: Awaited<ReturnType<typeof comMotor>>['app']) 
     await app.inject({
       method: 'POST',
       url: '/v1/automations',
-      payload: { name: 'Responder preço', triggerType: 'message_received' },
+      payload: { name: 'Responder preço' },
     })
   ).json() as { id: string };
 
@@ -320,6 +321,113 @@ describe('AU-06: o log conta o que aconteceu', () => {
     const lista = await app.inject({ method: 'GET', url: `/v1/automations/${criada.id}/runs` });
 
     expect(lista.json()[0]).not.toHaveProperty('variables');
+    await app.close();
+  });
+});
+
+/**
+ * AU-16 — o catálogo de campos é promessa, e promessa se cobra.
+ *
+ * O seletor da tela oferece `contato.nome`, `mensagem.texto` e os outros a partir de
+ * `CAMPOS_DO_GATILHO`. Se a borda parar de mandar algum deles, a variável ausente vira vazio
+ * em silêncio (AU-09, e é a regra certa) — a mensagem sai sem o nome do cliente e nada acusa.
+ * Este teste é o que transforma esse silêncio em suíte vermelha.
+ */
+describe('AU-16: o contexto disparado tem os campos que o seletor promete', () => {
+  const temCaminho = (contexto: unknown, caminho: string): boolean => {
+    let atual: unknown = contexto;
+    for (const parte of caminho.split('.')) {
+      if (atual === null || typeof atual !== 'object' || !(parte in atual)) return false;
+      atual = (atual as Record<string, unknown>)[parte];
+    }
+    return true;
+  };
+
+  it('mensagem recebida entrega todos os campos do catálogo', async () => {
+    const { app, runs, automations } = await comMotor();
+    await ligarAutomacao(app);
+
+    await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev',
+      headers: { 'x-webhook-token': 'SEGREDO' },
+      payload: corpoDaEvolution('quanto custa?'),
+    });
+
+    const [aberta] = await runs.automationRuns.listByAutomation(TENANT, automations.rows[0]!.id, 1);
+    for (const campo of CAMPOS_DO_GATILHO.message_received) {
+      expect({ [campo.path]: temCaminho(aberta?.variables, campo.path) }).toEqual({
+        [campo.path]: true,
+      });
+    }
+    await app.close();
+  });
+});
+
+/**
+ * AU-04 — "conversa nova" existia na lista de gatilhos e não estava ligado em borda nenhuma.
+ *
+ * Um gatilho assim é pior que a falta dele: a equipe desenha o fluxo, liga, espera o efeito e
+ * nada acontece — sem erro, sem log, sem nada para investigar. Com o gatilho virando bloco do
+ * quadro (AU-14), ele passaria a ser oferecido na biblioteca, o que torna a dívida visível.
+ */
+describe('AU-04: conversa nova dispara no primeiro contato', () => {
+  const soGatilho = (type: string) => ({
+    nodes: [
+      { id: 'g1', kind: 'trigger', type, config: {}, position: { x: 0, y: 0 } },
+      { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 90 } },
+    ],
+    edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'f1' }],
+  });
+
+  async function ligarConversaNova(app: Awaited<ReturnType<typeof comMotor>>['app']) {
+    const criada = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/automations',
+        payload: { name: 'Dar boas-vindas' },
+      })
+    ).json() as { id: string };
+    await app.inject({
+      method: 'PUT',
+      url: `/v1/automations/${criada.id}/graph`,
+      payload: { graph: soGatilho('conversation_created') },
+    });
+    await app.inject({
+      method: 'PUT',
+      url: `/v1/automations/${criada.id}/enabled`,
+      payload: { enabled: true },
+    });
+    return criada;
+  }
+
+  const mandar = (app: Awaited<ReturnType<typeof comMotor>>['app'], texto: string, id: string) =>
+    app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/evolution/dev',
+      headers: { 'x-webhook-token': 'SEGREDO' },
+      payload: corpoDaEvolution(texto, id),
+    });
+
+  it('o primeiro contato de alguém abre execução', async () => {
+    const { app, runs } = await comMotor();
+    const criada = await ligarConversaNova(app);
+
+    await mandar(app, 'oi, boa tarde', 'MSG-1');
+
+    expect(await runs.automationRuns.listByAutomation(TENANT, criada.id, 10)).toHaveLength(1);
+    await app.close();
+  });
+
+  /** Conversa nova é uma vez por pessoa. A segunda mensagem é mensagem, não contato novo. */
+  it('a segunda mensagem da mesma pessoa não dispara de novo', async () => {
+    const { app, runs } = await comMotor();
+    const criada = await ligarConversaNova(app);
+
+    await mandar(app, 'oi, boa tarde', 'MSG-1');
+    await mandar(app, 'quanto custa?', 'MSG-2');
+
+    expect(await runs.automationRuns.listByAutomation(TENANT, criada.id, 10)).toHaveLength(1);
     await app.close();
   });
 });
