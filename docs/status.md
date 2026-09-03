@@ -153,7 +153,7 @@ blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-11`.
 | Persistência: tabela `automations`, RLS só de equipe, migration no Supabase | ✅ |
 | Rotas: 7 endpoints em `/v1/automations`, 11 testes | ✅ |
 | Tela: lista com os cinco estados + editor de fluxo | ✅ |
-| **O motor que executa** | ⏳ fatia 2 |
+| **O motor que executa** | ✅ ver abaixo |
 
 **O grafo se recusa a ficar torto.** `validateGraph` devolve o motivo em código estável, e a
 tela traduz: sem gatilho, gatilho duplicado, gatilho sem caminho, nó órfão, ligação quebrada,
@@ -175,17 +175,59 @@ grafo e o formato da biblioteca é função pura com teste de ida e volta: o que
 tradução dessas some em silêncio, e o sintoma só aparece depois de salvar, quando o desenho
 volta diferente do que a pessoa deixou.
 
-### Fatia 2 — o motor
+### Fatia 2 — o motor ✅
 
-Tabelas `automation_runs` e `automation_run_steps`; interpretador (`enqueueAutomationRun`,
-`advanceAutomationRun`, `resumeDueRuns`); ticker de 5s com `SKIP LOCKED` dentro do processo da
-API; `fireAutomationTrigger` nas rotas, no molde de `notify.ts`; tela de log de execução.
-**Não existe scheduler, fila, worker nem cron em lugar nenhum do projeto** — o ticker dentro do
-processo da API é a decisão que essa fatia precisa assumir.
+Duas tabelas (`automation_runs`, `automation_run_steps`), o interpretador, a reivindicação e
+o disparo em cinco bordas: webhook do WhatsApp, oportunidade criada e movida, inscrição criada,
+pagamento registrado e a confirmação que ele causa.
 
-### Fatia 3 — ações que tocam dinheiro
+**O gatilho enfileira e empurra.** Grava a execução na borda e acorda o motor no ato — a
+automação reage em milissegundos, e o webhook do provedor continua respondendo em
+milissegundos. A varredura de 60s **não é o mecanismo**: é rede de segurança para a espera que
+venceu, o gatilho temporal e a execução órfã de um processo que caiu no meio de um deploy.
+Quem decide o tempo de uma automação é o bloco de espera que a equipe desenhou.
 
-Ações de inscrição e pagamento, e o porto de aviso à equipe.
+> **Por que durável em vez de despertador.** Cron marcado para as 9:00 perde o disparo se o
+> processo estiver reiniciando naquele instante. "O que está vencido?" continua verdadeiro às
+> 9:05 e no dia seguinte. Num sistema que faz deploy no meio de uma espera de três dias, é a
+> única forma que sobrevive — e é a mesma forma do resto daqui: a verdade é uma linha, não um
+> instante que passou.
+
+**A reivindicação não usa `SKIP LOCKED`.** SQL cru não passa pela Prisma Client Extension e o
+role do Prisma ignora a RLS; `check:raw-sql` existe por causa de um incidente real (seis
+modelos fora da lista, incluindo credencial de gateway). Duas instruções carimbando
+`locked_by` fazem o mesmo trabalho neste volume e mantêm a extension no caminho. `locked_at`
+com prazo devolve para a fila o que ficou preso.
+
+**Um caminho sem escopo de tenant, e só ele.** O motor roda fora de requisição e pergunta "o
+que está vencido, em qualquer tenant?". Esse achado devolve **só ids**; executar volta ao
+client escopado com o tenant da própria linha. Vale o mesmo para
+`listScheduledAcrossTenants`, que devolve id, tenant e o deslocamento em dias.
+
+**AU-12 — gatilho temporal**, varrido em vez de agendado. Passar duas vezes pela mesma saída é
+impedido por chave única, não pela precisão do relógio.
+
+**O laço não existe por desenho** (AU-05): o gatilho nasce na rota, o motor chama o caso de uso
+direto. O teste do eco prova — a resposta da automação volta do provedor e não dispara nada.
+Somam-se teto de 50 passos por execução, 20 execuções por hora por automação e lote de 25 por
+passada, que transforma duzentas saídas vencidas numa fila que drena.
+
+O motor liga por `AUTOMATION_ENGINE` (ligado em produção). A variável existe para parar tudo
+sem deploy, se uma automação começar a fazer algo que o interruptor dela não cobre.
+
+### Fatia 3 — ações que tocam dinheiro ✅
+
+Confirmar inscrição sozinha, pelo `confirmBookingManually` que já existe — com as mesmas
+guardas, e motivo marcado como automação no histórico. **AU-13:** ligar um fluxo com ação
+dessas exige confirmação à parte, e a tela nomeia em texto o que vai acontecer sem ninguém
+olhando. Porto novo de aviso à equipe (`TeamNoticeGateway`), com a lista de destinatários
+saindo de `memberships` e nunca da configuração do bloco.
+
+### O que ainda não foi visto por gente
+
+O motor nunca rodou em produção: a automação de exemplo ("mensagem contendo preço → responder")
+está provada ponta a ponta em teste de rota, com o webhook real da Evolution simulado. Falta
+ligar uma de verdade e mandar uma mensagem do celular.
 
 ---
 
