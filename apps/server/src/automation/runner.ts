@@ -11,6 +11,7 @@ import { parseLocalDate } from '@expedition/domain';
 import type { FastifyBaseLogger } from 'fastify';
 import type { ServerDeps } from '../buildServer.js';
 import { automationActionRegistry } from './actionRegistry.js';
+import { automationFinderRegistry } from './finderRegistry.js';
 
 /**
  * AU-04 — o motor das automações.
@@ -60,6 +61,7 @@ export function automationRunner(
     steps: deps.automationRunSteps,
     memberships: deps.memberships,
     actions: automationActionRegistry(deps),
+    finders: automationFinderRegistry(deps),
   };
 
   let rodando = false;

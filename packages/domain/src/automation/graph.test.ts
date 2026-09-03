@@ -377,3 +377,66 @@ describe('AU-17: intervalo do gatilho de tempo', () => {
     expect(validateGraph(cada({}).nodes[0]?.type === 'recurring' ? simples : simples)).toEqual([]);
   });
 });
+
+/**
+ * AU-18 — o bloco que busca, e semeia uma execução por achado.
+ *
+ * É o que falta para um fluxo começar no relógio e agir sobre **quem estava lá**: o gatilho de
+ * tempo não traz entidade nenhuma, e sem uma busca a automação não tem sobre quem agir.
+ *
+ * Ele não itera dentro da execução — semeia uma execução por item, cada uma com o contexto de
+ * um. É o que mantém o log respondendo "por que **este** cliente recebeu isso?", que é a razão
+ * de o log existir (AU-06), e o que evita um laço no grafo, que AU-07 proíbe.
+ */
+describe('AU-18: o bloco de busca', () => {
+  const busca = {
+    id: 'b1',
+    kind: 'forEach',
+    type: 'find_stale_conversations',
+    config: { minutes: 30, waiting: 'customer', limit: 10 },
+    position: { x: 0, y: 60 },
+  } as const;
+
+  const comBusca = (edges: AutomationGraph['edges']): AutomationGraph => ({
+    nodes: [gatilho, busca, fim],
+    edges,
+  });
+
+  it('busca com caminho depois dela passa', () => {
+    const graph = comBusca([
+      { id: 'e1', from: 'g1', port: 'next', to: 'b1' },
+      { id: 'e2', from: 'b1', port: 'next', to: 'f1' },
+    ]);
+    expect(validateGraph(graph)).toEqual([]);
+  });
+
+  /** Buscar e não fazer nada com o achado é abrir execução à toa, de cinco em cinco minutos. */
+  it('busca sem caminho depois é recusada', () => {
+    const graph: AutomationGraph = {
+      nodes: [gatilho, busca],
+      edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'b1' }],
+    };
+    expect(validateGraph(graph)).toContain('busca_sem_caminho');
+  });
+
+  /**
+   * Duas buscas seriam fan-out de fan-out: dez conversas viram dez execuções, e cada uma
+   * buscaria de novo. O crescimento é multiplicativo, e o teto por hora descobriria isso
+   * tarde demais.
+   */
+  it('duas buscas no mesmo desenho são recusadas', () => {
+    const graph: AutomationGraph = {
+      nodes: [gatilho, busca, { ...busca, id: 'b2' }, fim],
+      edges: [
+        { id: 'e1', from: 'g1', port: 'next', to: 'b1' },
+        { id: 'e2', from: 'b1', port: 'next', to: 'b2' },
+        { id: 'e3', from: 'b2', port: 'next', to: 'f1' },
+      ],
+    };
+    expect(validateGraph(graph)).toContain('busca_duplicada');
+  });
+
+  it('a busca tem uma saída só, como as outras espécies de um caminho', () => {
+    expect(portsOf(busca)).toEqual(['next']);
+  });
+});

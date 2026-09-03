@@ -63,8 +63,10 @@ export {
 } from './automation/interpreter.js';
 export { INTERVALO_MINIMO_MIN, intervaloEmMinutos, janelaDe } from './automation/recurring.js';
 export {
+  CAMPOS_DA_BUSCA,
   CAMPOS_DO_GATILHO,
   contextFieldsFor,
+  searchFieldsFor,
   TRIGGER_TYPES,
   type ContextField,
   type TriggerType,

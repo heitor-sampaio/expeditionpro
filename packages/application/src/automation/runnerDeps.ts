@@ -1,4 +1,5 @@
 import type { AutomationActions } from './automationActions.js';
+import type { AutomationFinders } from './automationFinders.js';
 import type { AutomationRepository } from './automationRepository.js';
 import type {
   AutomationRunRepository,
@@ -22,4 +23,9 @@ export interface AutomationRunnerDeps {
   readonly steps: AutomationRunStepRepository;
   readonly memberships: MembershipRepository;
   readonly actions: AutomationActions;
+  /**
+   * AU-18 — as buscas, pelo mesmo desenho das ações: o interpretador sabe que existe uma
+   * busca chamada `find_stale_conversations`, não sabe o que é uma conversa.
+   */
+  readonly finders: AutomationFinders;
 }

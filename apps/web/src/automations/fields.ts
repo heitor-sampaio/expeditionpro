@@ -1,4 +1,9 @@
-import { CAMPOS_DO_GATILHO, contextFieldsFor, TRIGGER_TYPES } from '@expedition/domain';
+import {
+  CAMPOS_DO_GATILHO,
+  contextFieldsFor,
+  searchFieldsFor,
+  TRIGGER_TYPES,
+} from '@expedition/domain';
 import type { ContextField, TriggerType } from '@expedition/domain';
 
 /**
@@ -42,11 +47,25 @@ export function variaveisDoFluxo(nodes: readonly BlocoNoQuadro[]): ContextField[
   return [...nomes].map((nome) => ({ path: nome, label: 'Definida no fluxo' }));
 }
 
-/** Tudo que se pode usar neste desenho: o contexto do gatilho, mais o que o fluxo criou. */
+/**
+ * Tudo que se pode usar neste desenho: o contexto do gatilho, o que a busca traz, e o que o
+ * fluxo criou pelo caminho.
+ *
+ * AU-18: a busca é a única fonte de contato num fluxo que começa no relógio — sem ela na
+ * lista, o seletor ficaria vazio justamente onde é mais necessário.
+ */
 export function camposDisponiveis(nodes: readonly BlocoNoQuadro[]): ContextField[] {
-  const doGatilho = contextFieldsFor(gatilhoDoQuadro(nodes));
-  const jaTem = new Set(doGatilho.map((campo) => campo.path));
-  return [...doGatilho, ...variaveisDoFluxo(nodes).filter((campo) => !jaTem.has(campo.path))];
+  const daBusca = nodes
+    .filter((no) => no.type === 'forEach')
+    .flatMap((no) => searchFieldsFor(no.data.type));
+
+  const todos = [
+    ...contextFieldsFor(gatilhoDoQuadro(nodes)),
+    ...daBusca,
+    ...variaveisDoFluxo(nodes),
+  ];
+  const vistos = new Set<string>();
+  return todos.filter((campo) => !vistos.has(campo.path) && vistos.add(campo.path) !== undefined);
 }
 
 /** Os campos de cada gatilho, para a biblioteca dizer o que ele traz antes de ser escolhido. */

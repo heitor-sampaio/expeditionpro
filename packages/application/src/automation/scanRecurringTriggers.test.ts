@@ -28,6 +28,7 @@ function deps() {
     steps: fakeAutomationRunStepRepository(),
     memberships: fakeMembershipRepository(),
     actions: {},
+    finders: {},
   };
 }
 

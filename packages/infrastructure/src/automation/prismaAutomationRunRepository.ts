@@ -33,6 +33,9 @@ export function prismaAutomationRunRepository(base: PrismaClient): AutomationRun
             idempotencyKey: run.idempotencyKey,
             variables: run.variables as Prisma.InputJsonValue,
             wakeAt: run.wakeAt,
+            // AU-18: a execução semeada por uma busca começa no bloco seguinte a ela, e não
+            // no gatilho. Nulo é o normal — quem nasce de um evento começa do começo.
+            ...(run.startNodeId === undefined ? {} : { currentNodeId: run.startNodeId }),
           },
         });
         return toRecord(row);

@@ -19,6 +19,12 @@ export type NodeKind =
   | 'condition'
   /** AU-15: separa em quantos caminhos a equipe precisar, mais o padrão. */
   | 'switch'
+  /**
+   * AU-18: busca uma lista e **semeia uma execução por achado**, cada uma com o contexto de
+   * um item. Não itera dentro da execução: é isso que mantém o log respondendo "por que este
+   * cliente?" e o que evita um laço no grafo.
+   */
+  | 'forEach'
   | 'setVariable'
   | 'delay'
   | 'action'
@@ -72,11 +78,14 @@ export type GraphProblem =
   | 'intervalo_curto'
   | 'escolha_sem_valores'
   | 'escolha_incompleta'
+  | 'busca_sem_caminho'
+  | 'busca_duplicada'
   | 'ciclo_sem_espera';
 
 const PORTAS_FIXAS: Record<Exclude<NodeKind, 'switch'>, readonly Port[]> = {
   trigger: ['next'],
   condition: ['true', 'false'],
+  forEach: ['next'],
   setVariable: ['next'],
   delay: ['next'],
   action: ['next'],
@@ -151,6 +160,19 @@ export function validateGraph(graph: AutomationGraph): GraphProblem[] {
     if (switchCases(no.config).length === 0) problemas.add('escolha_sem_valores');
     const ligadas = new Set(graph.edges.filter((e) => e.from === no.id).map((e) => e.port));
     if (portsOf(no).some((porta) => !ligadas.has(porta))) problemas.add('escolha_incompleta');
+  }
+
+  /*
+   * AU-18 — a busca precisa levar a algum lugar, e não pode haver duas.
+   *
+   * Buscar sem caminho depois é abrir execução à toa, de cinco em cinco minutos. E duas buscas
+   * seriam fan-out de fan-out: dez conversas viram dez execuções, cada uma buscando de novo —
+   * o crescimento é multiplicativo, e o teto por hora descobriria isso tarde demais.
+   */
+  const buscas = graph.nodes.filter((no) => no.kind === 'forEach');
+  if (buscas.length > 1) problemas.add('busca_duplicada');
+  for (const no of buscas) {
+    if (!graph.edges.some((e) => e.from === no.id)) problemas.add('busca_sem_caminho');
   }
 
   const inicio = gatilhos[0];

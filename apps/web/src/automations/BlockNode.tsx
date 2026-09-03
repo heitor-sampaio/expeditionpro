@@ -31,6 +31,7 @@ const ESPECIE: Record<NodeKind, string> = {
   trigger: 'quando',
   condition: 'se',
   switch: 'conforme',
+  forEach: 'para cada',
   setVariable: 'variável',
   delay: 'espera',
   action: 'faz',
@@ -154,6 +155,11 @@ function resumo(data: BlockData): string {
     if (dias === 0) return 'no dia da saída';
     return dias < 0 ? `${String(-dias)} dias antes` : `${String(dias)} dias depois`;
   }
+  if (data.type === 'find_stale_conversations') {
+    const minutos = Number(c['minutes'] ?? 0);
+    const quem = c['waiting'] === 'team' ? 'a equipe' : 'o contato';
+    return `${quem} não responde há ${String(minutos)} min`;
+  }
   if (data.type === 'move_opportunity') return texto('stageName');
   return corta(texto('text') || texto('contactName'));
 }
@@ -181,6 +187,7 @@ export const NODE_TYPES = {
   trigger: BlockNode,
   condition: BlockNode,
   switch: BlockNode,
+  forEach: BlockNode,
   setVariable: BlockNode,
   delay: BlockNode,
   action: BlockNode,

@@ -9,6 +9,7 @@ import {
   type Port,
   type RunContext,
 } from '@expedition/domain';
+import { seedRunsFromSearch } from './seedRunsFromSearch.js';
 import type { AutomationRunnerDeps } from './runnerDeps.js';
 import type { DueRunRef } from './automationRunRepository.js';
 import type { RequestContext } from '../context.js';
@@ -128,6 +129,56 @@ export async function advanceAutomationRun(
       const valor = renderTemplate(String(atual.config['value'] ?? ''), variaveis);
       if (nome !== '') variaveis[nome] = valor;
       await registrar(deps, ref, atual, 'definiu', { [nome]: valor });
+    } else if (atual.kind === 'forEach') {
+      /*
+       * AU-18 — a busca semeia e **encerra esta execução**.
+       *
+       * Quem continua o fluxo são as filhas, uma por achado, cada uma com o contexto de um.
+       * A mãe termina aqui: se ela seguisse pelo mesmo caminho, o bloco seguinte rodaria mais
+       * uma vez, sem entidade nenhuma no contexto.
+       */
+      const depois = nextNode(automacao.graph, atual.id, 'next');
+      if (depois === null) {
+        await deps.runs.update(ref.tenantId, ref.id, {
+          status: 'failed',
+          variables: variaveis,
+          stepsTaken: passos,
+          lastError: 'a busca não leva a lugar nenhum',
+          release: true,
+        });
+        return;
+      }
+      try {
+        const semeadura = await seedRunsFromSearch(
+          deps,
+          ref,
+          atual,
+          depois.id,
+          ctx,
+          variaveis,
+          now,
+        );
+        await registrar(deps, ref, atual, 'buscou', semeadura);
+      } catch (error) {
+        const motivo = motivoDe(error);
+        await registrar(deps, ref, atual, 'erro', { motivo });
+        await deps.runs.update(ref.tenantId, ref.id, {
+          status: 'failed',
+          variables: variaveis,
+          stepsTaken: passos,
+          lastError: motivo,
+          release: true,
+        });
+        return;
+      }
+      await deps.runs.update(ref.tenantId, ref.id, {
+        status: 'done',
+        currentNodeId: null,
+        variables: variaveis,
+        stepsTaken: passos,
+        release: true,
+      });
+      return;
     } else if (atual.kind === 'action') {
       const erro = await executarAcao(deps, ref, atual, ctx, variaveis, now, run.attempts, passos);
       if (erro) return;

@@ -57,6 +57,7 @@ function deps(eventos: ScheduleEventWithGroup[]) {
     steps: fakeAutomationRunStepRepository(),
     memberships: fakeMembershipRepository(),
     actions: {},
+    finders: {},
     schedule: { listEvents: vi.fn().mockResolvedValue(eventos) },
   };
 }

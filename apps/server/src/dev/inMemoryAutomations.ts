@@ -131,7 +131,7 @@ export function inMemoryAutomationRuns(): {
           triggerRef: run.triggerRef,
           idempotencyKey: run.idempotencyKey,
           status: 'pending',
-          currentNodeId: null,
+          currentNodeId: run.startNodeId ?? null,
           variables: run.variables,
           wakeAt: run.wakeAt,
           stepsTaken: 0,

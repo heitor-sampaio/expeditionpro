@@ -115,6 +115,13 @@ export const BLOCOS: readonly BlockType[] = [
     config: { field: '', cases: [] },
   },
   {
+    type: 'find_stale_conversations',
+    kind: 'forEach',
+    label: 'Para cada conversa parada',
+    hint: 'Busca quem está sem resposta e segue o fluxo para cada um',
+    config: { minutes: 30, waiting: 'customer', limit: 10 },
+  },
+  {
     type: 'set',
     kind: 'setVariable',
     label: 'Definir variável',
@@ -190,6 +197,8 @@ export function blockLabel(type: string): string {
 
 const SAIDAS_FIXAS: Record<Exclude<NodeKind, 'switch'>, readonly Saida[]> = {
   trigger: [{ port: 'next', label: '' }],
+  // AU-18: a busca tem uma saída só, e ela quer dizer "para cada achado, siga daqui".
+  forEach: [{ port: 'next', label: 'cada um' }],
   condition: [
     { port: 'true', label: 'sim' },
     { port: 'false', label: 'não' },
@@ -267,6 +276,32 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
       label: 'Valores',
       kind: 'cases',
       help: 'Um caminho por valor, na ordem. O que não casar com nenhum sai pelo padrão.',
+    },
+  ],
+  // AU-18: a busca lê a caixa e segue o fluxo uma vez por conversa encontrada.
+  find_stale_conversations: [
+    {
+      key: 'waiting',
+      label: 'Quem está devendo resposta',
+      kind: 'select',
+      options: [
+        { value: 'customer', label: 'o contato não respondeu' },
+        { value: 'team', label: 'a equipe não respondeu' },
+      ],
+    },
+    {
+      key: 'minutes',
+      label: 'Parada há mais de (minutos)',
+      kind: 'number',
+      placeholder: '30',
+      help: 'A mesma conversa não é pega de novo dentro desse intervalo.',
+    },
+    {
+      key: 'limit',
+      label: 'No máximo, por passada',
+      kind: 'number',
+      placeholder: '10',
+      help: 'Teto de 25. O limite de 20 execuções por hora vale para o total da automação.',
     },
   ],
   set: [

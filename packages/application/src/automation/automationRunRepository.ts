@@ -36,6 +36,12 @@ export interface NewAutomationRun {
   readonly idempotencyKey: string | null;
   readonly variables: Record<string, unknown>;
   readonly wakeAt: Date;
+  /**
+   * AU-18 — onde a execução começa. Nulo é o normal: começa pelo gatilho. A busca semeia
+   * filhas apontando para o bloco seguinte a ela, e é o que faz cada filha ser "o resto do
+   * fluxo" em vez do fluxo inteiro de novo.
+   */
+  readonly startNodeId?: string | null;
 }
 
 export interface AutomationRunPatch {

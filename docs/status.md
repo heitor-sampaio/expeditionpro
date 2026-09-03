@@ -141,7 +141,7 @@ página. Página e conta profissional já estão vinculadas.
 ## Automações (§5.18) — no ar, com o quadro mandando
 
 Escopo pedido em 2026-09-02: entrada **Automações** na seção CRM, com CRUD e um editor de
-blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-17`.
+blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-18`.
 
 ### Fatia 1 — desenhar, validar e guardar ✅
 
@@ -322,6 +322,36 @@ caminhos crus do sistema inteiro, e não três.
 > não fecha" sem pista de qual das dez regras quebrou. Agora a mensagem sobe por **lista
 > explícita** de códigos (`invalid_graph`, `money_action_confirmation`), pela mesma regra do DTO
 > por audiência: mensagem de erro qualquer pode carregar nome de campo ou de regra interna.
+
+### Fatia 7 — a busca, e o fluxo que começa no relógio ✅
+
+Faltava a peça que liga o gatilho de tempo ao mundo: ele não traz entidade nenhuma, então "a
+cada cinco minutos" não sabia sobre quem agir. O bloco **Para cada conversa parada** (AU-18)
+resolve — e o desenho dele é a decisão que vale registrar.
+
+**Ele não itera: semeia.** A busca abre uma execução por achado, cada uma com o contexto de um
+item, começando no bloco seguinte a ela. A alternativa — um laço dentro de uma execução só —
+custaria caro em três frentes: o log deixaria de responder "por que **este** cliente recebeu
+isso?" (AU-06, a razão de o log existir), o teto de passos e as tentativas passariam a valer
+para o lote em vez de por item (uma conversa que falha derrubaria as outras vinte), e o grafo
+ganharia um ciclo, que AU-07 proíbe justamente porque ciclo sem espera roda para sempre.
+
+Semear reusa o motor inteiro: cada filha tem log, tentativas, espera e teto próprios, como
+qualquer execução. A única peça nova na tabela é `startNodeId` no enfileiramento.
+
+**A repetição é impedida pela fatia do próprio intervalo.** Uma busca que roda de cinco em
+cinco minutos encontra a mesma conversa parada doze vezes por hora; a chave de idempotência é
+`bloco : conversa : fatia de "parado há N minutos"`, então ela entra uma vez por intervalo. Sem
+isso, o cliente receberia doze mensagens.
+
+Tetos: 25 por passada no motor (o campo "no máximo" do bloco fica abaixo disso), uma busca por
+automação — duas seriam fan-out de fan-out, e o crescimento multiplicativo só apareceria no teto
+por hora, tarde demais —, e as execuções semeadas contam no teto de 20 por hora da automação.
+
+O fluxo que o dono pediu fica assim: **Tempo: de tempos em tempos (5 minutos) → Para cada
+conversa parada (o contato não respondeu, 30 min) → Mover de etapa.** A busca põe
+`oportunidade.id` no contexto quando a conversa está ligada a um cartão (AT-10); quando não
+está, o desenho resolve com um **Se** de `oportunidade.id não está vazio` antes de mover.
 
 ### O que ainda não foi visto por gente
 

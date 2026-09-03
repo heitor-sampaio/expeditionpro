@@ -75,3 +75,36 @@ describe('AU-16: a lista que o seletor oferece', () => {
     expect(new Set(caminhos).size).toBe(caminhos.length);
   });
 });
+
+/**
+ * AU-18 · AU-16 — os campos que a busca acrescenta.
+ *
+ * Num fluxo que começa no relógio, o gatilho não traz contato nenhum: quem traz é a busca. Sem
+ * isto, o seletor ficaria vazio justamente no fluxo em que ele é mais necessário — e a pessoa
+ * escreveria `{{contato.nome}}` de memória, que é o que AU-16 existe para acabar.
+ */
+describe('AU-18: os campos vindos da busca', () => {
+  const comBusca = [
+    { data: { type: 'recurring', config: {} }, type: 'trigger' },
+    { data: { type: 'find_stale_conversations', config: {} }, type: 'forEach' },
+    { data: { type: 'send_message', config: { text: '' } }, type: 'action' },
+  ];
+
+  it('a busca põe os campos dela na lista do seletor', () => {
+    const caminhos = camposDisponiveis(comBusca).map((c) => c.path);
+
+    expect(caminhos).toContain('contato.nome');
+    expect(caminhos).toContain('conversa.paradaHaMin');
+  });
+
+  it('sem busca no quadro, o gatilho de tempo só oferece o relógio', () => {
+    const semBusca = [{ data: { type: 'recurring', config: {} }, type: 'trigger' }];
+
+    expect(camposDisponiveis(semBusca).map((c) => c.path)).toEqual(['agora.data', 'agora.hora']);
+  });
+
+  it('não repete caminho quando gatilho e busca oferecem o mesmo', () => {
+    const caminhos = camposDisponiveis(comBusca).map((c) => c.path);
+    expect(new Set(caminhos).size).toBe(caminhos.length);
+  });
+});

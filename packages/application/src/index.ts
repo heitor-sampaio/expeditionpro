@@ -1017,6 +1017,13 @@ export type {
   AutomationActionInput,
   AutomationActions,
 } from './automation/automationActions.js';
+export type {
+  AutomationFinder,
+  AutomationFinderInput,
+  AutomationFinders,
+  FoundItem,
+} from './automation/automationFinders.js';
+export { seedRunsFromSearch, TETO_DA_BUSCA } from './automation/seedRunsFromSearch.js';
 export type { AutomationRunnerDeps } from './automation/runnerDeps.js';
 export {
   enqueueAutomationRun,

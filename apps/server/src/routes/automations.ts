@@ -33,7 +33,16 @@ const graph = z.object({
   nodes: z.array(
     z.object({
       id: z.string().min(1),
-      kind: z.enum(['trigger', 'condition', 'switch', 'setVariable', 'delay', 'action', 'end']),
+      kind: z.enum([
+        'trigger',
+        'condition',
+        'switch',
+        'forEach',
+        'setVariable',
+        'delay',
+        'action',
+        'end',
+      ]),
       type: z.string().min(1),
       config: z.record(z.string(), z.unknown()),
       position: z.object({ x: z.number(), y: z.number() }),
