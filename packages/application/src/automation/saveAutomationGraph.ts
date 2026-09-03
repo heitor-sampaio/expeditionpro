@@ -52,6 +52,7 @@ const EXPLICACAO: Record<string, string> = {
   condicao_incompleta: 'há condição sem os dois caminhos, sim e não',
   gatilho_sem_caminho: 'o gatilho não leva a lugar nenhum',
   ciclo_sem_espera: 'há um ciclo sem espera, e ele rodaria para sempre',
+  espera_curta: 'há espera menor que um minuto, e o motor não respeitaria esse intervalo',
 };
 
 export function assertGrafoValido(graph: AutomationGraph): void {

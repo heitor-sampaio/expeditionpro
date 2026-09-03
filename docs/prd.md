@@ -80,6 +80,7 @@ Teste de fumaça obrigatório na fase 0: um teste automatizado que prova que o t
 | **Mensagem** | `messages` | Cada troca dentro de uma conversa. |
 | **Automação** | `automations` | Uma reação desenhada pela equipe: gatilho, condições e ações (§5.18). |
 | **Execução** | `automation_runs` | Uma passagem por uma automação, do gatilho até o fim ou até uma espera. |
+| **Passo** | `automation_run_steps` | Cada nó por onde uma execução passou, com o que decidiu e o que fez. |
 
 > **Oportunidade não é cliente, e a diferença é o CPF.** `customers` exige CPF
 > (`UNIQUE (tenant_id, cpf)`, §4) porque é a identidade que sustenta inscrição, contrato e
@@ -579,6 +580,33 @@ messages(id, tenant_id, conversation_id, external_id,
          payload jsonb, sent_at, created_at)
   UNIQUE (tenant_id, conversation_id, external_id)
 ```
+
+**Automações (§5.18).** O desenho, a execução e o log da execução.
+
+```
+automations(id, tenant_id, name, description NULL, trigger_type,
+            trigger_config jsonb, graph jsonb,
+            enabled bool default false, run_as_user_id NULL,
+            created_by, created_at, updated_at, deleted_at NULL)
+  UNIQUE (tenant_id, name) WHERE deleted_at IS NULL
+automation_runs(id, tenant_id, automation_id, trigger_ref jsonb,
+                idempotency_key NULL,
+                status: pending|waiting|done|failed|cancelled,
+                current_node_id NULL, variables jsonb,
+                wake_at, steps_taken, attempts, last_error NULL,
+                locked_by NULL, locked_at NULL,
+                created_at, updated_at)
+  UNIQUE (tenant_id, automation_id, idempotency_key)
+  INDEX (status, wake_at)          -- a consulta do motor, entre tenants
+automation_run_steps(id, tenant_id, run_id, node_id, kind,
+                     outcome, detail jsonb, at)
+```
+
+> **Por que `automation_runs` tem índice sem `tenant_id` à frente.** É a única consulta do
+> sistema que **precisa** atravessar tenants: o motor roda fora de requisição e pergunta "o que
+> está vencido, em qualquer tenant?". Esse caminho devolve só ids; a execução em si volta ao
+> client escopado, com o `tenantId` da linha. Todos os outros índices dessas tabelas são
+> liderados por `tenant_id`, como manda o §4.
 
 ---
 
@@ -1286,14 +1314,16 @@ dias → se não respondeu, mande esta mensagem"*.
 | AU-01 | Automação é um **grafo**: um gatilho, e daí nós de condição, definição de variável, espera, ação e fim. Editor visual em quadro infinito, com blocos arrastáveis e zoom. |
 | AU-02 | **Nasce desligada, sempre.** Ligar é ato explícito de owner ou admin — e é o momento em que ela passa a agir sobre gente de verdade. |
 | AU-03 | A automação **age como a pessoa que a ligou**, e o papel dessa pessoa é relido em `memberships` a cada execução (SEC-17). Quem perdeu acesso não age por procuração: a execução falha com motivo legível. O teto de poder de uma automação é o teto de quem a ligou. |
-| AU-04 | O gatilho **enfileira** e devolve na hora; quem executa é um relógio do servidor. Um só mecanismo para o imediato e para a espera, e o webhook do provedor continua respondendo em milissegundos. |
+| AU-04 | O gatilho **enfileira e empurra**: grava a execução, acorda o motor na hora e devolve — o webhook do provedor continua respondendo em milissegundos, e a automação reage em milissegundos também. A varredura periódica **não é o mecanismo**, é a rede de segurança: pega a espera que venceu, o gatilho temporal e a execução órfã de um processo que morreu no meio. Quem decide o tempo de uma automação é o bloco de espera que a equipe desenhou, nunca o intervalo da varredura. |
 | AU-05 | **Ação de automação não dispara automação.** O gatilho nasce na borda HTTP e o motor chama o caso de uso direto — a classe inteira de "automação que se alimenta" não existe. Somam-se um teto de passos por execução e um teto de execuções por hora. |
 | AU-06 | Toda execução deixa **log passo a passo**: qual nó, o que decidiu, o que fez, o que o provedor respondeu. É o que responde "por que essa mensagem foi enviada para esse cliente?". |
-| AU-07 | Grafo inválido é recusado ao salvar: mais de um gatilho, nó órfão, porta inexistente ou **ciclo sem espera** — este último é o que faria o motor girar para sempre. |
+| AU-07 | Grafo inválido é recusado ao salvar: mais de um gatilho, nó órfão, porta inexistente, **espera abaixo de um minuto** ou **ciclo sem espera** — o último é o que faria o motor girar para sempre, e o piso da espera é o que mantém a varredura de rede sempre mais fina que o menor intervalo desenhável. |
 | AU-08 | Toda ação passa pelo caso de uso que já existe, com as guardas de audiência que já existem. Automação não é caminho paralelo para o banco. |
 | AU-09 | Texto de mensagem aceita variáveis do contexto (`{{contato.nome}}`). Variável ausente vira vazio, nunca o marcador cru na cara do cliente. |
 | AU-10 | Automação é **só da equipe**: o cliente não vê, não dispara e não aparece na lista. A tabela nasce sem policy de cliente (como §5.17). |
 | AU-11 | Execução com falha guarda o motivo e não repete sozinha para sempre: há teto de tentativas, e o que estourou fica visível na tela em vez de sumir. |
+| AU-12 | Gatilho **temporal**: dispara em relação à data de início de uma saída — N dias antes ou depois. Não é despertador: a varredura pergunta o que está vencido, então processo fora do ar não perde disparo (quando voltar, continua vencido). Disparo duplo é impedido por **chave única** (automação + entidade + ocorrência), não pela precisão do relógio. |
+| AU-13 | Ligar uma automação que **toca dinheiro** — confirmar inscrição, emitir cobrança — exige confirmação à parte da que liga as outras, dizendo em texto o que ela vai fazer sozinha. É o mesmo cuidado da exclusão de recebimento (IN-09): a ação é reversível no papel e cara na prática. |
 
 > **Por que a automação age como uma pessoa, e não como "sistema".** As guardas de audiência
 > (§10.2) recusam ator de sistema em quase toda escrita — é o desenho que impede um webhook de

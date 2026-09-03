@@ -9,6 +9,8 @@ export interface CreateAutomationCommand {
   readonly name: string;
   readonly description?: string | undefined;
   readonly triggerType: TriggerType;
+  /** AU-12: `{ offsetDays }` no gatilho temporal. Vazio nos de evento. */
+  readonly triggerConfig?: Record<string, unknown> | undefined;
 }
 
 /**
@@ -43,6 +45,7 @@ export async function createAutomation(
     name,
     description: command.description?.trim() || null,
     triggerType: command.triggerType,
+    triggerConfig: command.triggerConfig ?? {},
     graph: {
       nodes: [
         {

@@ -13,7 +13,8 @@ import {
   type Edge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { BLOCOS, GATILHOS, type BlockType } from './blocks.js';
+import { ACOES_DE_DINHEIRO, BLOCOS, GATILHOS, blockLabel, type BlockType } from './blocks.js';
+import { RunLog } from './RunLog.js';
 import { NODE_TYPES, type BlockNodeType } from './BlockNode.js';
 import { BlockInspector } from './BlockInspector.js';
 import { fromFlow, toFlow } from './flowMapping.js';
@@ -36,7 +37,10 @@ export function AutomationEditor(props: {
   busy: boolean;
   onBack: () => void;
   onSave: (graph: AutomationGraph) => Promise<{ ok: boolean; message?: string }>;
-  onToggle: (enabled: boolean) => Promise<{ ok: boolean; message?: string }>;
+  onToggle: (
+    enabled: boolean,
+    confirmMoneyActions?: boolean,
+  ) => Promise<{ ok: boolean; message?: string }>;
 }): React.JSX.Element {
   return (
     <ReactFlowProvider>
@@ -56,7 +60,10 @@ function Editor({
   busy: boolean;
   onBack: () => void;
   onSave: (graph: AutomationGraph) => Promise<{ ok: boolean; message?: string }>;
-  onToggle: (enabled: boolean) => Promise<{ ok: boolean; message?: string }>;
+  onToggle: (
+    enabled: boolean,
+    confirmMoneyActions?: boolean,
+  ) => Promise<{ ok: boolean; message?: string }>;
 }): React.JSX.Element {
   const inicial = useMemo(() => {
     const { nodes: blocos, edges: ligacoes } = toFlow(automation.graph);
@@ -72,6 +79,8 @@ function Editor({
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [sujo, setSujo] = useState(false);
+  const [verLog, setVerLog] = useState(false);
+  const [confirmarDinheiro, setConfirmarDinheiro] = useState(false);
   const quadro = useRef<HTMLDivElement | null>(null);
   const { screenToFlowPosition } = useReactFlow();
 
@@ -144,11 +153,24 @@ function Editor({
                 disabled={busy}
                 onChange={async (e) => {
                   setAviso(null);
+                  // AU-13: ligar um fluxo que mexe no financeiro passa por um aviso à parte,
+                  // dizendo em texto o que ela vai fazer sozinha.
+                  if (e.target.checked && dinheiroNoFluxo(nodes).length > 0) {
+                    setConfirmarDinheiro(true);
+                    return;
+                  }
                   const r = await onToggle(e.target.checked);
                   if (!r.ok) setAviso(r.message ?? 'Não foi possível mudar.');
                 }}
               />
             </label>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setVerLog((v) => !v)}
+            >
+              {verLog ? 'Ver o quadro' : 'Ver execuções'}
+            </button>
             <button
               type="button"
               className="btn btn-primary"
@@ -168,97 +190,175 @@ function Editor({
         </div>
       )}
 
-      <div className="inbox auto-editor">
-        <nav className="inbox-list auto-lib" aria-label="Biblioteca de blocos">
-          <span className="inbox-side-title auto-lib-head">Blocos</span>
-          {BLOCOS.map((bloco) => (
-            <button
-              key={bloco.type}
-              type="button"
-              className="auto-lib-item"
-              draggable={!readOnly}
-              disabled={readOnly}
-              onDragStart={(e) => e.dataTransfer.setData('text/plain', bloco.type)}
-              /*
-               * Clicar acrescenta no meio do quadro. É o caminho que funciona no toque, onde
-               * arrastar de uma coluna para outra não existe — e o app do Capacitor é toque.
-               */
-              onClick={() => {
-                const r = quadro.current?.getBoundingClientRect();
-                if (r) acrescentar(bloco, { x: r.left + r.width / 2, y: r.top + r.height / 3 });
-              }}
-            >
-              <span className="cell-name">{bloco.label}</span>
-              <span className="cell-sub">{bloco.hint}</span>
-            </button>
-          ))}
-          <p className="field-help auto-lib-foot">
-            Os blocos já se desenham e se salvam. Executar o fluxo vem na próxima etapa — até lá,
-            uma automação ligada não dispara nada.
-          </p>
-        </nav>
+      {verLog ? (
+        <RunLog automationId={automation.id} />
+      ) : (
+        <div className="inbox auto-editor">
+          <nav className="inbox-list auto-lib" aria-label="Biblioteca de blocos">
+            <span className="inbox-side-title auto-lib-head">Blocos</span>
+            {BLOCOS.map((bloco) => (
+              <button
+                key={bloco.type}
+                type="button"
+                className="auto-lib-item"
+                draggable={!readOnly}
+                disabled={readOnly}
+                onDragStart={(e) => e.dataTransfer.setData('text/plain', bloco.type)}
+                /*
+                 * Clicar acrescenta no meio do quadro. É o caminho que funciona no toque, onde
+                 * arrastar de uma coluna para outra não existe — e o app do Capacitor é toque.
+                 */
+                onClick={() => {
+                  const r = quadro.current?.getBoundingClientRect();
+                  if (r) acrescentar(bloco, { x: r.left + r.width / 2, y: r.top + r.height / 3 });
+                }}
+              >
+                <span className="cell-name">{bloco.label}</span>
+                <span className="cell-sub">{bloco.hint}</span>
+              </button>
+            ))}
+            <p className="field-help auto-lib-foot">
+              Os blocos já se desenham e se salvam. Executar o fluxo vem na próxima etapa — até lá,
+              uma automação ligada não dispara nada.
+            </p>
+          </nav>
 
-        <div
-          className="inbox-thread auto-canvas"
-          ref={quadro}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault();
-            const tipo = e.dataTransfer.getData('text/plain');
-            const bloco = [...BLOCOS, ...GATILHOS].find((b) => b.type === tipo);
-            if (bloco) acrescentar(bloco, { x: e.clientX, y: e.clientY });
-          }}
-        >
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={NODE_TYPES}
-            onNodesChange={(mudancas) => {
-              onNodesChange(mudancas);
-              if (mudancas.some((m) => m.type !== 'select' && m.type !== 'dimensions')) {
-                setSujo(true);
-              }
+          <div
+            className="inbox-thread auto-canvas"
+            ref={quadro}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const tipo = e.dataTransfer.getData('text/plain');
+              const bloco = [...BLOCOS, ...GATILHOS].find((b) => b.type === tipo);
+              if (bloco) acrescentar(bloco, { x: e.clientX, y: e.clientY });
             }}
-            onEdgesChange={(mudancas) => {
-              onEdgesChange(mudancas);
-              if (mudancas.some((m) => m.type !== 'select')) setSujo(true);
-            }}
-            onConnect={conectar}
-            onSelectionChange={({ nodes: escolhidos }) => setSelecionado(escolhidos[0]?.id ?? null)}
-            nodesDraggable={!readOnly}
-            nodesConnectable={!readOnly}
-            elementsSelectable
-            deleteKeyCode={readOnly ? null : ['Backspace', 'Delete']}
-            fitView
-            minZoom={0.2}
-            maxZoom={2}
-            proOptions={{ hideAttribution: false }}
           >
-            <Background gap={22} size={1.4} />
-            <Controls showInteractive={false} />
-            <MiniMap pannable zoomable />
-          </ReactFlow>
-        </div>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={NODE_TYPES}
+              onNodesChange={(mudancas) => {
+                onNodesChange(mudancas);
+                if (mudancas.some((m) => m.type !== 'select' && m.type !== 'dimensions')) {
+                  setSujo(true);
+                }
+              }}
+              onEdgesChange={(mudancas) => {
+                onEdgesChange(mudancas);
+                if (mudancas.some((m) => m.type !== 'select')) setSujo(true);
+              }}
+              onConnect={conectar}
+              onSelectionChange={({ nodes: escolhidos }) =>
+                setSelecionado(escolhidos[0]?.id ?? null)
+              }
+              nodesDraggable={!readOnly}
+              nodesConnectable={!readOnly}
+              elementsSelectable
+              deleteKeyCode={readOnly ? null : ['Backspace', 'Delete']}
+              fitView
+              minZoom={0.2}
+              maxZoom={2}
+              proOptions={{ hideAttribution: false }}
+            >
+              <Background gap={22} size={1.4} />
+              <Controls showInteractive={false} />
+              <MiniMap pannable zoomable />
+            </ReactFlow>
+          </div>
 
-        <BlockInspector
-          node={noSelecionado}
-          readOnly={readOnly}
-          onChange={(config) => {
-            setNodes((atuais) =>
-              atuais.map((n) => (n.id === selecionado ? { ...n, data: { ...n.data, config } } : n)),
-            );
-            setSujo(true);
-          }}
-          onDelete={() => {
-            setNodes((atuais) => atuais.filter((n) => n.id !== selecionado));
-            setEdges((atuais) =>
-              atuais.filter((e) => e.source !== selecionado && e.target !== selecionado),
-            );
-            setSelecionado(null);
-            setSujo(true);
+          <BlockInspector
+            node={noSelecionado}
+            readOnly={readOnly}
+            onChange={(config) => {
+              setNodes((atuais) =>
+                atuais.map((n) =>
+                  n.id === selecionado ? { ...n, data: { ...n.data, config } } : n,
+                ),
+              );
+              setSujo(true);
+            }}
+            onDelete={() => {
+              setNodes((atuais) => atuais.filter((n) => n.id !== selecionado));
+              setEdges((atuais) =>
+                atuais.filter((e) => e.source !== selecionado && e.target !== selecionado),
+              );
+              setSelecionado(null);
+              setSujo(true);
+            }}
+          />
+        </div>
+      )}
+
+      {confirmarDinheiro && (
+        <ConfirmarDinheiro
+          acoes={dinheiroNoFluxo(nodes)}
+          busy={busy}
+          onClose={() => setConfirmarDinheiro(false)}
+          onConfirmar={async () => {
+            const r = await onToggle(true, true);
+            setConfirmarDinheiro(false);
+            if (!r.ok) setAviso(r.message ?? 'Não foi possível ligar.');
           }}
         />
-      </div>
+      )}
     </main>
+  );
+}
+
+/** Quais ações do desenho mexem no financeiro. Vazio é o caso comum. */
+function dinheiroNoFluxo(nodes: readonly BlockNodeType[]): string[] {
+  return [
+    ...new Set(
+      nodes.filter((n) => ACOES_DE_DINHEIRO.has(n.data.type)).map((n) => blockLabel(n.data.type)),
+    ),
+  ];
+}
+
+/**
+ * AU-13 — o aviso antes de ligar um fluxo que mexe em dinheiro.
+ *
+ * Não é confirmação genérica de "tem certeza?": ela **nomeia** o que a automação vai fazer
+ * sozinha. Uma pessoa confirmando inscrição na tela vê a inscrição; aqui ela precisa ver, em
+ * texto, o que vai acontecer trinta vezes sem ninguém olhando.
+ */
+function ConfirmarDinheiro({
+  acoes,
+  busy,
+  onClose,
+  onConfirmar,
+}: {
+  acoes: string[];
+  busy: boolean;
+  onClose: () => void;
+  onConfirmar: () => void;
+}): React.JSX.Element {
+  return (
+    <div className="overlay" role="dialog" aria-modal="true" aria-label="Ligar automação">
+      <div className="modal">
+        <h2 className="modal-title">Esta automação mexe no financeiro</h2>
+        <p className="modal-sub">Ligada, ela vai fazer isto sozinha, sem ninguém olhando:</p>
+        <ul className="auto-money-list">
+          {acoes.map((acao) => (
+            <li key={acao} className="cell-name">
+              {acao}
+            </li>
+          ))}
+        </ul>
+        <p className="field-help">
+          Cada uma vai para o histórico da inscrição marcada como automação. Você pode desligar a
+          qualquer momento.
+        </p>
+
+        <div className="form-actions">
+          <button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>
+            Voltar
+          </button>
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={onConfirmar}>
+            Ligar mesmo assim
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

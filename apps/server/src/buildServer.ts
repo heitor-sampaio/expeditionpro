@@ -15,6 +15,8 @@ import type {
   ChannelIntegrationRepository,
   ConversationRepository,
   AutomationRepository,
+  AutomationRunRepository,
+  AutomationRunStepRepository,
   MediaStore,
   MessagingGateway,
   AuthAdminGateway,
@@ -34,6 +36,7 @@ import type {
   LegalDocumentRepository,
   ItineraryRepository,
   NotificationGateway,
+  TeamNoticeGateway,
   PaymentRepository,
   RequestContext,
   ScheduleRepository,
@@ -64,6 +67,7 @@ import { registerCouponRoutes } from './routes/coupons.js';
 import { registerCrmRoutes } from './routes/crm.js';
 import { registerInboxRoutes } from './routes/inbox.js';
 import { registerAutomationRoutes } from './routes/automations.js';
+import { automationRunner, type AutomationRunner } from './automation/runner.js';
 import { redactUrl } from './log/redactUrl.js';
 import { registerCompanyRoutes, registerCrewRoutes } from './routes/company.js';
 
@@ -106,6 +110,9 @@ export interface ServerDeps {
   readonly conversationMedia: MediaStore;
   /** §5.18: as automações desenhadas pela equipe. */
   readonly automations: AutomationRepository;
+  /** §5.18: as execuções, e o log passo a passo de cada uma (AU-04, AU-06). */
+  readonly automationRuns: AutomationRunRepository;
+  readonly automationRunSteps: AutomationRunStepRepository;
   /** §5.13: Termo de adesão (versionamento + aceite). */
   readonly documents: LegalDocumentRepository;
   /** §5.9 · DOC-06: consentimento de comunicação por canal (marketing). */
@@ -131,6 +138,8 @@ export interface ServerDeps {
   readonly authAdmin?: AuthAdminGateway | undefined;
   /** PC-23: notificações ao cliente. Ausente = nenhum e-mail é enviado (best-effort). */
   readonly notifications?: NotificationGateway | undefined;
+  /** AU-13: aviso à equipe, com texto livre. Ausente = a ação "avisar a equipe" falha e diz. */
+  readonly teamNotices?: TeamNoticeGateway | undefined;
   readonly resolveContext: (request: FastifyRequest) => Promise<RequestContext>;
   /** Relógio do servidor para timestamps de borda (ex.: confirmed_at). Default: Date real. */
   readonly clock?: () => Date;
@@ -149,6 +158,12 @@ export interface ServerOptions {
   readonly logStream?: { write(linha: string): void };
   /** Casos de uso e resolução de contexto. Sem isso, só o health check sobe. */
   readonly deps?: ServerDeps;
+  /**
+   * AU-04: liga o motor das automações neste processo. Desligado nos testes de rota, que não
+   * querem trabalho de fundo acontecendo por trás das asserções — e desligável em produção
+   * por variável de ambiente, para parar tudo sem precisar de deploy.
+   */
+  readonly automationEngine?: boolean;
 }
 
 /**
@@ -185,6 +200,13 @@ function loggerConfig() {
       censor: '[redacted]',
     },
   };
+}
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    /** AU-04: o motor das automações. As rotas o usam para disparar gatilho. */
+    automations: AutomationRunner;
+  }
 }
 
 export async function buildServer(options: ServerOptions = {}): Promise<FastifyInstance> {
@@ -243,6 +265,18 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
   await app.register(registerHealthRoutes);
   if (options.deps) {
     const { deps } = options;
+    /*
+     * AU-04 — o motor vive no processo da API, e o gatilho o acorda no ato. Sem serviço novo:
+     * o trabalho é durável em tabela, então qualquer coisa que acorde e pergunte "o que está
+     * vencido?" o completa — este laço hoje, um serviço próprio no dia em que doer.
+     */
+    const runner = automationRunner(deps, app.log, {
+      enabled: options.automationEngine ?? false,
+    });
+    app.decorate('automations', runner);
+    app.addHook('onClose', () => {
+      runner.stop();
+    });
     await app.register((instance) => {
       registerCustomerRoutes(instance, deps);
       registerVehicleRoutes(instance, deps);
@@ -257,7 +291,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       registerCouponRoutes(instance, deps);
       registerCrmRoutes(instance, deps);
       registerInboxRoutes(instance, deps);
-      registerAutomationRoutes(instance, deps);
+      registerAutomationRoutes(instance, deps, runner);
       registerCompanyRoutes(instance, deps);
       registerCrewRoutes(instance, deps);
       registerTeamRoutes(instance, deps);

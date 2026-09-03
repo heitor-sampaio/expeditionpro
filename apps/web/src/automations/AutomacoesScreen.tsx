@@ -29,7 +29,7 @@ export function AutomacoesScreen(): React.JSX.Element {
         busy={busy}
         onBack={() => setAbertaId(null)}
         onSave={(graph) => salvarGrafo(aberta.id, graph)}
-        onToggle={(enabled) => ligar(aberta.id, enabled)}
+        onToggle={(enabled, confirmMoneyActions) => ligar(aberta.id, enabled, confirmMoneyActions)}
       />
     );
   }

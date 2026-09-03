@@ -107,10 +107,10 @@ export function useAutomations() {
   );
 
   const ligar = useCallback(
-    (id: string, enabled: boolean) =>
+    (id: string, enabled: boolean, confirmMoneyActions?: boolean) =>
       chamar(`/v1/automations/${encodeURIComponent(id)}/enabled`, {
         method: 'PUT',
-        body: JSON.stringify({ enabled }),
+        body: JSON.stringify({ enabled, ...(confirmMoneyActions ? { confirmMoneyActions } : {}) }),
       }),
     [chamar],
   );
@@ -132,6 +132,7 @@ function mensagem(corpo: { error?: string; message?: string }, status: number): 
   if (corpo.error === 'invalid_graph') return 'O desenho não fecha.';
   if (corpo.error === 'automation_enabled')
     return 'Desligue a automação antes: ela está agindo sobre clientes agora.';
+  if (corpo.error === 'money_action_confirmation' && corpo.message) return corpo.message;
   if (corpo.error === 'duplicate_automation') return 'Já existe uma automação com esse nome.';
   if (corpo.error === 'required_field') return 'Dê um nome à automação.';
   if (status === 401 || status === 403) return 'Ligar e editar automação é de owner ou admin.';

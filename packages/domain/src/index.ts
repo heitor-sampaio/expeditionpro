@@ -50,6 +50,14 @@ export {
 } from './automation/graph.js';
 export { renderTemplate } from './automation/renderTemplate.js';
 export {
+  evaluateCondition,
+  readPath,
+  resolveDelay,
+  minutosDaEspera,
+  ESPERA_MINIMA_MIN,
+  type RunContext,
+} from './automation/interpreter.js';
+export {
   parsePixKey,
   isValidPixKey,
   formatPixKey,

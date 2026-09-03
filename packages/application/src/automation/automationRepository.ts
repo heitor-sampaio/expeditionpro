@@ -1,4 +1,5 @@
 import type { AutomationGraph } from '@expedition/domain';
+import type { ScheduledAutomationRef } from './scanScheduledTriggers.js';
 
 /**
  * §5.18 — a automação guardada.
@@ -15,13 +16,17 @@ export type TriggerType =
   | 'opportunity_moved'
   | 'booking_created'
   | 'booking_confirmed'
-  | 'payment_registered';
+  | 'payment_registered'
+  /** AU-12: em relação à data de início de uma saída. É varrido, não agendado. */
+  | 'scheduled';
 
 export interface AutomationRecord {
   readonly id: string;
   readonly name: string;
   readonly description: string | null;
   readonly triggerType: TriggerType;
+  /** AU-12: `{ offsetDays }` no temporal. Os gatilhos de evento não têm o que configurar. */
+  readonly triggerConfig: Record<string, unknown>;
   readonly graph: AutomationGraph;
   readonly enabled: boolean;
   /** AU-03: quem responde pela automação. `null` enquanto ela nunca foi ligada. */
@@ -35,6 +40,7 @@ export interface NewAutomation {
   readonly name: string;
   readonly description: string | null;
   readonly triggerType: TriggerType;
+  readonly triggerConfig: Record<string, unknown>;
   readonly graph: AutomationGraph;
   readonly createdBy: string | null;
 }
@@ -42,6 +48,7 @@ export interface NewAutomation {
 export interface AutomationPatch {
   readonly name?: string;
   readonly description?: string | null;
+  readonly triggerConfig?: Record<string, unknown>;
   readonly graph?: AutomationGraph;
   readonly enabled?: boolean;
   readonly runAsUserId?: string | null;
@@ -55,4 +62,12 @@ export interface AutomationRepository {
   create(automation: NewAutomation): Promise<AutomationRecord>;
   update(tenantId: string, id: string, patch: AutomationPatch): Promise<AutomationRecord>;
   softDelete(tenantId: string, id: string): Promise<void>;
+
+  /**
+   * AU-12 — o segundo e último caminho **sem escopo de tenant** do sistema: quais automações
+   * temporais estão ligadas, em qualquer tenant. O motor roda fora de requisição e precisa
+   * saber onde procurar; devolve id, tenant e o deslocamento em dias, e nada mais. Ler a
+   * agenda de cada um continua sendo pelo client escopado.
+   */
+  listScheduledAcrossTenants(): Promise<readonly ScheduledAutomationRef[]>;
 }

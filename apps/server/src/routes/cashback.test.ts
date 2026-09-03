@@ -21,7 +21,7 @@ import {
   inMemoryMediaStore,
   inMemoryMessagingGateway,
 } from '../dev/inMemoryMessaging.js';
-import { inMemoryAutomations } from '../dev/inMemoryAutomations.js';
+import { inMemoryAutomations, inMemoryAutomationRuns } from '../dev/inMemoryAutomations.js';
 import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
 import { inMemoryLegalDocuments } from '../dev/inMemoryLegalDocuments.js';
 import { inMemoryConsents } from '../dev/inMemoryConsents.js';
@@ -96,6 +96,7 @@ describe('CB-03/CB-05/CB-08: rotas de cashback', () => {
         messagingGateway: inMemoryMessagingGateway(),
         conversationMedia: inMemoryMediaStore(),
         automations: inMemoryAutomations(),
+        ...inMemoryAutomationRuns(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),
@@ -264,6 +265,7 @@ describe('CB-01/CB-02: rotas de config de cashback', () => {
         messagingGateway: inMemoryMessagingGateway(),
         conversationMedia: inMemoryMediaStore(),
         automations: inMemoryAutomations(),
+        ...inMemoryAutomationRuns(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),

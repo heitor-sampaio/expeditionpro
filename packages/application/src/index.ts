@@ -173,6 +173,13 @@ export {
   type ListBookingPaymentsCommand,
 } from './payments/listBookingPayments.js';
 export { requireWriter } from './audience.js';
+export { requireTeamAdmin } from './team/teamGuards.js';
+export {
+  notifyTeam,
+  type NotifyTeamDeps,
+  type NotifyTeamCommand,
+} from './notifications/notifyTeam.js';
+export type { TeamNotice, TeamNoticeGateway } from './notifications/notificationGateway.js';
 export { requireTeam, requireSelfOrTeam, requireCustomer, denyCustomer } from './audience.js';
 export type {
   ItineraryRepository,
@@ -991,3 +998,44 @@ export {
 export { listAutomations } from './automation/listAutomations.js';
 export { getAutomation, type AutomationRef } from './automation/getAutomation.js';
 export { deleteAutomation } from './automation/deleteAutomation.js';
+
+// §5.18 — o motor (AU-04, AU-05, AU-06, AU-11, AU-12).
+export type {
+  AutomationRunRecord,
+  AutomationRunRepository,
+  AutomationRunStepRepository,
+  AutomationRunPatch,
+  NewAutomationRun,
+  NewRunStep,
+  RunStepRecord,
+  RunStatus,
+  DueRunRef,
+} from './automation/automationRunRepository.js';
+export type {
+  AutomationAction,
+  AutomationActionInput,
+  AutomationActions,
+} from './automation/automationActions.js';
+export type { AutomationRunnerDeps } from './automation/runnerDeps.js';
+export {
+  enqueueAutomationRun,
+  TETO_POR_HORA,
+  type EnqueueAutomationRunCommand,
+} from './automation/enqueueAutomationRun.js';
+export {
+  advanceAutomationRun,
+  TETO_DE_PASSOS,
+  TETO_DE_TENTATIVAS,
+} from './automation/advanceAutomationRun.js';
+export { resumeDueRuns, type ResumeDueRunsCommand } from './automation/resumeDueRuns.js';
+export {
+  scanScheduledTriggers,
+  type ScanScheduledTriggersDeps,
+  type ScanScheduledTriggersCommand,
+  type ScheduledAutomationRef,
+} from './automation/scanScheduledTriggers.js';
+export {
+  listAutomationRuns,
+  getAutomationRunSteps,
+  type AutomationRunReadDeps,
+} from './automation/listAutomationRuns.js';

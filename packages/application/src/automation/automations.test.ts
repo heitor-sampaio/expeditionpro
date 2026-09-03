@@ -268,3 +268,87 @@ describe('AU-10: ler e apagar', () => {
     ).rejects.toBeInstanceOf(BusinessRuleError);
   });
 });
+
+/**
+ * AU-13 — automação que toca dinheiro pede confirmação à parte.
+ *
+ * Confirmar inscrição sem pagamento é decisão que muda o financeiro: a vaga passa a estar
+ * ocupada e o relatório passa a contar aquela receita. Uma pessoa fazendo isso na tela vê o
+ * que está fazendo; uma automação fazendo sozinha, de madrugada, trinta vezes, não tem esse
+ * momento. O aviso explícito é onde ele é reposto.
+ *
+ * Não é burocracia: é a mesma cautela de excluir recebimento (IN-09), aplicada a algo que vai
+ * acontecer sem ninguém olhando.
+ */
+describe('AU-13: ligar automação que toca dinheiro', () => {
+  const COM_DINHEIRO: AutomationGraph = {
+    nodes: [
+      GRAFO_BOM.nodes[0]!,
+      {
+        id: 'a1',
+        kind: 'action',
+        type: 'confirm_booking',
+        config: {},
+        position: { x: 0, y: 60 },
+      },
+    ],
+    edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'a1' }],
+  };
+
+  it('recusa sem a confirmação explícita, dizendo o que ela vai fazer sozinha', async () => {
+    const d = deps();
+    const criada = await comAutomacao(d);
+    await saveAutomationGraph(d, ctxCom('owner'), { automationId: criada.id, graph: COM_DINHEIRO });
+
+    await expect(
+      setAutomationEnabled(d, ctxCom('owner'), { automationId: criada.id, enabled: true }),
+    ).rejects.toMatchObject({ code: 'money_action_confirmation' });
+  });
+
+  it('liga com a confirmação dada', async () => {
+    const d = deps();
+    const criada = await comAutomacao(d);
+    await saveAutomationGraph(d, ctxCom('owner'), { automationId: criada.id, graph: COM_DINHEIRO });
+
+    const ligada = await setAutomationEnabled(d, ctxCom('owner'), {
+      automationId: criada.id,
+      enabled: true,
+      confirmMoneyActions: true,
+    });
+
+    expect(ligada.enabled).toBe(true);
+  });
+
+  /** Automação sem ação de dinheiro liga como sempre: a confirmação não vira ritual de todas. */
+  it('automação sem ação de dinheiro não pede confirmação', async () => {
+    const d = deps();
+    const criada = await comAutomacao(d);
+    await saveAutomationGraph(d, ctxCom('owner'), { automationId: criada.id, graph: GRAFO_BOM });
+
+    const ligada = await setAutomationEnabled(d, ctxCom('owner'), {
+      automationId: criada.id,
+      enabled: true,
+    });
+
+    expect(ligada.enabled).toBe(true);
+  });
+
+  /** Desligar nunca pede nada: parar tem que ser sempre possível. */
+  it('desligar não pede confirmação, mesmo com ação de dinheiro', async () => {
+    const d = deps();
+    const criada = await comAutomacao(d);
+    await saveAutomationGraph(d, ctxCom('owner'), { automationId: criada.id, graph: COM_DINHEIRO });
+    await setAutomationEnabled(d, ctxCom('owner'), {
+      automationId: criada.id,
+      enabled: true,
+      confirmMoneyActions: true,
+    });
+
+    const desligada = await setAutomationEnabled(d, ctxCom('owner'), {
+      automationId: criada.id,
+      enabled: false,
+    });
+
+    expect(desligada.enabled).toBe(false);
+  });
+});

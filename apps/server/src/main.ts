@@ -21,9 +21,12 @@ import {
   prismaCommunityRepository,
   prismaUnitOfWork,
   resendNotificationGateway,
+  resendTeamNoticeGateway,
   supabaseAuthAdmin,
   prismaMembershipRepository,
   prismaAutomationRepository,
+  prismaAutomationRunRepository,
+  prismaAutomationRunStepRepository,
   prismaChannelIntegrationRepository,
   prismaConversationRepository,
   supabaseMediaStore,
@@ -39,6 +42,7 @@ import type {
   AuthAdminGateway,
   MediaStore,
   NotificationGateway,
+  TeamNoticeGateway,
   RequestContext,
 } from '@expedition/application';
 import type { TokenCipher } from '@expedition/infrastructure';
@@ -58,7 +62,7 @@ import { inMemoryCoupons } from './dev/inMemoryCoupons.js';
 import { inMemoryIdentityChange } from './dev/inMemoryIdentityChange.js';
 import { inMemoryAudit } from './dev/inMemoryAudit.js';
 import { inMemoryMemberships } from './dev/inMemoryMemberships.js';
-import { inMemoryAutomations } from './dev/inMemoryAutomations.js';
+import { inMemoryAutomations, inMemoryAutomationRuns } from './dev/inMemoryAutomations.js';
 import {
   inMemoryChannelIntegrations,
   inMemoryConversations,
@@ -115,6 +119,18 @@ function buildNotifications(): NotificationGateway | undefined {
     return undefined;
   }
   return resendNotificationGateway({ apiKey, from });
+}
+
+/**
+ * AU-13 — o aviso à equipe usa o mesmo provedor e as mesmas variáveis do aviso ao cliente:
+ * é o mesmo e-mail saindo do mesmo remetente, para outra audiência. Uma segunda configuração
+ * seria uma segunda coisa para esquecer de preencher.
+ */
+function buildTeamNotices(): TeamNoticeGateway | undefined {
+  const apiKey = process.env['RESEND_API_KEY'];
+  const from = process.env['RESEND_FROM'];
+  if (!apiKey || !from) return undefined;
+  return resendTeamNoticeGateway({ apiKey, from });
 }
 
 /** Admin de identidade (§3.7) só com URL do Supabase + `service_role`; senão a rota é 503. */
@@ -177,6 +193,7 @@ function buildDeps(): ServerDeps {
       messagingGateway: inMemoryMessagingGateway(),
       conversationMedia: inMemoryMediaStore(),
       automations: inMemoryAutomations(),
+      ...inMemoryAutomationRuns(),
       vehicles: inMemoryVehicles(),
       itineraries: inMemoryItineraries(),
       schedule: inMemorySchedule(),
@@ -206,6 +223,7 @@ function buildDeps(): ServerDeps {
       ...devPaymentGatewayDeps(),
       authAdmin: buildAuthAdmin(),
       notifications: buildNotifications(),
+      teamNotices: buildTeamNotices(),
       resolveContext: () => Promise.resolve({ tenantId: 'dev-tenant', actor: DEV_ACTOR }),
     };
   }
@@ -235,6 +253,7 @@ function buildDeps(): ServerDeps {
     uow: prismaUnitOfWork(base),
     authAdmin: buildAuthAdmin(),
     notifications: buildNotifications(),
+    teamNotices: buildTeamNotices(),
     memberships: prismaMembershipRepository(base),
     opportunities: prismaOpportunityRepository(base),
     resolveContext: resolveContextForProd(base),
@@ -284,7 +303,18 @@ async function main(): Promise<void> {
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
 
-  const app = await buildServer({ corsOrigins, deps: buildDeps() });
+  /*
+   * AU-04 — o motor liga por variável de ambiente, e **desliga do mesmo jeito**.
+   *
+   * Ligado é o normal em produção. A variável existe para o caso em que uma automação começa
+   * a fazer algo errado de um jeito que o interruptor por automação não cobre: dá para parar
+   * tudo mudando a variável, sem esperar deploy. Fora de produção fica desligado, para quem
+   * roda o servidor local não disparar mensagem sem querer.
+   */
+  const automationEngine =
+    (process.env['AUTOMATION_ENGINE'] ??
+      (process.env['NODE_ENV'] === 'production' ? 'on' : 'off')) !== 'off';
+  const app = await buildServer({ corsOrigins, deps: buildDeps(), automationEngine });
   const port = Number(process.env['PORT'] ?? 3000);
   await app.listen({ port, host: '0.0.0.0' });
 }
@@ -324,6 +354,8 @@ function messagingDeps(base: ReturnType<typeof createPrismaClient>) {
     messagingGateway: evolutionGateway(),
     conversationMedia: buildConversationMedia(),
     automations: prismaAutomationRepository(base),
+    automationRuns: prismaAutomationRunRepository(base),
+    automationRunSteps: prismaAutomationRunStepRepository(base),
   };
 }
 

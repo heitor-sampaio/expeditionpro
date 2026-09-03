@@ -35,6 +35,7 @@ export function fakeAutomationRepository(): AutomationRepository & { rows: Row[]
         name: automation.name,
         description: automation.description,
         triggerType: automation.triggerType,
+        triggerConfig: automation.triggerConfig,
         graph: automation.graph,
         enabled: false,
         runAsUserId: null,
@@ -51,6 +52,17 @@ export function fakeAutomationRepository(): AutomationRepository & { rows: Row[]
       rows[i] = { ...rows[i]!, ...patch, updatedAt: new Date('2026-09-03T01:00:00Z') };
       return Promise.resolve(rows[i]!);
     },
+
+    listScheduledAcrossTenants: () =>
+      Promise.resolve(
+        rows
+          .filter((r) => r.deletedAt === null && r.enabled && r.triggerType === 'scheduled')
+          .map((r) => ({
+            tenantId: r.tenantId,
+            automationId: r.id,
+            offsetDays: Number(r.triggerConfig['offsetDays'] ?? 0),
+          })),
+      ),
 
     softDelete(tenantId, id) {
       const i = rows.findIndex((r) => r.tenantId === tenantId && r.id === id);

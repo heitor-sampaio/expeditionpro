@@ -31,6 +31,20 @@ export interface ReceiveChannelMessageCommand {
 export interface ReceiveOutcome {
   /** `false` = evento ignorado ou mensagem repetida. Nos dois casos a resposta é 200. */
   readonly handled: boolean;
+  /**
+   * AU-04 — o contexto para a borda disparar a automação, presente **só** quando a mensagem
+   * chegou de fora e é nova.
+   *
+   * Ausente na que sai: automação que reagisse à própria resposta seria laço. Ausente na
+   * repetida: o eco do provedor não pode virar segunda mensagem para o cliente.
+   */
+  readonly trigger?: {
+    readonly conversationId: string;
+    readonly contactName: string;
+    readonly phone: string;
+    readonly text: string;
+    readonly customerId: string | null;
+  };
 }
 
 const IGNORADO: ReceiveOutcome = { handled: false };
@@ -107,9 +121,13 @@ export async function receiveChannelMessage(
    * Vínculo que já existe não é mexido: pode ter sido a equipe que o fez à mão, e a regra
    * automática não tem por que discordar de uma pessoa que olhou.
    */
-  if (conversa.customerId === null) {
+  let customerId = conversa.customerId;
+  if (customerId === null) {
     const ficha = await clientePeloTelefone(deps, ctx, integration.channel, evento.phone);
-    if (ficha !== null) await deps.conversations.linkCustomer(ctx.tenantId, conversa.id, ficha);
+    if (ficha !== null) {
+      await deps.conversations.linkCustomer(ctx.tenantId, conversa.id, ficha);
+      customerId = ficha;
+    }
   }
 
   /*
@@ -164,7 +182,21 @@ export async function receiveChannelMessage(
     ...(evento.displayName === null ? {} : { displayName: evento.displayName }),
   });
 
-  return { handled: true };
+  // AU-04: só o que chega de fora acorda automação. A que sai já é resposta.
+  if (evento.direction !== 'in') return { handled: true };
+
+  return {
+    handled: true,
+    trigger: {
+      conversationId: conversa.id,
+      // Identidade por LID pode não trazer telefone: o vazio é honesto, e a condição da
+      // automação sabe lidar com campo vazio.
+      contactName: evento.displayName ?? conversa.displayName ?? evento.phone ?? '',
+      phone: evento.phone ?? '',
+      text: evento.body,
+      customerId,
+    },
+  };
 }
 
 /**

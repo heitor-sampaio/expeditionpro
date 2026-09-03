@@ -68,6 +68,13 @@ export const GATILHOS: readonly BlockType[] = [
     hint: 'Entrou dinheiro numa inscrição',
     config: {},
   },
+  {
+    type: 'scheduled',
+    kind: 'trigger',
+    label: 'Perto de uma saída',
+    hint: 'Tantos dias antes ou depois da data de início',
+    config: { offsetDays: -3 },
+  },
 ];
 
 export const BLOCOS: readonly BlockType[] = [
@@ -121,6 +128,13 @@ export const BLOCOS: readonly BlockType[] = [
     config: { text: '' },
   },
   {
+    type: 'confirm_booking',
+    kind: 'action',
+    label: 'Confirmar inscrição',
+    hint: 'Sem pagamento, com motivo registrado. Mexe no financeiro',
+    config: { note: '' },
+  },
+  {
     type: 'end',
     kind: 'end',
     label: 'Fim',
@@ -128,6 +142,15 @@ export const BLOCOS: readonly BlockType[] = [
     config: {},
   },
 ];
+
+/**
+ * AU-13 — as ações que mexem no financeiro.
+ *
+ * A tela avisa em texto o que a automação vai fazer sozinha antes de ligar, e o servidor
+ * recusa sem a confirmação. As duas pontas, porque só a tela seria contornável por quem
+ * chamasse a rota direto.
+ */
+export const ACOES_DE_DINHEIRO = new Set(['confirm_booking']);
 
 const POR_TIPO = new Map([...GATILHOS, ...BLOCOS].map((bloco) => [bloco.type, bloco]));
 
@@ -223,6 +246,24 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
   ],
   move_opportunity: [
     { key: 'stageName', label: 'Etapa', kind: 'text', placeholder: 'Em conversa' },
+  ],
+  scheduled: [
+    {
+      key: 'offsetDays',
+      label: 'Dias em relação à saída',
+      kind: 'number',
+      placeholder: '-3',
+      help: 'Negativo é antes da saída; positivo, depois. Zero é o dia dela.',
+    },
+  ],
+  confirm_booking: [
+    {
+      key: 'note',
+      label: 'Motivo',
+      kind: 'text',
+      placeholder: 'pagou por fora, cortesia…',
+      help: 'Fica no histórico financeiro da inscrição, junto da marca de que foi automação.',
+    },
   ],
   notify_team: [
     {

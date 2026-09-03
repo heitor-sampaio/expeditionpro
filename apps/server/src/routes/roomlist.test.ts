@@ -21,7 +21,7 @@ import {
   inMemoryMediaStore,
   inMemoryMessagingGateway,
 } from '../dev/inMemoryMessaging.js';
-import { inMemoryAutomations } from '../dev/inMemoryAutomations.js';
+import { inMemoryAutomations, inMemoryAutomationRuns } from '../dev/inMemoryAutomations.js';
 import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
 import { inMemoryLegalDocuments } from '../dev/inMemoryLegalDocuments.js';
 import { inMemoryConsents } from '../dev/inMemoryConsents.js';
@@ -86,6 +86,7 @@ describe('GR-15: GET /v1/groups/:groupId/roomlist.pdf', () => {
         messagingGateway: inMemoryMessagingGateway(),
         conversationMedia: inMemoryMediaStore(),
         automations: inMemoryAutomations(),
+        ...inMemoryAutomationRuns(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),

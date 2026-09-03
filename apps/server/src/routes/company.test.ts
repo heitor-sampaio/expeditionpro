@@ -21,7 +21,7 @@ import {
   inMemoryMediaStore,
   inMemoryMessagingGateway,
 } from '../dev/inMemoryMessaging.js';
-import { inMemoryAutomations } from '../dev/inMemoryAutomations.js';
+import { inMemoryAutomations, inMemoryAutomationRuns } from '../dev/inMemoryAutomations.js';
 import { inMemoryOpportunities } from '../dev/inMemoryOpportunities.js';
 import { inMemoryLegalDocuments } from '../dev/inMemoryLegalDocuments.js';
 import { inMemoryConsents } from '../dev/inMemoryConsents.js';
@@ -76,6 +76,7 @@ describe('CF-01: GET e PUT /v1/company', () => {
         messagingGateway: inMemoryMessagingGateway(),
         conversationMedia: inMemoryMediaStore(),
         automations: inMemoryAutomations(),
+        ...inMemoryAutomationRuns(),
         documents: inMemoryLegalDocuments(),
         consents: inMemoryConsents(),
         community: inMemoryCommunity(),

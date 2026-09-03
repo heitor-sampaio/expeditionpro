@@ -10,6 +10,8 @@
  * alguém desligar; um nó órfão é trabalho que a equipe desenhou achando que ia rodar.
  */
 
+import { ESPERA_MINIMA_MIN, minutosDaEspera as emMinutos } from './interpreter.js';
+
 export type NodeKind = 'trigger' | 'condition' | 'setVariable' | 'delay' | 'action' | 'end';
 
 /** As saídas de cada espécie de bloco. Condição tem duas; o resto tem uma; fim não tem. */
@@ -50,6 +52,7 @@ export type GraphProblem =
   | 'porta_ambigua'
   | 'condicao_incompleta'
   | 'gatilho_sem_caminho'
+  | 'espera_curta'
   | 'ciclo_sem_espera';
 
 const PORTAS: Record<NodeKind, readonly Port[]> = {
@@ -84,6 +87,14 @@ export function validateGraph(graph: AutomationGraph): GraphProblem[] {
     const chave = `${ligacao.from}:${ligacao.port}`;
     if (usadas.has(chave)) problemas.add('porta_ambigua');
     usadas.add(chave);
+  }
+
+  // Espera abaixo do piso não seria respeitada como desenhada, e a automação faria coisa
+  // diferente do que a tela mostra. Recusar é mais honesto que arredondar em silêncio.
+  for (const no of graph.nodes) {
+    if (no.kind === 'delay' && emMinutos(no.config) < ESPERA_MINIMA_MIN) {
+      problemas.add('espera_curta');
+    }
   }
 
   // Condição com um lado só é armadilha: o outro caminho existe na cabeça de quem desenhou.

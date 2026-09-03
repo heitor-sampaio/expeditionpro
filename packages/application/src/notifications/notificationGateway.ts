@@ -17,3 +17,22 @@ export interface BookingNotification {
 export interface NotificationGateway {
   sendBookingNotification(notification: BookingNotification): Promise<void>;
 }
+
+/**
+ * AU-13 — o aviso à equipe.
+ *
+ * Porto separado do de cliente de propósito. `BookingNotification` tem audiência (o cliente),
+ * assunto fechado (`received`/`confirmed`) e texto do sistema; isto tem audiência interna,
+ * texto livre escrito pela equipe e vários destinatários. Enfiar os dois na mesma interface
+ * faria um assunto opcional em toda notificação de inscrição, para servir a um caso que não é
+ * o dela.
+ */
+export interface TeamNotice {
+  /** Os e-mails da equipe do tenant. Nunca vem de fora: sai de `memberships`. */
+  readonly to: readonly string[];
+  readonly text: string;
+}
+
+export interface TeamNoticeGateway {
+  sendTeamNotice(notice: TeamNotice): Promise<void>;
+}

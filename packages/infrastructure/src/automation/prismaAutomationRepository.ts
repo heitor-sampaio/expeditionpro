@@ -3,6 +3,7 @@ import type {
   AutomationRecord,
   AutomationRepository,
   NewAutomation,
+  ScheduledAutomationRef,
   TriggerType,
 } from '@expedition/application';
 import type { AutomationGraph } from '@expedition/domain';
@@ -52,6 +53,7 @@ export function prismaAutomationRepository(base: PrismaClient): AutomationReposi
           name: automation.name,
           description: automation.description,
           triggerType: automation.triggerType,
+          triggerConfig: automation.triggerConfig as Prisma.InputJsonValue,
           graph: automation.graph as unknown as Prisma.InputJsonValue,
           createdBy: automation.createdBy,
         },
@@ -65,6 +67,9 @@ export function prismaAutomationRepository(base: PrismaClient): AutomationReposi
         data: {
           ...(patch.name === undefined ? {} : { name: patch.name }),
           ...(patch.description === undefined ? {} : { description: patch.description }),
+          ...(patch.triggerConfig === undefined
+            ? {}
+            : { triggerConfig: patch.triggerConfig as Prisma.InputJsonValue }),
           ...(patch.graph === undefined
             ? {}
             : { graph: patch.graph as unknown as Prisma.InputJsonValue }),
@@ -73,6 +78,29 @@ export function prismaAutomationRepository(base: PrismaClient): AutomationReposi
         },
       });
       return toRecord(row);
+    },
+
+    /**
+     * AU-12 — o achado **sem escopo de tenant**, e um dos dois do sistema inteiro.
+     *
+     * O motor roda fora de requisição: não há tenant no contexto, e ele precisa saber em quais
+     * tenants existe automação temporal ligada. Por isso usa o client cru, de propósito — e
+     * seleciona **só** id, tenant e a configuração do gatilho. Ler a agenda de cada tenant
+     * continua sendo pelo client escopado, dentro de `scanScheduledTriggers`.
+     *
+     * O `select` explícito é a parte que importa: sem ele, este caminho viraria uma porta
+     * lateral por onde dado de qualquer tenant sairia sem filtro.
+     */
+    async listScheduledAcrossTenants(): Promise<readonly ScheduledAutomationRef[]> {
+      const rows = await base.automation.findMany({
+        where: { enabled: true, deletedAt: null, triggerType: 'scheduled' },
+        select: { id: true, tenantId: true, triggerConfig: true },
+      });
+      return rows.map((row) => ({
+        tenantId: row.tenantId,
+        automationId: row.id,
+        offsetDays: offsetDe(row.triggerConfig),
+      }));
     },
 
     async softDelete(tenantId: string, id: string): Promise<void> {
@@ -90,10 +118,18 @@ function toRecord(row: PrismaAutomation): AutomationRecord {
     name: row.name,
     description: row.description,
     triggerType: row.triggerType as TriggerType,
+    triggerConfig: (row.triggerConfig ?? {}) as Record<string, unknown>,
     graph: row.graph as unknown as AutomationGraph,
     enabled: row.enabled,
     runAsUserId: row.runAsUserId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+/** Negativo é antes da saída; positivo, depois. Configuração torta vira zero — o dia da saída. */
+function offsetDe(triggerConfig: unknown): number {
+  if (triggerConfig === null || typeof triggerConfig !== 'object') return 0;
+  const bruto = Number((triggerConfig as Record<string, unknown>)['offsetDays']);
+  return Number.isFinite(bruto) ? Math.trunc(bruto) : 0;
 }

@@ -2,13 +2,16 @@ import {
   createAutomation,
   deleteAutomation,
   getAutomation,
+  getAutomationRunSteps,
+  listAutomationRuns,
   listAutomations,
   renameAutomation,
   saveAutomationGraph,
   setAutomationEnabled,
+  requireTeamAdmin,
 } from '@expedition/application';
 import { z } from 'zod';
-import type { AutomationRecord } from '@expedition/application';
+import type { AutomationRunRecord, AutomationRecord, RunStepRecord } from '@expedition/application';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { ServerDeps } from '../buildServer.js';
@@ -29,7 +32,11 @@ const triggerType = z.enum([
   'booking_created',
   'booking_confirmed',
   'payment_registered',
+  'scheduled',
 ]);
+
+/** AU-12: o único gatilho com o que configurar — quantos dias antes (negativo) ou depois. */
+const triggerConfig = z.object({ offsetDays: z.number().int().min(-365).max(365) }).partial();
 
 /**
  * O grafo é validado de verdade no domínio. Aqui só se garante que é a **forma** de um grafo:
@@ -55,10 +62,20 @@ const graph = z.object({
   ),
 });
 
-export function registerAutomationRoutes(app: FastifyInstance, deps: ServerDeps): void {
+export function registerAutomationRoutes(
+  app: FastifyInstance,
+  deps: ServerDeps,
+  runner: { tick(now: Date): Promise<number> },
+): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
   const automacoes = () => ({ automations: deps.automations, audit: deps.audit });
   const params = z.object({ automationId: z.string().min(1) });
+  const leitura = () => ({
+    automations: deps.automations,
+    audit: deps.audit,
+    runs: deps.automationRuns,
+    steps: deps.automationRunSteps,
+  });
 
   typed.get('/v1/automations', async (request, reply) => {
     const ctx = await deps.resolveContext(request);
@@ -82,6 +99,7 @@ export function registerAutomationRoutes(app: FastifyInstance, deps: ServerDeps)
           name: z.string().trim().min(1),
           description: z.string().optional(),
           triggerType,
+          triggerConfig: triggerConfig.optional(),
         }),
       },
     },
@@ -126,16 +144,61 @@ export function registerAutomationRoutes(app: FastifyInstance, deps: ServerDeps)
   // AU-02 — ligar é o momento em que a automação passa a agir sobre gente de verdade.
   typed.put(
     '/v1/automations/:automationId/enabled',
-    { schema: { params, body: z.object({ enabled: z.boolean() }) } },
+    {
+      schema: {
+        params,
+        body: z.object({
+          enabled: z.boolean(),
+          // AU-13: a tela manda isto depois de mostrar, em texto, o que a automação vai
+          // fazer sozinha com dinheiro.
+          confirmMoneyActions: z.boolean().optional(),
+        }),
+      },
+    },
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
       const atualizada = await setAutomationEnabled(automacoes(), ctx, {
         automationId: request.params.automationId,
-        enabled: request.body.enabled,
+        ...request.body,
       });
       return reply.send(toDto(atualizada));
     },
   );
+
+  // AU-06 — o log: "por que essa mensagem foi enviada para esse cliente?".
+  typed.get(
+    '/v1/automations/:automationId/runs',
+    { schema: { params } },
+    async (request, reply) => {
+      const ctx = await deps.resolveContext(request);
+      const rows = await listAutomationRuns(leitura(), ctx, {
+        automationId: request.params.automationId,
+      });
+      return reply.send(rows.map(toRunDto));
+    },
+  );
+
+  typed.get(
+    '/v1/automation-runs/:runId',
+    { schema: { params: z.object({ runId: z.string().min(1) }) } },
+    async (request, reply) => {
+      const ctx = await deps.resolveContext(request);
+      const { run, steps } = await getAutomationRunSteps(leitura(), ctx, {
+        runId: request.params.runId,
+      });
+      return reply.send({ ...toRunDto(run), steps: steps.map(toStepDto) });
+    },
+  );
+
+  /*
+   * AU-04 — uma passada manual do motor, para a equipe destravar sem esperar a varredura de
+   * um minuto. Owner e admin só: é o mesmo poder de fazer a automação agir agora.
+   */
+  typed.post('/v1/automations/tick', async (request, reply) => {
+    const ctx = await deps.resolveContext(request);
+    requireTeamAdmin(ctx, 'rodar o motor de automações');
+    return reply.send({ executadas: await runner.tick(new Date()) });
+  });
 
   typed.delete('/v1/automations/:automationId', { schema: { params } }, async (request, reply) => {
     const ctx = await deps.resolveContext(request);
@@ -151,10 +214,39 @@ function toDto(automation: AutomationRecord) {
     name: automation.name,
     description: automation.description,
     triggerType: automation.triggerType,
+    triggerConfig: automation.triggerConfig,
     graph: automation.graph,
     enabled: automation.enabled,
     runAsUserId: automation.runAsUserId,
     createdAt: automation.createdAt.toISOString(),
     updatedAt: automation.updatedAt.toISOString(),
+  };
+}
+
+/** AU-06 — a execução como a tela a mostra. Sem `variables`: elas guardam dado do cliente. */
+function toRunDto(run: AutomationRunRecord) {
+  return {
+    id: run.id,
+    automationId: run.automationId,
+    status: run.status,
+    currentNodeId: run.currentNodeId,
+    triggerRef: run.triggerRef,
+    stepsTaken: run.stepsTaken,
+    attempts: run.attempts,
+    lastError: run.lastError,
+    wakeAt: run.wakeAt.toISOString(),
+    createdAt: run.createdAt.toISOString(),
+    updatedAt: run.updatedAt.toISOString(),
+  };
+}
+
+function toStepDto(step: RunStepRecord) {
+  return {
+    id: step.id,
+    nodeId: step.nodeId,
+    kind: step.kind,
+    outcome: step.outcome,
+    detail: step.detail,
+    at: step.at.toISOString(),
   };
 }

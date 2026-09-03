@@ -2,7 +2,7 @@ import { asaasGateway } from '@expedition/infrastructure';
 import type { RequestContext } from '@expedition/application';
 import type { ServerDeps } from '../buildServer.js';
 import { inMemoryAudit } from './inMemoryAudit.js';
-import { inMemoryAutomations } from './inMemoryAutomations.js';
+import { inMemoryAutomations, inMemoryAutomationRuns } from './inMemoryAutomations.js';
 import { inMemoryBookings } from './inMemoryBookings.js';
 import { inMemoryCashback } from './inMemoryCashback.js';
 import { inMemoryCommunity } from './inMemoryCommunity.js';
@@ -69,6 +69,7 @@ export function inMemoryServerDeps(override: Partial<ServerDeps> = {}): ServerDe
     messagingGateway: inMemoryMessagingGateway(),
     conversationMedia: inMemoryMediaStore(),
     automations: inMemoryAutomations(),
+    ...inMemoryAutomationRuns(),
     documents: inMemoryLegalDocuments(),
     consents: inMemoryConsents(),
     community: inMemoryCommunity(),

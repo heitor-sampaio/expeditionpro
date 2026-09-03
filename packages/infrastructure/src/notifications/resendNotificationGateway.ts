@@ -1,4 +1,9 @@
-import type { BookingNotification, NotificationGateway } from '@expedition/application';
+import type {
+  BookingNotification,
+  NotificationGateway,
+  TeamNotice,
+  TeamNoticeGateway,
+} from '@expedition/application';
 import { OUTBOUND_TIMEOUT_MS } from '../outbound.js';
 
 /**
@@ -67,4 +72,38 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/**
+ * AU-13 — o aviso à equipe, pelo mesmo provedor.
+ *
+ * O texto vem da automação, escrito pela equipe, e passa por `escapeHtml` como qualquer outro
+ * valor dinâmico: é dado do tenant entrando em HTML, e a regra não muda por ser gente de casa
+ * que escreveu. Quebra de linha vira `<br>` para o aviso não chegar num parágrafo só.
+ */
+export function resendTeamNoticeGateway(config: ResendConfig): TeamNoticeGateway {
+  const call = config.fetchImpl ?? fetch;
+  const timeoutMs = config.timeoutMs ?? OUTBOUND_TIMEOUT_MS;
+  return {
+    async sendTeamNotice(notice: TeamNotice): Promise<void> {
+      const corpo = escapeHtml(notice.text).replace(/\n/g, '<br>');
+      const res = await call('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${config.apiKey}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: config.from,
+          to: [...notice.to],
+          subject: 'Aviso de automação — ExpeditionPRO',
+          html: `<p>${corpo}</p>`,
+        }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!res.ok) {
+        throw new Error(`Resend respondeu ${String(res.status)}`);
+      }
+    },
+  };
 }

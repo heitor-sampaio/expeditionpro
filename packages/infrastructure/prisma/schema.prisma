@@ -78,6 +78,8 @@ model Tenant {
   conversations          Conversation[]
   messages               Message[]
   automations            Automation[]
+  automationRuns          AutomationRun[]
+  automationRunSteps      AutomationRunStep[]
 
   @@map("tenants")
 }
@@ -1177,6 +1179,8 @@ model Automation {
   name         String
   description  String?
   triggerType  String    @map("trigger_type")
+  // AU-12: quantos dias antes ou depois da saída, no gatilho temporal. Vazio nos de evento.
+  triggerConfig Json     @default("{}") @map("trigger_config")
   graph        Json      @default("{\"nodes\":[],\"edges\":[]}")
   // AU-02: nasce desligada, sempre.
   enabled      Boolean   @default(false)
@@ -1189,9 +1193,62 @@ model Automation {
   // "por quê" de coisas que aconteceram.
   deletedAt    DateTime? @map("deleted_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  runs   AutomationRun[]
 
   @@index([tenantId])
   @@index([tenantId, triggerType])
   @@map("automations")
+}
+
+/// §5.18 — uma passagem por uma automação, do gatilho até o fim ou até uma espera (AU-04).
+model AutomationRun {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  automationId   String    @map("automation_id") @db.Uuid
+  /// O que disparou: ids da conversa, da oportunidade, da inscrição.
+  triggerRef     Json      @default("{}") @map("trigger_ref")
+  /// AU-12: o que impede disparo duplo quando a varredura passa de novo pela mesma saída.
+  idempotencyKey String?   @map("idempotency_key")
+  status         String    @default("pending")
+  currentNodeId  String?   @map("current_node_id")
+  variables      Json      @default("{}")
+  /// Quando esta execução deve ser olhada: agora, ou quando a espera vencer.
+  wakeAt         DateTime  @default(now()) @map("wake_at")
+  stepsTaken     Int       @default(0) @map("steps_taken")
+  attempts       Int       @default(0)
+  lastError      String?   @map("last_error")
+  /// Quem carimbar primeiro leva; `lockedAt` devolve a linha se o processo morreu no meio.
+  lockedBy       String?   @map("locked_by")
+  lockedAt       DateTime? @map("locked_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  automation Automation          @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  steps      AutomationRunStep[]
+
+  @@unique([tenantId, automationId, idempotencyKey])
+  @@index([tenantId, automationId, createdAt])
+  @@index([status, wakeAt])
+  @@map("automation_runs")
+}
+
+/// §5.18 — o log passo a passo de uma execução (AU-06). Append-only, como a trilha.
+model AutomationRunStep {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  runId     String   @map("run_id") @db.Uuid
+  nodeId    String   @map("node_id")
+  kind      String
+  /// Por onde saiu, o que decidiu, ou o erro que impediu.
+  outcome   String
+  detail    Json     @default("{}")
+  at        DateTime @default(now())
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  run    AutomationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, runId, at])
+  @@map("automation_run_steps")
 }

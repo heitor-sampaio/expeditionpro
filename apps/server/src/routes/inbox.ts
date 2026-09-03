@@ -19,6 +19,7 @@ import type {
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { ServerDeps } from '../buildServer.js';
+import { fireAutomation } from './fireAutomation.js';
 
 /**
  * §5.17 — a caixa de conversas e a conexão dos canais.
@@ -174,6 +175,32 @@ export function registerInboxRoutes(app: FastifyInstance, deps: ServerDeps): voi
       );
       // Só o que não virou mensagem: é a fatia que se quer conhecer para desligar na origem.
       if (!outcome.handled) registrarTipoIgnorado(request);
+
+      /*
+       * AU-04 — a automação acorda aqui, **depois** de a mensagem estar gravada, e sem
+       * segurar a resposta. O provedor continua recebendo 200 em milissegundos; a automação
+       * reage em milissegundos também, porque o disparo empurra o motor em vez de esperar a
+       * varredura.
+       */
+      if (outcome.trigger) {
+        const { trigger } = outcome;
+        fireAutomation(
+          app,
+          tenantId,
+          'message_received',
+          { conversationId: trigger.conversationId },
+          {
+            conversa: { id: trigger.conversationId },
+            contato: {
+              nome: trigger.contactName,
+              telefone: trigger.phone,
+              ehCliente: trigger.customerId !== null,
+            },
+            mensagem: { texto: trigger.text },
+          },
+        );
+      }
+
       return reply.send({ handled: outcome.handled });
     } catch (error) {
       // Só o caso de segredo errado ganha linha própria; o resto segue para o tratador

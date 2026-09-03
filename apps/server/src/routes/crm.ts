@@ -14,6 +14,7 @@ import type { BoardColumn, OpportunityRecord } from '@expedition/application';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { ServerDeps } from '../buildServer.js';
+import { fireAutomation } from './fireAutomation.js';
 
 /**
  * §5.16 — o funil de oportunidades.
@@ -56,6 +57,16 @@ export function registerCrmRoutes(app: FastifyInstance, deps: ServerDeps): void 
           ? {}
           : { expectedValueCents: cents(expectedValueCents) }),
       });
+      fireAutomation(
+        app,
+        ctx.tenantId,
+        'opportunity_created',
+        { opportunityId: criada.id },
+        {
+          oportunidade: { id: criada.id, etapa: '' },
+          contato: { nome: criada.contactName, telefone: criada.phone ?? '' },
+        },
+      );
       return reply.status(201).send(opportunityDto(criada));
     },
   );
@@ -77,6 +88,17 @@ export function registerCrmRoutes(app: FastifyInstance, deps: ServerDeps): void 
         opportunityId: request.params.opportunityId,
         ...request.body,
       });
+      const etapa = await deps.opportunities.findStageById(ctx.tenantId, movida.stageId);
+      fireAutomation(
+        app,
+        ctx.tenantId,
+        'opportunity_moved',
+        { opportunityId: movida.id, stageId: movida.stageId },
+        {
+          oportunidade: { id: movida.id, etapa: etapa?.name ?? '' },
+          contato: { nome: movida.contactName, telefone: movida.phone ?? '' },
+        },
+      );
       return reply.send(opportunityDto(movida));
     },
   );

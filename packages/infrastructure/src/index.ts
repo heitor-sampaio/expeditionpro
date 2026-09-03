@@ -49,6 +49,7 @@ export { prismaMediaConsentRepository } from './communications/prismaMediaConsen
 export { prismaCommunityRepository } from './community/prismaCommunityRepository.js';
 export {
   resendNotificationGateway,
+  resendTeamNoticeGateway,
   type ResendConfig,
 } from './notifications/resendNotificationGateway.js';
 export {
@@ -67,3 +68,7 @@ export {
 export { evolutionGateway } from './messaging/evolutionGateway.js';
 export { supabaseMediaStore } from './messaging/supabaseMediaStore.js';
 export { prismaAutomationRepository } from './automation/prismaAutomationRepository.js';
+export {
+  prismaAutomationRunRepository,
+  prismaAutomationRunStepRepository,
+} from './automation/prismaAutomationRunRepository.js';

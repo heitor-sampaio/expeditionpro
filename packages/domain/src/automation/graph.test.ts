@@ -123,7 +123,7 @@ describe('AU-07: grafo válido', () => {
           id: 'w1',
           kind: 'delay',
           type: 'wait',
-          config: { minutes: 1440 },
+          config: { amount: 1, unit: 'days' },
           position: { x: 0, y: 60 },
         },
         acao,
@@ -176,5 +176,43 @@ describe('AU-01: por onde o motor anda', () => {
 
     expect(nextNode(grafo, 'c1', 'true')?.id).toBe('a1');
     expect(nextNode(grafo, 'c1', 'false')?.id).toBe('f1');
+  });
+});
+
+/**
+ * AU-07 — a espera curta demais.
+ *
+ * A varredura de rede do motor é de um minuto. Uma espera abaixo disso não seria respeitada
+ * como desenhada, e a automação faria coisa diferente do que a tela mostra — o pior tipo de
+ * divergência, porque ninguém desconfia do desenho. Recusar ao salvar é mais honesto que
+ * arredondar em silêncio na execução.
+ */
+describe('AU-07: espera abaixo do piso', () => {
+  const comEspera = (config: Record<string, unknown>): AutomationGraph => ({
+    nodes: [
+      gatilho,
+      { id: 'w1', kind: 'delay', type: 'wait', config, position: { x: 0, y: 60 } },
+      fim,
+    ],
+    edges: [
+      { id: 'e1', from: 'g1', port: 'next', to: 'w1' },
+      { id: 'e2', from: 'w1', port: 'next', to: 'f1' },
+    ],
+  });
+
+  it('espera de meio minuto é recusada', () => {
+    expect(validateGraph(comEspera({ amount: 0.5, unit: 'minutes' }))).toContain('espera_curta');
+  });
+
+  it('espera de zero é recusada — não é espera, é engano', () => {
+    expect(validateGraph(comEspera({ amount: 0, unit: 'days' }))).toContain('espera_curta');
+  });
+
+  it('um minuto passa: é o piso, não o proibido', () => {
+    expect(validateGraph(comEspera({ amount: 1, unit: 'minutes' }))).toEqual([]);
+  });
+
+  it('três dias passa', () => {
+    expect(validateGraph(comEspera({ amount: 3, unit: 'days' }))).toEqual([]);
   });
 });

@@ -20,6 +20,19 @@ const CORPO = {
   },
 };
 
+/** O mesmo corpo, mas saindo: é assim que o eco de uma resposta nossa chega de volta. */
+function corpoDeSaida() {
+  return {
+    event: 'messages.upsert',
+    data: {
+      key: { remoteJid: '5548999998877@s.whatsapp.net', fromMe: true, id: 'MSG-OUT-1' },
+      pushName: 'Drakkar Expedições',
+      message: { conversation: 'Bom dia! O valor sai por…' },
+      messageTimestamp: 1788000100,
+    },
+  };
+}
+
 function comCanal() {
   const conversations = fakeConversationRepository();
   const integrations = fakeChannelIntegrationRepository([
@@ -92,7 +105,7 @@ describe('AT-03..AT-05: a mensagem vira conversa', () => {
       body: CORPO,
     });
 
-    expect(r).toEqual({ handled: true });
+    expect(r.handled).toBe(true);
     const conversa = await d.conversations.findByChannelUser('tenant-a', 'whatsapp', [
       '5548999998877',
     ]);
@@ -826,5 +839,80 @@ describe('AT-07: responder zera o não lido', () => {
     await receiveChannelMessage(d, sistema, { ...comando, body: mensagem('C', false) });
 
     expect(d.conversations.conversations[0]?.unreadCount).toBe(1);
+  });
+});
+
+/**
+ * AU-04 — o que a borda precisa saber para disparar a automação.
+ *
+ * O gatilho nasce na rota, e a rota só tem o que este caso de uso devolver. Sem o contexto
+ * aqui, "responder quem pergunta preço" não teria nem a conversa para responder nem o texto
+ * para comparar — a automação existiria e não conseguiria agir.
+ */
+describe('AU-04: o resultado carrega o contexto do gatilho', () => {
+  it('mensagem recebida devolve conversa, contato e texto', async () => {
+    const d = comCanal();
+
+    const r = await receiveChannelMessage(d, sistema, {
+      token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp' as const,
+      body: CORPO,
+    });
+
+    expect(r.trigger).toMatchObject({
+      contactName: 'Ana Prado',
+      phone: '5548999998877',
+      text: expect.any(String),
+    });
+    expect(r.trigger?.conversationId).toEqual(expect.any(String));
+  });
+
+  /** Só o que chega dispara. Automação que reagisse à própria resposta seria laço. */
+  it('mensagem que sai não traz contexto de gatilho', async () => {
+    const d = comCanal();
+
+    const r = await receiveChannelMessage(d, sistema, {
+      token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp' as const,
+      body: corpoDeSaida(),
+    });
+
+    expect(r.handled).toBe(true);
+    expect(r.trigger).toBeUndefined();
+  });
+
+  it('evento ignorado não traz contexto nenhum', async () => {
+    const d = comCanal();
+
+    const r = await receiveChannelMessage(d, sistema, {
+      token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp' as const,
+      body: { event: 'presence.update', data: {} },
+    });
+
+    expect(r).toEqual({ handled: false });
+  });
+
+  /** AT-05: a repetida não dispara de novo — senão o eco do provedor viraria mensagem dobrada. */
+  it('mensagem repetida não dispara de novo', async () => {
+    const d = comCanal();
+    await receiveChannelMessage(d, sistema, {
+      token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp' as const,
+      body: CORPO,
+    });
+
+    const r = await receiveChannelMessage(d, sistema, {
+      token: 'segredo-certo',
+      clientIp: '',
+      channel: 'whatsapp' as const,
+      body: CORPO,
+    });
+
+    expect(r.trigger).toBeUndefined();
   });
 });

@@ -42,6 +42,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { ServerDeps } from '../buildServer.js';
 import { fireBookingNotification } from './notify.js';
+import { fireAutomation } from './fireAutomation.js';
 
 /**
  * Rotas de inscrição (GR-01/GR-03/GR-04 · IN-07/IN-18): alocar uma família num grupo
@@ -96,6 +97,13 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
         { groupId: request.params.groupId, ...request.body, source: 'manual' },
       );
       await fireBookingNotification(deps, request.log, ctx, allocated.booking.id, 'received');
+      fireAutomation(
+        app,
+        ctx.tenantId,
+        'booking_created',
+        { bookingId: allocated.booking.id },
+        { inscricao: { id: allocated.booking.id } },
+      );
       return reply.status(201).send(toDto(allocated.booking, allocated.totalCents));
     },
   );
@@ -127,6 +135,13 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
         },
       );
       await fireBookingNotification(deps, request.log, ctx, allocated.booking.id, 'received');
+      fireAutomation(
+        app,
+        ctx.tenantId,
+        'booking_created',
+        { bookingId: allocated.booking.id },
+        { inscricao: { id: allocated.booking.id } },
+      );
       return reply.status(201).send(toDto(allocated.booking, allocated.totalCents));
     },
   );
@@ -416,7 +431,21 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
           request.params.bookingId,
           'confirmed',
         );
+        fireAutomation(
+          app,
+          ctx.tenantId,
+          'booking_confirmed',
+          { bookingId: request.params.bookingId },
+          { inscricao: { id: request.params.bookingId } },
+        );
       }
+      fireAutomation(
+        app,
+        ctx.tenantId,
+        'payment_registered',
+        { bookingId: request.params.bookingId },
+        { inscricao: { id: request.params.bookingId } },
+      );
       return reply.status(201).send(paymentToDto(result));
     },
   );
