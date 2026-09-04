@@ -1,6 +1,11 @@
-import { matchesFilters, searchEntityOf } from '@expedition/domain';
+import {
+  fullYearsBetween,
+  matchesFilters,
+  parseLocalDate,
+  searchEntityOf,
+} from '@expedition/domain';
 import type { AutomationFinderInput, AutomationFinders, FoundItem } from '@expedition/application';
-import type { RunContext } from '@expedition/domain';
+import type { RunContext, SearchEntity } from '@expedition/domain';
 import type { ServerDeps } from '../buildServer.js';
 
 /**
@@ -19,20 +24,23 @@ import type { ServerDeps } from '../buildServer.js';
  * própria execução, com o log e os tetos que toda execução tem.
  */
 export function automationFinderRegistry(deps: ServerDeps): AutomationFinders {
-  /**
-   * A mesma leitura serve aos dois blocos: "para cada" percorre o que voltar, "buscar um" pega
-   * o primeiro. Separá-las em duas implementações seria duas verdades sobre a mesma lista.
-   */
+  /** Uma leitura por entidade, e o resto é igual para todas — inclusive o filtro. */
+  const POR_ENTIDADE: Record<
+    SearchEntity,
+    (deps: ServerDeps, input: AutomationFinderInput) => Promise<FoundItem[]>
+  > = {
+    opportunities: cartoesDoFunil,
+    conversations: conversas,
+    customers: fichasDeCliente,
+  };
+
   const buscar = async (input: AutomationFinderInput): Promise<readonly FoundItem[]> => {
     const entidade = searchEntityOf(input.config);
     if (entidade === null) {
       throw new Error('a busca está sem entidade escolhida');
     }
 
-    const itens =
-      entidade === 'opportunities'
-        ? await cartoesDoFunil(deps, input)
-        : await conversas(deps, input);
+    const itens = await POR_ENTIDADE[entidade](deps, input);
 
     // O filtro é do domínio, e é o **mesmo** do bloco "Se": filtrar aqui e perguntar ali
     // precisam decidir igual, senão o quadro mostra uma regra e a execução faz outra.
@@ -41,7 +49,7 @@ export function automationFinderRegistry(deps: ServerDeps): AutomationFinders {
     return itens.filter((item) => matchesFilters(input.config, item.variables, input.variables));
   };
 
-  return { for_each: buscar, find_one: buscar };
+  return { find_one: buscar };
 }
 
 /** OP-01 — os cartões do funil, com etapa, origem e há quanto tempo ninguém mexe neles. */
@@ -122,6 +130,38 @@ async function conversas(
     });
   }
   return itens;
+}
+
+/**
+ * CL-01 · AU-20 — as fichas de cliente, responsáveis e acompanhantes.
+ *
+ * **Sem CPF no contexto**, e é decisão de desenho: o que entra aqui vai parar em texto de
+ * mensagem e em filtro salvo no desenho, e documento de identidade não tem por que passear por
+ * aí. Quem precisa do CPF abre a ficha, onde a decisão de mostrar já foi tomada.
+ */
+async function fichasDeCliente(
+  deps: ServerDeps,
+  { ctx, now }: AutomationFinderInput,
+): Promise<FoundItem[]> {
+  const fichas = await deps.customers.listAll(ctx.tenantId, 'name');
+  const hoje = parseLocalDate(new Date(now.getTime() - 3 * 3_600_000).toISOString().slice(0, 10));
+
+  return fichas.map((ficha) => ({
+    key: ficha.id,
+    variables: {
+      cliente: {
+        id: ficha.id,
+        nome: ficha.fullName,
+        telefone: ficha.phone ?? '',
+        email: ficha.email ?? '',
+        cidade: ficha.address.city ?? '',
+        uf: ficha.address.state ?? '',
+        idade: fullYearsBetween(ficha.birthDate, hoje),
+        // CL-10: quem não aponta para ninguém é o chefe da família.
+        ehResponsavel: ficha.responsibleId === null,
+      },
+    } satisfies RunContext,
+  }));
 }
 
 /** Minutos inteiros desde um instante. Futuro vira zero: relógio torto não faz filtro passar. */

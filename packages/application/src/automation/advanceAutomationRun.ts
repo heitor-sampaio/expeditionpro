@@ -1,15 +1,19 @@
 import {
   evaluateCondition,
+  iteratedList,
+  listItems,
+  listName,
   nextNode,
   renderTemplate,
   resolveDelay,
   resolveSwitch,
+  searchMode,
   type AutomationGraph,
   type AutomationNode,
   type Port,
   type RunContext,
 } from '@expedition/domain';
-import { seedRunsFromSearch } from './seedRunsFromSearch.js';
+import { seedRunsFromList } from './seedRunsFromList.js';
 import type { AutomationRunnerDeps } from './runnerDeps.js';
 import type { DueRunRef } from './automationRunRepository.js';
 import type { RequestContext } from '../context.js';
@@ -151,9 +155,25 @@ export async function advanceAutomationRun(
       }
 
       const achados = await busca({ ctx, config: atual.config, variables: variaveis, now });
-      const primeiro = achados[0];
-      porta = primeiro === undefined ? 'false' : 'true';
-      if (primeiro !== undefined) Object.assign(variaveis, primeiro.variables);
+      porta = achados.length === 0 ? 'false' : 'true';
+
+      if (searchMode(atual.config) === 'all') {
+        /*
+         * AU-20 — "todos os que" guarda a **lista** sob um nome, e quem a percorre é o bloco
+         * "para cada". Separar buscar de iterar é o que permite olhar o resultado antes de
+         * agir: contar, condicionar, avisar a equipe se veio vazio.
+         */
+        variaveis[listName(atual.config)] = achados.map((item) => ({
+          chave: item.key,
+          dados: item.variables,
+        }));
+      } else {
+        // "O primeiro que": os campos entram direto no contexto, e o resto do fluxo — o "Se"
+        // inclusive — passa a enxergar o que o gatilho não trouxe.
+        const primeiro = achados[0];
+        if (primeiro !== undefined) Object.assign(variaveis, primeiro.variables);
+      }
+
       await registrar(deps, ref, atual, porta, {
         entidade: atual.config['entity'],
         achados: achados.length,
@@ -177,29 +197,16 @@ export async function advanceAutomationRun(
         });
         return;
       }
-      try {
-        const semeadura = await seedRunsFromSearch(
-          deps,
-          ref,
-          atual,
-          depois.id,
-          ctx,
-          variaveis,
-          now,
-        );
-        await registrar(deps, ref, atual, 'buscou', semeadura);
-      } catch (error) {
-        const motivo = motivoDe(error);
-        await registrar(deps, ref, atual, 'erro', { motivo });
-        await deps.runs.update(ref.tenantId, ref.id, {
-          status: 'failed',
-          variables: variaveis,
-          stepsTaken: passos,
-          lastError: motivo,
-          release: true,
-        });
-        return;
-      }
+      const semeadura = await seedRunsFromList(
+        deps,
+        ref,
+        atual,
+        depois.id,
+        listItems(variaveis, iteratedList(atual.config)),
+        variaveis,
+        now,
+      );
+      await registrar(deps, ref, atual, 'percorreu', semeadura);
       await deps.runs.update(ref.tenantId, ref.id, {
         status: 'done',
         currentNodeId: null,

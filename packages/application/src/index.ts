@@ -1023,7 +1023,7 @@ export type {
   AutomationFinders,
   FoundItem,
 } from './automation/automationFinders.js';
-export { seedRunsFromSearch, TETO_DA_BUSCA } from './automation/seedRunsFromSearch.js';
+export { seedRunsFromList, TETO_DA_BUSCA } from './automation/seedRunsFromList.js';
 export type { AutomationRunnerDeps } from './automation/runnerDeps.js';
 export {
   enqueueAutomationRun,

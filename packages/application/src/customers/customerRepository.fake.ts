@@ -63,6 +63,14 @@ export function fakeCustomerRepository(): CustomerRepository & { rows: CustomerR
       );
       return Promise.resolve(ordered(matched, sort));
     },
+    listAll(tenantId: string, sort: CustomerSort) {
+      return Promise.resolve(
+        ordered(
+          rows.filter((r) => r.tenantId === tenantId),
+          sort,
+        ),
+      );
+    },
     listResponsibles(tenantId: string, sort: CustomerSort) {
       const heads = rows.filter((r) => r.tenantId === tenantId && r.responsibleId === null);
       return Promise.resolve(ordered(heads, sort));

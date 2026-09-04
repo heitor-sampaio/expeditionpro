@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   CATALOGO_DE_BUSCA,
   entityFieldsOf,
+  listItems,
+  listName,
   matchesFilters,
   searchEntityOf,
   searchFilters,
+  searchMode,
   SEARCH_ENTITIES,
 } from './search.js';
 
@@ -140,5 +143,69 @@ describe('AU-19: variável no valor do filtro', () => {
 
   it('sem contexto de execução, o valor vale como texto', () => {
     expect(matchesFilters(filtro('5548999998877'), cartao, {})).toBe(true);
+  });
+});
+
+/**
+ * AU-20 — a busca passa a ter modo, e a lista ganha nome.
+ *
+ * "O primeiro que" põe os campos do item direto no contexto; "todos os que" guarda a lista
+ * inteira sob um nome, e é o bloco "para cada" que a percorre depois. Separar as duas coisas —
+ * buscar e iterar — é o que permite olhar o resultado antes de agir sobre ele.
+ */
+describe('AU-20: o modo da busca', () => {
+  it('o padrão é o primeiro, que é a pergunta mais comum', () => {
+    expect(searchMode({})).toBe('first');
+    expect(searchMode({ mode: 'coisa nenhuma' })).toBe('first');
+  });
+
+  it('todos é o modo que guarda a lista', () => {
+    expect(searchMode({ mode: 'all' })).toBe('all');
+  });
+
+  it('a lista tem nome, e o padrão é resultado', () => {
+    expect(listName({})).toBe('resultado');
+    expect(listName({ as: ' cartoes ' })).toBe('cartoes');
+  });
+});
+
+describe('AU-20: a lista guardada no contexto', () => {
+  const contexto = {
+    resultado: [
+      { chave: 'op-1', dados: { oportunidade: { id: 'op-1' } } },
+      { chave: 'op-2', dados: { oportunidade: { id: 'op-2' } } },
+    ],
+  };
+
+  it('lê a lista pelo nome', () => {
+    expect(listItems(contexto, 'resultado')).toHaveLength(2);
+    expect(listItems(contexto, 'resultado')[0]?.chave).toBe('op-1');
+  });
+
+  it('nome que não existe é lista vazia — o fluxo segue sem semear nada', () => {
+    expect(listItems(contexto, 'outra')).toEqual([]);
+  });
+
+  /** O que veio do `jsonb` pode ser qualquer coisa: item torto é descartado, não quebra. */
+  it('item sem chave ou sem dados é descartado', () => {
+    const torto = { resultado: [{ chave: 'ok', dados: {} }, { chave: '' }, 'nada disso'] };
+    expect(listItems(torto, 'resultado')).toHaveLength(1);
+  });
+});
+
+describe('AU-20: clientes entram no catálogo', () => {
+  it('a lista de clientes tem nome e campos', () => {
+    const caminhos = CATALOGO_DE_BUSCA.customers.fields.map((campo) => campo.path);
+
+    expect(CATALOGO_DE_BUSCA.customers.label).toContain('Cliente');
+    expect(caminhos).toContain('cliente.nome');
+    expect(caminhos).toContain('cliente.telefone');
+    expect(caminhos).toContain('cliente.ehResponsavel');
+  });
+
+  /** CPF é dado sensível: não entra no contexto de automação, de onde iria parar num texto. */
+  it('o CPF não é oferecido', () => {
+    const caminhos = CATALOGO_DE_BUSCA.customers.fields.map((campo) => campo.path);
+    expect(caminhos.some((caminho) => caminho.includes('cpf'))).toBe(false);
   });
 });

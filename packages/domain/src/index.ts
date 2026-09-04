@@ -73,12 +73,18 @@ export {
   CATALOGO_DE_BUSCA,
   SEARCH_ENTITIES,
   entityFieldsOf,
+  iteratedList,
+  listItems,
+  listName,
   matchesFilters,
   searchEntityOf,
   searchFilters,
+  searchMode,
   type EntityCatalog,
+  type ListItem,
   type SearchEntity,
   type SearchFilter,
+  type SearchMode,
 } from './automation/search.js';
 export {
   parsePixKey,

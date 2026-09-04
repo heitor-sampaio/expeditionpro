@@ -64,6 +64,12 @@ export interface CustomerRepository {
   listByPhone(tenantId: string, phone: string): Promise<CustomerRecord[]>;
   /** Busca por nome (substring, sem acento/caixa), CPF (dígitos) ou telefone — CL-04. */
   search(tenantId: string, query: string, sort: CustomerSort): Promise<CustomerRecord[]>;
+  /**
+   * AU-20 — **todas** as fichas do tenant, responsáveis e acompanhantes. É a lista que o bloco
+   * de busca percorre; filtrar por família, cidade ou idade é papel do filtro, e não de um
+   * método por pergunta aqui.
+   */
+  listAll(tenantId: string, sort: CustomerSort): Promise<CustomerRecord[]>;
   /** Responsáveis (chefes de família) ordenados — para listar todos os clientes (CL-04). */
   listResponsibles(tenantId: string, sort: CustomerSort): Promise<CustomerRecord[]>;
   create(data: NewCustomer): Promise<CustomerRecord>;

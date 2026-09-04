@@ -81,6 +81,13 @@ export function prismaCustomerRepository(base: PrismaClient): CustomerRepository
       return rows.map(toRecord);
     },
 
+    async listAll(tenantId: string, sort: CustomerSort): Promise<CustomerRecord[]> {
+      const rows = await tenantClient(base, tenantId).customer.findMany({
+        orderBy: orderByOf(sort),
+      });
+      return rows.map(toRecord);
+    },
+
     async listResponsibles(tenantId: string, sort: CustomerSort): Promise<CustomerRecord[]> {
       const rows = await tenantClient(base, tenantId).customer.findMany({
         where: { responsibleId: null },

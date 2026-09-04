@@ -379,65 +379,77 @@ describe('AU-17: intervalo do gatilho de tempo', () => {
 });
 
 /**
- * AU-18 — o bloco que busca, e semeia uma execução por achado.
+ * AU-18 · AU-20 — o bloco que percorre uma lista.
  *
- * É o que falta para um fluxo começar no relógio e agir sobre **quem estava lá**: o gatilho de
- * tempo não traz entidade nenhuma, e sem uma busca a automação não tem sobre quem agir.
- *
- * Ele não itera dentro da execução — semeia uma execução por item, cada uma com o contexto de
- * um. É o que mantém o log respondendo "por que **este** cliente recebeu isso?", que é a razão
- * de o log existir (AU-06), e o que evita um laço no grafo, que AU-07 proíbe.
+ * Ele não busca: percorre o que uma busca guardou. Duas regras o cercam — precisa levar a algum
+ * lugar (percorrer sem fluxo depois é abrir execução à toa) e não pode haver dois, porque um
+ * dentro do outro multiplica execução, e o teto por hora descobriria isso tarde demais.
  */
-describe('AU-18: o bloco de busca', () => {
-  const busca = {
+describe('AU-18: o bloco para cada', () => {
+  const guarda = {
     id: 'b1',
-    kind: 'forEach',
-    type: 'find_stale_conversations',
-    config: { minutes: 30, waiting: 'customer', limit: 10 },
+    kind: 'lookup',
+    type: 'find_one',
+    config: { entity: 'customers', filters: [], mode: 'all', as: 'resultado' },
     position: { x: 0, y: 60 },
   } as const;
+  const percorre = {
+    id: 'p1',
+    kind: 'forEach',
+    type: 'for_each',
+    config: { list: 'resultado', limit: 10 },
+    position: { x: 0, y: 120 },
+  } as const;
 
-  const comBusca = (edges: AutomationGraph['edges']): AutomationGraph => ({
-    nodes: [gatilho, busca, fim],
+  const daBusca = [
+    { id: 'e1', from: 'g1', port: 'true' as const, to: 'p1' },
+    { id: 'e2', from: 'b1', port: 'false' as const, to: 'f1' },
+  ];
+
+  const comPercurso = (edges: AutomationGraph['edges']): AutomationGraph => ({
+    nodes: [gatilho, guarda, percorre, fim],
     edges,
   });
 
-  it('busca com caminho depois dela passa', () => {
-    const graph = comBusca([
+  it('com caminho depois dele, passa', () => {
+    const graph = comPercurso([
       { id: 'e1', from: 'g1', port: 'next', to: 'b1' },
-      { id: 'e2', from: 'b1', port: 'next', to: 'f1' },
+      { id: 'e2', from: 'b1', port: 'true', to: 'p1' },
+      { id: 'e3', from: 'b1', port: 'false', to: 'f1' },
+      { id: 'e4', from: 'p1', port: 'next', to: 'f1' },
     ]);
     expect(validateGraph(graph)).toEqual([]);
   });
 
-  /** Buscar e não fazer nada com o achado é abrir execução à toa, de cinco em cinco minutos. */
-  it('busca sem caminho depois é recusada', () => {
+  it('percorrer sem fluxo depois é recusado', () => {
     const graph: AutomationGraph = {
-      nodes: [gatilho, busca],
-      edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'b1' }],
+      nodes: [gatilho, guarda, percorre, fim],
+      edges: [
+        { id: 'e1', from: 'g1', port: 'next', to: 'b1' },
+        { id: 'e2', from: 'b1', port: 'true', to: 'p1' },
+        { id: 'e3', from: 'b1', port: 'false', to: 'f1' },
+      ],
     };
     expect(validateGraph(graph)).toContain('busca_sem_caminho');
   });
 
-  /**
-   * Duas buscas seriam fan-out de fan-out: dez conversas viram dez execuções, e cada uma
-   * buscaria de novo. O crescimento é multiplicativo, e o teto por hora descobriria isso
-   * tarde demais.
-   */
-  it('duas buscas no mesmo desenho são recusadas', () => {
+  it('dois no mesmo desenho são recusados', () => {
     const graph: AutomationGraph = {
-      nodes: [gatilho, busca, { ...busca, id: 'b2' }, fim],
+      nodes: [gatilho, guarda, percorre, { ...percorre, id: 'p2' }, fim],
       edges: [
         { id: 'e1', from: 'g1', port: 'next', to: 'b1' },
-        { id: 'e2', from: 'b1', port: 'next', to: 'b2' },
-        { id: 'e3', from: 'b2', port: 'next', to: 'f1' },
+        { id: 'e2', from: 'b1', port: 'true', to: 'p1' },
+        { id: 'e3', from: 'b1', port: 'false', to: 'f1' },
+        { id: 'e4', from: 'p1', port: 'next', to: 'p2' },
+        { id: 'e5', from: 'p2', port: 'next', to: 'f1' },
       ],
     };
     expect(validateGraph(graph)).toContain('busca_duplicada');
   });
 
-  it('a busca tem uma saída só, como as outras espécies de um caminho', () => {
-    expect(portsOf(busca)).toEqual(['next']);
+  it('tem uma saída só, e ela quer dizer "para cada item, siga daqui"', () => {
+    expect(portsOf(percorre)).toEqual(['next']);
+    expect(daBusca.length).toBe(2);
   });
 });
 
@@ -501,5 +513,65 @@ describe('AU-19: o bloco de buscar um', () => {
       ],
     };
     expect(validateGraph(graph)).toEqual([]);
+  });
+});
+
+/**
+ * AU-20 — o "para cada" percorre a lista que uma busca guardou, e o nome precisa existir.
+ *
+ * Errar o nome não daria erro nenhum: a lista não existe, zero itens são semeados, e o fluxo
+ * termina como se não houvesse ninguém para agir. É o pior tipo de defeito — o que parece
+ * funcionar. Recusar ao salvar transforma isso numa frase na tela.
+ */
+describe('AU-20: o para cada aponta para uma lista que existe', () => {
+  const busca = (as: string) => ({
+    id: 'b1',
+    kind: 'lookup' as const,
+    type: 'find_one',
+    config: { entity: 'customers', filters: [], mode: 'all', as },
+    position: { x: 0, y: 60 },
+  });
+  const percorre = (list: string) => ({
+    id: 'p1',
+    kind: 'forEach' as const,
+    type: 'for_each',
+    config: { list, limit: 10 },
+    position: { x: 0, y: 120 },
+  });
+  const ligacoes = [
+    { id: 'e1', from: 'g1', port: 'next' as const, to: 'b1' },
+    { id: 'e2', from: 'b1', port: 'true' as const, to: 'p1' },
+    { id: 'e3', from: 'b1', port: 'false' as const, to: 'f1' },
+    { id: 'e4', from: 'p1', port: 'next' as const, to: 'f1' },
+  ];
+
+  it('nome que casa com o da busca passa', () => {
+    const graph: AutomationGraph = {
+      nodes: [gatilho, busca('clientes'), percorre('clientes'), fim],
+      edges: ligacoes,
+    };
+    expect(validateGraph(graph)).toEqual([]);
+  });
+
+  it('nome que nenhuma busca guarda é recusado', () => {
+    const graph: AutomationGraph = {
+      nodes: [gatilho, busca('clientes'), percorre('cartoes'), fim],
+      edges: ligacoes,
+    };
+    expect(validateGraph(graph)).toContain('lista_sem_origem');
+  });
+
+  /** Busca que traz **o primeiro** não guarda lista nenhuma: não serve de origem. */
+  it('busca em modo primeiro não serve de origem para o para cada', () => {
+    const graph: AutomationGraph = {
+      nodes: [
+        gatilho,
+        { ...busca('clientes'), config: { entity: 'customers', filters: [], mode: 'first' } },
+        percorre('clientes'),
+        fim,
+      ],
+      edges: ligacoes,
+    };
+    expect(validateGraph(graph)).toContain('lista_sem_origem');
   });
 });

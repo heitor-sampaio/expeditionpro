@@ -86,7 +86,7 @@ describe('AU-16: a lista que o seletor oferece', () => {
 describe('AU-18: os campos vindos da busca', () => {
   const comBusca = [
     { data: { type: 'recurring', config: {} }, type: 'trigger' },
-    { data: { type: 'for_each', config: { entity: 'opportunities' } }, type: 'forEach' },
+    { data: { type: 'find_one', config: { entity: 'opportunities' } }, type: 'lookup' },
     { data: { type: 'send_message', config: { text: '' } }, type: 'action' },
   ];
 
@@ -101,7 +101,7 @@ describe('AU-18: os campos vindos da busca', () => {
   it('percorrer conversas oferece os campos da conversa', () => {
     const emConversas = [
       { data: { type: 'recurring', config: {} }, type: 'trigger' },
-      { data: { type: 'for_each', config: { entity: 'conversations' } }, type: 'forEach' },
+      { data: { type: 'find_one', config: { entity: 'conversations' } }, type: 'lookup' },
     ];
 
     const caminhos = camposDisponiveis(emConversas).map((c) => c.path);

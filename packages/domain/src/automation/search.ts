@@ -14,12 +14,13 @@ import type { ContextField } from './triggers.js';
  * entrada aqui e um caso no registro de buscas; nada mais.
  */
 
-export type SearchEntity = 'opportunities' | 'conversations';
+export type SearchEntity = 'opportunities' | 'conversations' | 'customers';
 
-export const SEARCH_ENTITIES = ['opportunities', 'conversations'] as const satisfies readonly [
-  SearchEntity,
-  ...SearchEntity[],
-];
+export const SEARCH_ENTITIES = [
+  'opportunities',
+  'conversations',
+  'customers',
+] as const satisfies readonly [SearchEntity, ...SearchEntity[]];
 
 export interface EntityCatalog {
   readonly entity: SearchEntity;
@@ -67,7 +68,80 @@ export const CATALOGO_DE_BUSCA: Record<SearchEntity, EntityCatalog> = {
       { path: 'oportunidade.etapa', label: 'Etapa do funil, se houver' },
     ],
   },
+  customers: {
+    entity: 'customers',
+    label: 'Clientes (fichas)',
+    /*
+     * **Sem CPF, de propósito.** O contexto de uma automação vai parar em texto de mensagem
+     * (AU-09) e em filtro salvo no desenho; documento de identidade não tem por que passear
+     * por aí para nada do que uma automação faz. Quem precisa de CPF abre a ficha.
+     */
+    fields: [
+      { path: 'cliente.id', label: 'Id do cliente' },
+      { path: 'cliente.nome', label: 'Nome completo' },
+      { path: 'cliente.telefone', label: 'Telefone' },
+      { path: 'cliente.email', label: 'E-mail' },
+      { path: 'cliente.cidade', label: 'Cidade' },
+      { path: 'cliente.uf', label: 'Estado (UF)' },
+      { path: 'cliente.idade', label: 'Idade em anos' },
+      { path: 'cliente.ehResponsavel', label: 'É responsável da família (true ou false)' },
+    ],
+  },
 };
+
+/**
+ * AU-20 — o que a busca faz com o que achou.
+ *
+ * `first` põe os campos do item direto no contexto e segue; `all` guarda a lista inteira sob um
+ * nome, para o bloco "para cada" percorrer depois. Separar buscar de iterar é o que permite
+ * olhar o resultado — contar, condicionar — antes de agir sobre ele.
+ */
+export type SearchMode = 'first' | 'all';
+
+export function searchMode(config: Record<string, unknown>): SearchMode {
+  return config['mode'] === 'all' ? 'all' : 'first';
+}
+
+/** O nome da lista guardada. Vazio cai em `resultado`, que é como a tela a chama por padrão. */
+export function listName(config: Record<string, unknown>): string {
+  const nome = String(config['as'] ?? '').trim();
+  return nome === '' ? 'resultado' : nome;
+}
+
+/**
+ * O nome da lista que o "para cada" percorre. É outra chave (`list`, e não `as`) porque são
+ * dois papéis: a busca **nomeia** o que guardou, o "para cada" **escolhe** qual percorrer — e
+ * um fluxo com duas buscas tem duas listas para escolher.
+ */
+export function iteratedList(config: Record<string, unknown>): string {
+  const nome = String(config['list'] ?? '').trim();
+  return nome === '' ? 'resultado' : nome;
+}
+
+/**
+ * Um item de lista guardada: a chave identifica a entidade (é ela que impede semear duas vezes)
+ * e os dados são o contexto que a execução semeada vai enxergar.
+ */
+export interface ListItem {
+  readonly chave: string;
+  readonly dados: RunContext;
+}
+
+/** A lista guardada no contexto, lida com desconfiança: veio de `jsonb`. */
+export function listItems(contexto: RunContext, nome: string): ListItem[] {
+  const bruto = contexto[nome];
+  if (!Array.isArray(bruto)) return [];
+
+  const itens: ListItem[] = [];
+  for (const item of bruto) {
+    if (item === null || typeof item !== 'object') continue;
+    const { chave, dados } = item as Record<string, unknown>;
+    if (typeof chave !== 'string' || chave === '') continue;
+    if (dados === null || typeof dados !== 'object') continue;
+    itens.push({ chave, dados: dados as RunContext });
+  }
+  return itens;
+}
 
 /** A entidade escolhida no bloco. Desconhecida devolve `null` — desenho de outra versão. */
 export function searchEntityOf(config: Record<string, unknown>): SearchEntity | null {

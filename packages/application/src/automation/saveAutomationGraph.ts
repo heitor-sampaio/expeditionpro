@@ -70,6 +70,7 @@ const EXPLICACAO: Record<string, string> = {
   busca_sem_caminho: 'a busca não leva a lugar nenhum, e abriria execução à toa',
   busca_duplicada: 'há mais de um "para cada", e um dentro do outro multiplica execução',
   busca_um_incompleta: 'há bloco de buscar sem os dois caminhos, achou e não achou',
+  lista_sem_origem: 'há um "para cada" apontando para uma lista que nenhuma busca guarda',
   intervalo_curto: 'o gatilho de tempo pede intervalo menor que um minuto',
   ciclo_sem_espera: 'há um ciclo sem espera, e ele rodaria para sempre',
   espera_curta: 'há espera menor que um minuto, e o motor não respeitaria esse intervalo',

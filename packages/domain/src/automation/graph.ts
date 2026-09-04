@@ -13,6 +13,7 @@
 import { ESPERA_MINIMA_MIN, minutosDaEspera as emMinutos, switchCases } from './interpreter.js';
 import { TRIGGER_TYPES, type TriggerType } from './triggers.js';
 import { INTERVALO_MINIMO_MIN, intervaloEmMinutos } from './recurring.js';
+import { iteratedList, listName, searchMode } from './search.js';
 
 export type NodeKind =
   | 'trigger'
@@ -86,6 +87,7 @@ export type GraphProblem =
   | 'busca_sem_caminho'
   | 'busca_duplicada'
   | 'busca_um_incompleta'
+  | 'lista_sem_origem'
   | 'ciclo_sem_espera';
 
 const PORTAS_FIXAS: Record<Exclude<NodeKind, 'switch'>, readonly Port[]> = {
@@ -189,8 +191,23 @@ export function validateGraph(graph: AutomationGraph): GraphProblem[] {
    */
   const buscas = graph.nodes.filter((no) => no.kind === 'forEach');
   if (buscas.length > 1) problemas.add('busca_duplicada');
+
+  /*
+   * AU-20 — a lista que o "para cada" percorre precisa ser guardada por alguma busca.
+   *
+   * Errar o nome não daria erro nenhum: a lista não existe, zero itens são semeados, e o fluxo
+   * termina como se não houvesse ninguém para agir. É o pior tipo de defeito — o que parece
+   * funcionar. Só a busca em modo "todos" guarda lista; a de "o primeiro" põe os campos no
+   * contexto e não serve de origem.
+   */
+  const listasGuardadas = new Set(
+    graph.nodes
+      .filter((no) => no.kind === 'lookup' && searchMode(no.config) === 'all')
+      .map((no) => listName(no.config)),
+  );
   for (const no of buscas) {
     if (!graph.edges.some((e) => e.from === no.id)) problemas.add('busca_sem_caminho');
+    if (!listasGuardadas.has(iteratedList(no.config))) problemas.add('lista_sem_origem');
   }
 
   const inicio = gatilhos[0];

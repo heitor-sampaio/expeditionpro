@@ -141,7 +141,7 @@ página. Página e conta profissional já estão vinculadas.
 ## Automações (§5.18) — no ar, com o quadro mandando
 
 Escopo pedido em 2026-09-02: entrada **Automações** na seção CRM, com CRUD e um editor de
-blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-19`.
+blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-20`.
 
 ### Fatia 1 — desenhar, validar e guardar ✅
 
@@ -395,6 +395,27 @@ mensagem tinha como procurar por ela mesma.
 O fluxo do pedido, montado no quadro: **Mensagem recebida → Buscar** (oportunidades do funil, o
 primeiro que `contato.telefone é igual a {{contato.telefone}}`) **→ não achou → Criar
 oportunidade**; **achou → Fim**.
+
+### Fatia 9 — buscar e percorrer viram dois blocos ✅
+
+O "para cada" nasceu fazendo duas coisas: buscar e iterar. Pedido do dono, e ele está certo —
+separar é o que permite **olhar o resultado antes de agir**: contar, condicionar, avisar a
+equipe se veio vazio, tudo entre a busca e o percurso.
+
+**Buscar** ganhou o modo: *o primeiro que casar* (entra direto no contexto, como antes) ou
+*todos os que casarem* (guarda a lista sob um nome). **Para cada** deixou de buscar: agora
+percorre a lista que uma busca guardou, pelo nome.
+
+O nome é validado ao salvar. Apontar para uma lista que nenhuma busca guarda percorreria zero
+itens em silêncio, e o fluxo terminaria como se não houvesse ninguém para agir — o pior tipo de
+defeito, o que parece funcionar.
+
+**Clientes entraram no catálogo**, com nome, telefone, e-mail, cidade, UF, idade e se é
+responsável da família. **Sem CPF, e é decisão de desenho:** o contexto de automação vira texto
+de mensagem (AU-09) e filtro salvo no quadro; documento de identidade não tem por que passear
+por aí para nada do que uma automação faz. Foi preciso um `listAll` no repositório de clientes —
+o que existia listava só os responsáveis, e filtrar por família é papel do filtro, não de um
+método por pergunta.
 
 ### O que ainda não foi visto por gente
 

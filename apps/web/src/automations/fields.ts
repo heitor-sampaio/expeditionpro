@@ -57,8 +57,9 @@ export function variaveisDoFluxo(nodes: readonly BlocoNoQuadro[]): ContextField[
 export function camposDisponiveis(nodes: readonly BlocoNoQuadro[]): ContextField[] {
   // AU-18 · AU-19: as duas buscas trazem campos — a que semeia e a que traz um item para o
   // contexto. Sem elas na lista, o "Se" não teria como perguntar pelo que o gatilho não trouxe.
+  // AU-19 · AU-20: quem traz campos é a busca — o "para cada" só percorre o que ela guardou.
   const daBusca = nodes
-    .filter((no) => no.type === 'forEach' || no.type === 'lookup')
+    .filter((no) => no.type === 'lookup')
     .flatMap((no) => entityFieldsOf(no.data.config));
 
   const todos = [

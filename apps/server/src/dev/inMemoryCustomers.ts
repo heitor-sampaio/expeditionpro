@@ -47,6 +47,14 @@ export function inMemoryCustomers(): CustomerRepository {
       );
       return Promise.resolve(ordered(matched, sort));
     },
+    listAll(tenantId, sort) {
+      return Promise.resolve(
+        ordered(
+          rows.filter((r) => r.tenantId === tenantId),
+          sort,
+        ),
+      );
+    },
     listResponsibles(tenantId, sort) {
       const heads = rows.filter((r) => r.tenantId === tenantId && r.responsibleId === null);
       return Promise.resolve(ordered(heads, sort));

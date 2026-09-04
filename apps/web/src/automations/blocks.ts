@@ -118,18 +118,18 @@ export const BLOCOS: readonly BlockType[] = [
     config: { field: '', cases: [] },
   },
   {
-    type: 'for_each',
-    kind: 'forEach',
-    label: 'Para cada',
-    hint: 'Percorre uma lista do sistema e segue o fluxo para cada item',
-    config: { entity: 'opportunities', filters: [], limit: 10 },
-  },
-  {
     type: 'find_one',
     kind: 'lookup',
     label: 'Buscar',
-    hint: 'Procura um item e separa o caminho em achou e não achou',
-    config: { entity: 'opportunities', filters: [] },
+    hint: 'Procura o primeiro, ou todos, e separa em achou e não achou',
+    config: { entity: 'opportunities', filters: [], mode: 'first', as: 'resultado' },
+  },
+  {
+    type: 'for_each',
+    kind: 'forEach',
+    label: 'Para cada',
+    hint: 'Percorre a lista que uma busca guardou e segue o fluxo item a item',
+    config: { list: 'resultado', limit: 10 },
   },
   {
     type: 'set',
@@ -301,6 +301,10 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
    * AU-19: buscar um item, e o que ele achar entra no contexto — inclusive para o bloco "Se"
    * adiante. Mesmos campos do "para cada", porque é a mesma pergunta feita à mesma lista.
    */
+  /**
+   * AU-19 · AU-20: buscar em qualquer lista do sistema — o primeiro que casar, ou todos. O
+   * primeiro entra direto no contexto; todos ficam numa lista com nome, que o    * percorre depois.
+   */
   find_one: [
     {
       key: 'entity',
@@ -309,27 +313,39 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
       options: ENTIDADES.map((entidade) => ({ value: entidade.entity, label: entidade.label })),
     },
     {
+      key: 'mode',
+      label: 'Trazer',
+      kind: 'select',
+      options: [
+        { value: 'first', label: 'o primeiro que casar' },
+        { value: 'all', label: 'todos os que casarem' },
+      ],
+    },
+    {
       key: 'filters',
-      label: 'O primeiro que',
+      label: 'Que',
       kind: 'filters',
-      help: 'O valor aceita variável: para achar o cartão de quem escreveu, compare com {{contato.telefone}}.',
+      help: 'O valor aceita variável: para achar o de quem escreveu, compare com {{contato.telefone}}.',
+    },
+    {
+      key: 'as',
+      label: 'Guardar a lista como',
+      kind: 'text',
+      placeholder: 'resultado',
+      help: 'Só vale ao trazer todos. É este nome que o bloco "para cada" percorre.',
     },
   ],
+  /**
+   * AU-20: percorrer é outro bloco, e não um modo da busca. Separá-los é o que permite olhar o
+   * resultado antes de agir — contar, condicionar, avisar a equipe se veio vazio.
+   */
   for_each: [
     {
-      key: 'entity',
-      label: 'Percorrer',
-      kind: 'select',
-      options: ENTIDADES.map((entidade) => ({
-        value: entidade.entity,
-        label: entidade.label,
-      })),
-    },
-    {
-      key: 'filters',
-      label: 'Só os que',
-      kind: 'filters',
-      help: 'Todos os filtros precisam casar. Sem filtro nenhum, percorre a lista inteira.',
+      key: 'list',
+      label: 'Percorrer a lista',
+      kind: 'text',
+      placeholder: 'resultado',
+      help: 'O nome que a busca usou em "guardar a lista como".',
     },
     {
       key: 'limit',

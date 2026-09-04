@@ -7,6 +7,7 @@ import {
 import { fakeMembershipRepository } from '../team/membershipRepository.fake.js';
 import { enqueueAutomationRun, TETO_POR_HORA } from './enqueueAutomationRun.js';
 import { advanceAutomationRun, TETO_DE_PASSOS } from './advanceAutomationRun.js';
+import { TETO_DA_BUSCA } from './seedRunsFromList.js';
 import { resumeDueRuns } from './resumeDueRuns.js';
 import type { AutomationActions } from './automationActions.js';
 import type { AutomationFinders } from './automationFinders.js';
@@ -499,15 +500,6 @@ function ref(d: Deps) {
 }
 
 /**
- * A execução de gatilho ainda por rodar. Filha de busca tem chave de idempotência; a que nasce
- * de um evento, não — é assim que se pega a "mãe" da passada seguinte sem depender da ordem.
- */
-function refPendente(d: Deps) {
-  const row = d.runs.rows.find((r) => r.status === 'pending' && r.idempotencyKey === null)!;
-  return { id: row.id, tenantId: row.tenantId, automationId: row.automationId };
-}
-
-/**
  * AU-15 — a escolha múltipla no motor.
  *
  * A alternativa que ela substitui é uma escada de condições encadeadas, e escada de condição é
@@ -585,152 +577,6 @@ describe('AU-15: a escolha múltipla desvia por valor', () => {
     expect(data).not.toHaveBeenCalled();
     expect(d.steps.rows.find((s) => s.nodeId === 's1')?.outcome).toBe('default');
     expect(d.runs.rows[0]?.status).toBe('done');
-  });
-});
-
-/**
- * AU-18 — a busca que semeia.
- *
- * O gatilho de tempo não traz entidade nenhuma: "a cada cinco minutos" não sabe sobre quem
- * agir. A busca resolve isso **abrindo uma execução por achado**, cada uma com o contexto de
- * um — e não iterando dentro de uma execução só.
- *
- * A diferença não é de estilo. Uma execução por item é o que mantém o log respondendo "por que
- * **este** cliente recebeu isso?" (AU-06), o que faz o teto de passos e as tentativas valerem
- * por item, e o que evita um laço no grafo, que AU-07 proíbe.
- */
-describe('AU-18: a busca semeia uma execução por achado', () => {
-  const comBusca = (): AutomationGraph => ({
-    nodes: [
-      { id: 'g1', kind: 'trigger', type: 'recurring', config: {}, position: { x: 0, y: 0 } },
-      {
-        id: 'b1',
-        kind: 'forEach',
-        type: 'find_stale_conversations',
-        config: { minutes: 30, waiting: 'customer', limit: 10 },
-        position: { x: 0, y: 60 },
-      },
-      { id: 'a1', kind: 'action', type: 'send_message', config: {}, position: { x: 0, y: 120 } },
-      { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 180 } },
-    ],
-    edges: [
-      { id: 'e1', from: 'g1', port: 'next', to: 'b1' },
-      { id: 'e2', from: 'b1', port: 'next', to: 'a1' },
-      { id: 'e3', from: 'a1', port: 'next', to: 'f1' },
-    ],
-  });
-
-  const achados = (...ids: string[]) =>
-    vi.fn().mockResolvedValue(ids.map((id) => ({ key: id, variables: { conversa: { id } } })));
-
-  async function comMae(d: Deps) {
-    await ligada(d, comBusca());
-    await enqueueAutomationRun(d, {
-      tenantId: 't1',
-      triggerType: 'recurring',
-      triggerRef: {},
-      variables: { agora: { data: '2026-09-03', hora: '09:00' } },
-      now: AGORA,
-    });
-  }
-
-  it('abre uma execução por item, e a mãe termina sem executar o resto', async () => {
-    const enviar = vi.fn().mockResolvedValue({});
-    const d = deps({ send_message: enviar });
-    d.finders = { find_stale_conversations: achados('c1', 'c2') };
-    await comMae(d);
-
-    await advanceAutomationRun(d, ref(d), AGORA);
-
-    // A mãe percorreu gatilho e busca, e parou ali: quem age são as filhas.
-    expect(enviar).not.toHaveBeenCalled();
-    expect(d.runs.rows[0]?.status).toBe('done');
-    expect(d.runs.rows).toHaveLength(3);
-  });
-
-  it('cada filha começa no bloco seguinte à busca, com o contexto do item', async () => {
-    const d = deps({ send_message: vi.fn().mockResolvedValue({}) });
-    d.finders = { find_stale_conversations: achados('c1') };
-    await comMae(d);
-
-    await advanceAutomationRun(d, ref(d), AGORA);
-
-    const filha = d.runs.rows[1];
-    expect(filha?.currentNodeId).toBe('a1');
-    expect(filha?.variables).toMatchObject({ conversa: { id: 'c1' } });
-  });
-
-  /** O contexto da mãe desce junto: o que o gatilho trouxe continua valendo na filha. */
-  it('a filha herda o contexto da execução que buscou', async () => {
-    const d = deps({ send_message: vi.fn().mockResolvedValue({}) });
-    d.finders = { find_stale_conversations: achados('c1') };
-    await comMae(d);
-
-    await advanceAutomationRun(d, ref(d), AGORA);
-
-    expect(d.runs.rows[1]?.variables).toMatchObject({
-      agora: { data: '2026-09-03', hora: '09:00' },
-    });
-  });
-
-  /**
-   * A busca roda de cinco em cinco minutos e a conversa continua parada: sem a janela, o mesmo
-   * contato seria semeado doze vezes por hora. A janela é o próprio "parado há trinta minutos".
-   */
-  it('a mesma entidade não é semeada duas vezes dentro da janela', async () => {
-    const d = deps({ send_message: vi.fn().mockResolvedValue({}) });
-    d.finders = { find_stale_conversations: achados('c1') };
-    await comMae(d);
-    await advanceAutomationRun(d, ref(d), AGORA);
-
-    // Cinco minutos depois, a varredura passa de novo e a conversa continua parada.
-    const depois = new Date(AGORA.getTime() + 5 * 60_000);
-    await enqueueAutomationRun(d, {
-      tenantId: 't1',
-      triggerType: 'recurring',
-      triggerRef: {},
-      variables: {},
-      now: depois,
-    });
-    await advanceAutomationRun(d, refPendente(d), depois);
-
-    expect(d.runs.rows.filter((r) => r.idempotencyKey?.startsWith('b1:c1:'))).toHaveLength(1);
-  });
-
-  it('o limite por passada corta o excedente', async () => {
-    const d = deps({ send_message: vi.fn().mockResolvedValue({}) });
-    d.finders = { find_stale_conversations: achados('c1', 'c2', 'c3', 'c4') };
-    await ligada(d, {
-      ...comBusca(),
-      nodes: comBusca().nodes.map((no) =>
-        no.id === 'b1' ? { ...no, config: { minutes: 30, waiting: 'customer', limit: 2 } } : no,
-      ),
-    });
-    await enqueueAutomationRun(d, {
-      tenantId: 't1',
-      triggerType: 'recurring',
-      triggerRef: {},
-      variables: {},
-      now: AGORA,
-    });
-
-    await advanceAutomationRun(d, ref(d), AGORA);
-
-    expect(d.runs.rows.filter((r) => r.currentNodeId === 'a1')).toHaveLength(2);
-  });
-
-  /** Busca que este servidor não conhece é grafo salvo por uma versão mais nova: falha dizendo. */
-  it('busca desconhecida falha com o nome dela no motivo', async () => {
-    const d = deps();
-    d.finders = {};
-    await comMae(d);
-
-    await advanceAutomationRun(d, ref(d), AGORA);
-
-    expect(d.runs.rows[0]).toMatchObject({
-      status: 'failed',
-      lastError: expect.stringContaining('find_stale_conversations'),
-    });
   });
 });
 
@@ -846,6 +692,203 @@ describe('AU-19: buscar um item', () => {
     expect(d.runs.rows[0]).toMatchObject({
       status: 'failed',
       lastError: expect.stringContaining('find_one'),
+    });
+  });
+});
+
+/**
+ * AU-20 — buscar todos e iterar são dois blocos, e não um.
+ *
+ * O "para cada" deixou de buscar por conta própria: agora ele percorre a lista que uma busca
+ * guardou no contexto. Separar as duas coisas é o que permite olhar o resultado antes de agir —
+ * contar, condicionar, avisar a equipe se veio vazio — em vez de semear às cegas.
+ */
+describe('AU-20: buscar todos, e depois percorrer', () => {
+  const comBuscaEIteracao = (): AutomationGraph => ({
+    nodes: [
+      { id: 'g1', kind: 'trigger', type: 'recurring', config: {}, position: { x: 0, y: 0 } },
+      {
+        id: 'b1',
+        kind: 'lookup',
+        type: 'find_one',
+        config: { entity: 'customers', filters: [], mode: 'all', as: 'clientes' },
+        position: { x: 0, y: 60 },
+      },
+      {
+        id: 'p1',
+        kind: 'forEach',
+        type: 'for_each',
+        config: { list: 'clientes', limit: 10 },
+        position: { x: 0, y: 120 },
+      },
+      { id: 'a1', kind: 'action', type: 'send_message', config: {}, position: { x: 0, y: 180 } },
+      { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 120, y: 120 } },
+    ],
+    edges: [
+      { id: 'e1', from: 'g1', port: 'next', to: 'b1' },
+      { id: 'e2', from: 'b1', port: 'true', to: 'p1' },
+      { id: 'e3', from: 'b1', port: 'false', to: 'f1' },
+      { id: 'e4', from: 'p1', port: 'next', to: 'a1' },
+    ],
+  });
+
+  async function rodar(achados: { key: string; variables: Record<string, unknown> }[]) {
+    const d = deps({ send_message: vi.fn().mockResolvedValue({}) });
+    d.finders = { find_one: vi.fn().mockResolvedValue(achados) };
+    await ligada(d, comBuscaEIteracao());
+    await enqueueAutomationRun(d, {
+      tenantId: 't1',
+      triggerType: 'recurring',
+      triggerRef: {},
+      variables: {},
+      now: AGORA,
+    });
+    await advanceAutomationRun(d, ref(d), AGORA);
+    return d;
+  }
+
+  it('a busca em modo todos guarda a lista com o nome escolhido', async () => {
+    const d = await rodar([
+      { key: 'c1', variables: { cliente: { id: 'c1', nome: 'Ana' } } },
+      { key: 'c2', variables: { cliente: { id: 'c2', nome: 'Bia' } } },
+    ]);
+
+    expect(d.runs.rows[0]?.variables['clientes']).toHaveLength(2);
+  });
+
+  it('o para cada semeia uma execução por item da lista', async () => {
+    const d = await rodar([
+      { key: 'c1', variables: { cliente: { id: 'c1' } } },
+      { key: 'c2', variables: { cliente: { id: 'c2' } } },
+    ]);
+
+    const semeadas = d.runs.rows.filter((r) => r.currentNodeId === 'a1' || r.stepsTaken > 0);
+    expect(d.runs.rows).toHaveLength(3);
+    expect(semeadas.length).toBeGreaterThan(0);
+  });
+
+  it('cada semeada enxerga os dados do item dela', async () => {
+    const d = await rodar([{ key: 'c1', variables: { cliente: { id: 'c1', nome: 'Ana' } } }]);
+
+    expect(d.runs.rows[1]?.variables).toMatchObject({ cliente: { id: 'c1', nome: 'Ana' } });
+  });
+
+  /** Lista vazia sai pelo "não achou" da busca, e o "para cada" nem chega a rodar. */
+  it('sem achado, a busca desvia e nada é semeado', async () => {
+    const d = await rodar([]);
+
+    expect(d.runs.rows).toHaveLength(1);
+  });
+
+  it('percorrer uma lista que não existe não semeia nada, e não quebra', async () => {
+    const d = deps({ send_message: vi.fn().mockResolvedValue({}) });
+    d.finders = { find_one: vi.fn().mockResolvedValue([{ key: 'c1', variables: {} }]) };
+    const graph = comBuscaEIteracao();
+    await ligada(d, {
+      ...graph,
+      nodes: graph.nodes.map((no) =>
+        no.id === 'p1' ? { ...no, config: { list: 'nao-existe', limit: 10 } } : no,
+      ),
+    });
+    await enqueueAutomationRun(d, {
+      tenantId: 't1',
+      triggerType: 'recurring',
+      triggerRef: {},
+      variables: {},
+      now: AGORA,
+    });
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    expect(d.runs.rows).toHaveLength(1);
+    expect(d.runs.rows[0]?.status).toBe('done');
+  });
+});
+
+/**
+ * AU-18 · AU-20 — os freios do "para cada".
+ *
+ * Semear é a operação que mais cresce sozinha no sistema: uma lista de duzentos clientes vira
+ * duzentas execuções, cada uma podendo mandar mensagem. Os tetos são o que transforma "todo
+ * mundo recebeu" em "vinte receberam e o resto está no log".
+ */
+describe('AU-18: os tetos do para cada', () => {
+  const comLista = (limit: number): AutomationGraph => ({
+    nodes: [
+      { id: 'g1', kind: 'trigger', type: 'recurring', config: {}, position: { x: 0, y: 0 } },
+      {
+        id: 'p1',
+        kind: 'forEach',
+        type: 'for_each',
+        config: { list: 'itens', limit },
+        position: { x: 0, y: 60 },
+      },
+      { id: 'a1', kind: 'action', type: 'send_message', config: {}, position: { x: 0, y: 120 } },
+    ],
+    edges: [
+      { id: 'e1', from: 'g1', port: 'next', to: 'p1' },
+      { id: 'e2', from: 'p1', port: 'next', to: 'a1' },
+    ],
+  });
+
+  const lista = (quantos: number) =>
+    Array.from({ length: quantos }, (_, i) => ({
+      chave: `c${String(i)}`,
+      dados: { cliente: { id: `c${String(i)}` } },
+    }));
+
+  async function rodarCom(quantos: number, limit: number) {
+    const d = deps({ send_message: vi.fn().mockResolvedValue({}) });
+    await ligada(d, comLista(limit));
+    await enqueueAutomationRun(d, {
+      tenantId: 't1',
+      triggerType: 'recurring',
+      triggerRef: {},
+      variables: { itens: lista(quantos) },
+      now: AGORA,
+    });
+    await advanceAutomationRun(d, ref(d), AGORA);
+    return d;
+  }
+
+  it('o limite do bloco corta o excedente', async () => {
+    const d = await rodarCom(10, 3);
+
+    // A mãe mais três filhas.
+    expect(d.runs.rows).toHaveLength(4);
+  });
+
+  /** O teto do motor vale mesmo com um limite digitado maior: `jsonb` aceita qualquer número. */
+  it('o teto do motor vale acima do limite digitado', async () => {
+    const d = await rodarCom(40, 999);
+
+    expect(d.runs.rows.length).toBeLessThanOrEqual(TETO_DA_BUSCA + 1);
+  });
+
+  it('a mãe termina sem executar o resto do fluxo', async () => {
+    const enviar = vi.fn().mockResolvedValue({});
+    const d = deps({ send_message: enviar });
+    await ligada(d, comLista(5));
+    await enqueueAutomationRun(d, {
+      tenantId: 't1',
+      triggerType: 'recurring',
+      triggerRef: {},
+      variables: { itens: lista(2) },
+      now: AGORA,
+    });
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    expect(enviar).not.toHaveBeenCalled();
+    expect(d.runs.rows[0]?.status).toBe('done');
+  });
+
+  it('cada filha começa no bloco seguinte, com os dados do item', async () => {
+    const d = await rodarCom(1, 5);
+
+    expect(d.runs.rows[1]).toMatchObject({
+      currentNodeId: 'a1',
+      variables: { cliente: { id: 'c0' } },
     });
   });
 });
