@@ -141,7 +141,7 @@ página. Página e conta profissional já estão vinculadas.
 ## Automações (§5.18) — no ar, com o quadro mandando
 
 Escopo pedido em 2026-09-02: entrada **Automações** na seção CRM, com CRUD e um editor de
-blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-26`.
+blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-27`.
 
 ### Fatia 1 — desenhar, validar e guardar ✅
 
@@ -527,6 +527,32 @@ nasce desligada), desligar um bloco sem tirá-lo do quadro — só quem tem uma 
 "pule o Se" não diz por qual lado —, e o log de condição e escolha passando a guardar **o valor
 que leu**, não só o lado por onde saiu.
 
+### Fatia 13 — o bloco aberto passou a mostrar os dois lados ✅
+
+**AU-27.** O bloco selecionado abre em três colunas: **entra** à esquerda, configuração no meio,
+**sai** à direita. Com um ensaio rodado são os valores de verdade — `contato.nome` e "Ana" ao
+lado —; sem ensaio, os campos que existem, que é a informação possível.
+
+> **É a pergunta que trava quem desenha um fluxo.** "O bloco de cima me entrega o quê?" só tinha
+> resposta abrindo o log de uma execução passada e conferindo de cabeça, e quem está montando um
+> fluxo novo nem execução passada tem. Responder no lugar em que a pergunta aparece é o que
+> transforma desenhar em algo que se faz olhando, e não lembrando.
+
+**A variável entra por clique.** O campo da lista da esquerda vai para o último campo de texto
+que teve o foco — marcado com o anel do accent, senão clicar seria um tiro no escuro. O
+inseridor em menu saiu de dentro do campo: a lista faz o mesmo e ainda mostra o valor que aquele
+caminho tem agora. No filtro de busca ele ficou, porque ali o campo é de uma lista dinâmica que
+o mecanismo de foco não alcança.
+
+**O ensaio passou a correr sobre o desenho que está na tela**, e não sobre o salvo. Era uma
+armadilha silenciosa: mexer num bloco, ensaiar, e ler o resultado do fluxo de antes como se
+fosse da mudança recém-feita. O grafo sobe junto na chamada e é validado do mesmo jeito que ao
+salvar — ensaiar desenho que não fecha percorreria caminho que o motor nunca percorreria.
+
+Do lado do motor, `SimulatedStep` ganhou `input` e `output`. A saída de cada espécie é o que ela
+**acrescentou** ao contexto, não o contexto inteiro: senão toda busca pareceria ter trazido tudo
+o que já estava lá.
+
 ### O que ainda não foi visto por gente
 
 **O motor rodou.** Em 2026-09-03, no ambiente de desenvolvimento contra o banco de verdade, uma
@@ -536,6 +562,10 @@ repetida. É a primeira vez que o motor age fora de teste.
 Falta o que depende de gente: ligar uma automação que **fala com cliente** e mandar uma mensagem
 do celular. A de exemplo ("mensagem contendo preço → responder") continua provada só em teste de
 rota, com o webhook da Evolution simulado.
+
+**As três colunas do bloco aberto não foram vistas em tela.** O layout de 720px foi feito
+olhando o CSS, não o navegador — o quadro tem espaço, mas quem sabe se o bloco aberto no meio
+de um fluxo de dez fica confortável é quem usa. É o primeiro lugar onde eu esperaria ajuste.
 
 **O nó de código e o ensaio nunca rodaram fora de teste.** O `node:vm` está coberto por
 suíte — inclusive as tentativas de escapar dele —, mas o primeiro código escrito por gente vai

@@ -3,6 +3,7 @@ import { api } from '../auth/api.js';
 import { blockLabel } from './blocks.js';
 import { camposDoGatilho, gatilhoDoQuadro, variaveisDeCampos } from './fields.js';
 import type { AutomationGraph } from '@expedition/domain';
+import type { PassoEnsaiado } from './simulacao.js';
 
 /**
  * AU-25 — ensaiar antes de ligar.
@@ -16,14 +17,6 @@ import type { AutomationGraph } from '@expedition/domain';
  * já com os marcadores trocados, que é onde se vê o `{{contato.nome}}` que ia sair vazio.
  */
 
-interface PassoEnsaiado {
-  nodeId: string;
-  kind: string;
-  type: string;
-  outcome: string;
-  detail: Record<string, unknown>;
-}
-
 type Estado =
   | { status: 'form' }
   | { status: 'loading' }
@@ -33,10 +26,13 @@ type Estado =
 export function Ensaio({
   automationId,
   graph,
+  onResultado,
   onClose,
 }: {
   automationId: string;
   graph: AutomationGraph;
+  /** AU-27 — o resultado sobe para o editor, que o entrega a cada bloco do quadro. */
+  onResultado: (passos: PassoEnsaiado[]) => void;
   onClose: () => void;
 }): React.JSX.Element {
   const gatilho = gatilhoDoQuadro(
@@ -52,7 +48,9 @@ export function Ensaio({
       const res = await api(`/v1/automations/${encodeURIComponent(automationId)}/simulate`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ variables: variaveisDeCampos(valores) }),
+        // AU-27: vai o desenho da tela junto — ensaiar o que está salvo, depois de mexer
+        // num bloco, faria a pessoa concluir a coisa errada sobre a própria mudança.
+        body: JSON.stringify({ variables: variaveisDeCampos(valores), graph }),
       });
       if (!res.ok) {
         setEstado({
@@ -64,7 +62,10 @@ export function Ensaio({
         });
         return;
       }
-      setEstado({ status: 'ready', passos: (await res.json()) as PassoEnsaiado[] });
+      const passos = (await res.json()) as PassoEnsaiado[];
+      setEstado({ status: 'ready', passos });
+      // AU-27: o quadro inteiro passa a mostrar entrada e saída por bloco a partir daqui.
+      onResultado(passos);
     } catch {
       setEstado({ status: 'error', message: 'Falha de conexão.' });
     }
@@ -113,6 +114,12 @@ export function Ensaio({
           <p className="members-empty">
             O fluxo não andou: o gatilho não leva a bloco nenhum, ou o quadro está vazio.
           </p>
+        )}
+
+        {estado.status === 'ready' && estado.passos.length > 0 && (
+          <span className="field-help">
+            Os blocos do quadro agora mostram o que entra e o que sai de cada um.
+          </span>
         )}
 
         {estado.status === 'ready' && estado.passos.length > 0 && (

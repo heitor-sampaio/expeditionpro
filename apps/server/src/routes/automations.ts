@@ -283,7 +283,11 @@ export function registerAutomationRoutes(
     {
       schema: {
         params,
-        body: z.object({ variables: z.record(z.string(), z.unknown()).default({}) }),
+        body: z.object({
+          variables: z.record(z.string(), z.unknown()).default({}),
+          // AU-27: o desenho que está na tela, para ensaiar o que se acabou de mexer.
+          graph: graph.optional(),
+        }),
       },
     },
     async (request, reply) => {
@@ -291,6 +295,7 @@ export function registerAutomationRoutes(
       const passos = await runner.simulate(ctx, {
         automationId: request.params.automationId,
         variables: request.body.variables,
+        ...(request.body.graph === undefined ? {} : { graph: request.body.graph }),
         now: new Date(),
       });
       return reply.send(passos);

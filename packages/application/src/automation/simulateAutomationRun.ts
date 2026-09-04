@@ -10,11 +10,13 @@ import {
   resolveDelay,
   resolveSwitch,
   searchMode,
+  type AutomationGraph,
   type AutomationNode,
   type Port,
   type RunContext,
 } from '@expedition/domain';
 import { requireTeam } from '../audience.js';
+import { assertGrafoValido } from './saveAutomationGraph.js';
 import { NotFoundError } from '../errors.js';
 import { TETO_DE_PASSOS } from './advanceAutomationRun.js';
 import type { AutomationRunnerDeps } from './runnerDeps.js';
@@ -48,12 +50,33 @@ export interface SimulatedStep {
   /** `faria`, `esperaria`, `percorreria`, ou a porta escolhida — como o log de verdade. */
   readonly outcome: string;
   readonly detail: Record<string, unknown>;
+  /**
+   * AU-27 — o contexto que **chegou** neste bloco: exatamente o que o anterior entregou.
+   *
+   * É a resposta para a pergunta que trava quem desenha um fluxo — "o bloco de cima me dá o
+   * quê?" —, e é o que a tela põe do lado esquerdo do bloco aberto.
+   */
+  readonly input: Record<string, unknown>;
+  /**
+   * AU-27 — o que este bloco **produziu**: a variável que definiu, o que a busca trouxe, o
+   * lado por onde a condição saiu. Numa ação é o que ela *receberia*, com os marcadores já
+   * trocados — nenhuma ação roda no ensaio, e prometer resultado de envio seria mentira.
+   */
+  readonly output: Record<string, unknown>;
 }
 
 export interface SimulateCommand {
   readonly automationId: string;
   /** Os dados que o gatilho traria. Quem ensaia digita o que quer ver acontecer. */
   readonly variables: RunContext;
+  /**
+   * AU-27 — o desenho **que está na tela**, quando vem.
+   *
+   * Sem isto, ensaiar depois de mexer num bloco mostraria o fluxo de antes, e a pessoa
+   * concluiria a coisa errada sobre a mudança que acabou de fazer. Salvar antes de ensaiar
+   * seria a alternativa, e obrigaria a salvar rascunho torto só para poder olhar.
+   */
+  readonly graph?: AutomationGraph;
   readonly now: Date;
 }
 
@@ -69,14 +92,19 @@ export async function simulateAutomationRun(
   const automacao = await deps.automations.findById(ctx.tenantId, command.automationId);
   if (automacao === null) throw new NotFoundError('automação');
 
+  const graph = command.graph ?? automacao.graph;
+  // Desenho que não fecha ensaiaria um caminho que o motor nunca percorreria — e a recusa vem
+  // com a lista do que está errado, que é a mesma de salvar.
+  if (command.graph !== undefined) assertGrafoValido(command.graph);
+
   const variaveis: RunContext = { ...command.variables };
   const passos: SimulatedStep[] = [];
-  let atual = nextNode(automacao.graph, null, 'next');
+  let atual = nextNode(graph, null, 'next');
 
   while (atual !== null && passos.length < TETO_DE_PASSOS) {
     const porta = await ensaiarNo(deps, ctx, atual, variaveis, command.now, passos);
     if (porta === null) break;
-    atual = nextNode(automacao.graph, atual.id, porta);
+    atual = nextNode(graph, atual.id, porta);
   }
 
   return passos;
@@ -91,8 +119,21 @@ async function ensaiarNo(
   now: Date,
   passos: SimulatedStep[],
 ): Promise<Port | null> {
-  const anotar = (outcome: string, detail: Record<string, unknown>): void => {
-    passos.push({ nodeId: no.id, kind: no.kind, type: no.type, outcome, detail });
+  /*
+   * AU-27 — o retrato do que chegou, tirado **antes** de o bloco mexer em nada.
+   *
+   * Cópia rasa de propósito: o contexto só é alterado por chave de primeiro nível (uma
+   * variável nova, os campos que a busca trouxe), e copiar fundo a cada passo seria pagar por
+   * uma proteção que nada aqui precisa.
+   */
+  const input = { ...variaveis };
+
+  const anotar = (
+    outcome: string,
+    detail: Record<string, unknown>,
+    output: Record<string, unknown> = detail,
+  ): void => {
+    passos.push({ nodeId: no.id, kind: no.kind, type: no.type, outcome, detail, input, output });
   };
 
   if (isNodeDisabled(no)) {
@@ -101,7 +142,9 @@ async function ensaiarNo(
   }
 
   if (no.kind === 'trigger') {
-    anotar('disparou', {});
+    // O gatilho não produz: ele **é** a entrada. Entregar o próprio contexto é o que a tela
+    // precisa mostrar do lado direito dele.
+    anotar('disparou', {}, input);
     return 'next';
   }
 
@@ -118,13 +161,13 @@ async function ensaiarNo(
 
   if (no.kind === 'condition') {
     const porta: Port = evaluateCondition(no.config, variaveis) ? 'true' : 'false';
-    anotar(porta, comValorLido(no, variaveis));
+    anotar(porta, comValorLido(no, variaveis), { saida: porta, ...comValorLido(no, variaveis) });
     return porta;
   }
 
   if (no.kind === 'switch') {
     const porta = resolveSwitch(no.config, variaveis);
-    anotar(porta, comValorLido(no, variaveis));
+    anotar(porta, comValorLido(no, variaveis), { saida: porta, ...comValorLido(no, variaveis) });
     return porta;
   }
 
@@ -156,7 +199,13 @@ async function ensaiarNo(
       if (primeiro !== undefined) Object.assign(variaveis, primeiro.variables);
     }
 
-    anotar(porta, { entidade: no.config['entity'], achados: achados.length });
+    // A saída da busca é o que ela **acrescentou** ao contexto, e não a contagem: é isso que o
+    // bloco seguinte vai poder usar.
+    anotar(
+      porta,
+      { entidade: no.config['entity'], achados: achados.length },
+      acrescentado(input, variaveis),
+    );
     return porta;
   }
 
@@ -169,7 +218,14 @@ async function ensaiarNo(
     const itens = listItems(variaveis, iteratedList(no.config));
     const primeiro = itens[0];
     if (primeiro !== undefined) Object.assign(variaveis, primeiro.dados);
-    anotar('percorreria', { itens: itens.length, lista: iteratedList(no.config) });
+    anotar(
+      'percorreria',
+      { itens: itens.length, lista: iteratedList(no.config) },
+      {
+        itens: itens.length,
+        ...acrescentado(input, variaveis),
+      },
+    );
     return 'next';
   }
 
@@ -195,4 +251,22 @@ async function ensaiarNo(
 function comValorLido(no: AutomationNode, variaveis: RunContext): Record<string, unknown> {
   const campo = String(no.config['field'] ?? '');
   return { campo, valor: campo === '' ? null : readPath(variaveis, campo) };
+}
+
+/**
+ * AU-27 — o que este bloco pôs no contexto, e só isso.
+ *
+ * Devolver o contexto inteiro do lado da saída faria toda busca parecer que trouxe tudo o que
+ * já estava lá. O que interessa a quem lê é a diferença: o que passou a existir por causa
+ * **deste** bloco.
+ */
+function acrescentado(
+  antes: Record<string, unknown>,
+  depois: Record<string, unknown>,
+): Record<string, unknown> {
+  const saida: Record<string, unknown> = {};
+  for (const [chave, valor] of Object.entries(depois)) {
+    if (!Object.hasOwn(antes, chave) || antes[chave] !== valor) saida[chave] = valor;
+  }
+  return saida;
 }

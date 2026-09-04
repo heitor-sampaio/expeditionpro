@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  caminhosDe,
   camposDisponiveis,
   gatilhoDoQuadro,
   variaveisDeCampos,
@@ -177,5 +178,40 @@ describe('AU-25: os dados do ensaio, montados dos campos', () => {
 
   it('caminho sem ponto vira chave de primeiro nível', () => {
     expect(variaveisDeCampos({ agora: '2026-09-04' })).toEqual({ agora: '2026-09-04' });
+  });
+});
+
+describe('AU-27: o contexto virando lista de caminhos', () => {
+  it('achata objeto aninhado no caminho que o marcador usa', () => {
+    expect(caminhosDe({ contato: { nome: 'Ana', telefone: '48999998877' } })).toEqual([
+      { path: 'contato.nome', valor: 'Ana' },
+      { path: 'contato.telefone', valor: '48999998877' },
+    ]);
+  });
+
+  it('mantém o valor de primeiro nível', () => {
+    expect(caminhosDe({ saudacao: 'Oi' })).toEqual([{ path: 'saudacao', valor: 'Oi' }]);
+  });
+
+  it('número e booleano viram texto, porque é assim que entram na mensagem', () => {
+    expect(caminhosDe({ total: 3, pago: true })).toEqual([
+      { path: 'total', valor: '3' },
+      { path: 'pago', valor: 'true' },
+    ]);
+  });
+
+  it('lista não vira caminho por item: mostra o tamanho, que é o que se usa', () => {
+    expect(caminhosDe({ achados: [{ a: 1 }, { a: 2 }] })).toEqual([
+      { path: 'achados', valor: '2 itens' },
+    ]);
+  });
+
+  it('nulo e vazio aparecem, porque campo vazio é justamente o que se quer ver', () => {
+    expect(caminhosDe({ contato: { nome: null } })).toEqual([{ path: 'contato.nome', valor: '' }]);
+  });
+
+  it('para de descer no fundo, para um contexto torto não travar a tela', () => {
+    const fundo = { a: { b: { c: { d: { e: 'longe' } } } } };
+    expect(caminhosDe(fundo).map((c) => c.path)).toEqual(['a.b.c.d']);
   });
 });

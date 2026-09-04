@@ -5082,9 +5082,7 @@
  * Fica mais largo porque campo de pílula abaixo de 260px vira caixa que não cabe o que se
  * digita, e o quadro tem espaço de sobra agora que as colunas saíram.
  */
-.auto-node.is-selected {
-  width: 300px;
-}
+
 .auto-node-form {
   display: flex;
   flex-direction: column;
@@ -5466,4 +5464,97 @@
   font-size: 10px;
   letter-spacing: 0.04em;
   color: var(--ink-3);
+}
+
+/*
+ * AU-27 — o bloco aberto em três colunas: o que entra, a configuração, o que sai.
+ *
+ * A largura sai de 300px para 720px só quando aberto, e é o que o quadro tem de sobra desde
+ * que as colunas laterais saíram. Fechado, o cartão continua pequeno: um quadro de dez blocos
+ * abertos seria ilegível, e é por isso que só o selecionado abre.
+ */
+.auto-node.is-selected {
+  width: 720px;
+}
+.auto-node-open {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr) 200px;
+  gap: 14px;
+  align-items: start;
+  margin-top: 8px;
+}
+.auto-node-meio {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.auto-io {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  max-height: 300px;
+  overflow-y: auto;
+}
+.auto-io-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/*
+ * O campo do painel de entrada é botão: clicar põe `{{caminho}}` no campo em foco. Por isso
+ * ele tem estado de hover e de foco — é ação, não legenda.
+ */
+.auto-io-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  padding: 5px 7px;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.auto-io-item:hover {
+  background: var(--card);
+  border-color: var(--line-2);
+}
+.auto-io-item.is-leitura {
+  cursor: default;
+}
+.auto-io-item.is-leitura:hover {
+  background: transparent;
+  border-color: transparent;
+}
+/*
+ * AU-27 — o campo que vai receber a variável clicada. Sem esta marca, clicar na lista da
+ * esquerda seria um tiro no escuro: o texto apareceria em algum lugar, e não se sabe qual.
+ */
+.field.is-alvo > .field-input {
+  border-color: var(--o);
+  box-shadow: 0 0 0 3px var(--o-soft);
+}
+
+/*
+ * AU-27 — em tela estreita as três colunas empilham.
+ *
+ * Lado a lado em 340px de largura, cada painel ficaria com uns 100px e nenhum caminho de
+ * variável caberia. Empilhado, o bloco fica alto — e alto se rola, estreito não se lê.
+ */
+@media (max-width: 900px) {
+  .auto-node.is-selected {
+    width: 340px;
+  }
+  .auto-node-open {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

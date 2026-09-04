@@ -24,12 +24,17 @@ export function BlockFields({
   config,
   campos: disponiveis,
   readOnly,
+  foco,
+  onFoco,
   onChange,
 }: {
   type: string;
   config: Record<string, unknown>;
   campos: readonly ContextField[];
   readOnly: boolean;
+  /** AU-27 — o campo que recebe a variável clicada no painel de entrada. */
+  foco: string | null;
+  onFoco: (key: string | null) => void;
   onChange: (config: Record<string, unknown>) => void;
 }): React.JSX.Element {
   const campos = CAMPOS[type] ?? [];
@@ -48,6 +53,8 @@ export function BlockFields({
           valor={config[campo.key]}
           disponiveis={disponiveis}
           readOnly={readOnly}
+          focado={foco === campo.key}
+          onFoco={onFoco}
           onChange={(valor) => onChange({ ...config, [campo.key]: valor })}
         />
       ))}
@@ -89,12 +96,16 @@ function Campo({
   valor,
   disponiveis,
   readOnly,
+  focado,
+  onFoco,
   onChange,
 }: {
   campo: BlockField;
   valor: unknown;
   disponiveis: readonly ContextField[];
   readOnly: boolean;
+  focado: boolean;
+  onFoco: (key: string | null) => void;
   onChange: (valor: unknown) => void;
 }): React.JSX.Element {
   const texto = valor === undefined || valor === null ? '' : String(valor);
@@ -122,8 +133,17 @@ function Campo({
     );
   }
 
+  /*
+   * AU-27 — o campo que recebe a variável clicada é o último que teve o foco, e ele fica
+   * marcado: sem a marca, clicar na lista da esquerda seria um tiro no escuro.
+   */
+  const registrar =
+    campo.template === true
+      ? { onFocus: () => onFoco(campo.key) }
+      : { onFocus: () => onFoco(null) };
+
   return (
-    <label className="field">
+    <label className={`field${focado ? ' is-alvo' : ''}`}>
       <span className="field-label">{campo.label}</span>
 
       {campo.kind === 'path' ? (
@@ -135,6 +155,7 @@ function Campo({
         />
       ) : campo.kind === 'textarea' ? (
         <textarea
+          {...registrar}
           className="field-input field-textarea nodrag nowheel"
           rows={3}
           value={texto}
@@ -157,6 +178,7 @@ function Campo({
         </select>
       ) : (
         <input
+          {...registrar}
           className="field-input nodrag"
           type={campo.kind === 'number' ? 'number' : 'text'}
           inputMode={campo.kind === 'number' ? 'numeric' : undefined}
@@ -169,14 +191,12 @@ function Campo({
         />
       )}
 
+      {/*
+       * AU-27 — o inseridor de campo saiu daqui: a variável entra clicando na lista do painel
+       * de entrada, à esquerda do bloco, que mostra o valor dela junto. Ter as duas formas
+       * seria ruído — a lista faz o mesmo e responde, de quebra, "o que tem aqui dentro?".
+       */}
       {campo.template === true && <AjudaDeFuncoes />}
-      {campo.template === true && (
-        <InserirCampo
-          disponiveis={disponiveis}
-          readOnly={readOnly}
-          onInserir={(caminho) => onChange(`${texto}{{${caminho}}}`)}
-        />
-      )}
       {campo.help && <span className="field-help">{campo.help}</span>}
     </label>
   );

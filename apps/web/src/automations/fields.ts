@@ -108,3 +108,53 @@ export function variaveisDeCampos(valores: Record<string, string>): Record<strin
 
   return saida;
 }
+
+/** AU-27 — um campo do contexto, com o valor que ele tem agora. */
+export interface CaminhoComValor {
+  readonly path: string;
+  readonly valor: string;
+}
+
+/** Quatro níveis chegam em `oportunidade.contato.endereco.cidade`; mais que isso é contexto
+ * torto, e descer sem fim numa tela é como se trava o navegador. */
+const FUNDO = 4;
+
+/**
+ * AU-27 — o contexto de uma execução virando a lista de caminhos que a tela mostra.
+ *
+ * É o painel de entrada do bloco: `contato.nome` de um lado, "Ana" do outro. O caminho é
+ * escrito na forma que o marcador usa, porque clicar nele **insere o marcador** — a lista não
+ * é só informação, é de onde a variável sai.
+ *
+ * Lista não vira um caminho por item de propósito. Numa busca com trinta achados, trinta
+ * ramos afogariam os campos que interessam; o que se usa de uma lista é o tamanho e o bloco
+ * "para cada".
+ */
+export function caminhosDe(dados: Record<string, unknown>, prefixo = ''): CaminhoComValor[] {
+  const saida: CaminhoComValor[] = [];
+
+  for (const [chave, valor] of Object.entries(dados)) {
+    const path = prefixo === '' ? chave : `${prefixo}.${chave}`;
+
+    if (Array.isArray(valor)) {
+      saida.push({
+        path,
+        valor: `${String(valor.length)} ${valor.length === 1 ? 'item' : 'itens'}`,
+      });
+      continue;
+    }
+    if (valor !== null && typeof valor === 'object' && path.split('.').length < FUNDO) {
+      saida.push(...caminhosDe(valor as Record<string, unknown>, path));
+      continue;
+    }
+    saida.push({ path, valor: texto(valor) });
+  }
+
+  return saida;
+}
+
+function texto(valor: unknown): string {
+  if (valor === null || valor === undefined) return '';
+  if (typeof valor === 'object') return JSON.stringify(valor);
+  return String(valor);
+}

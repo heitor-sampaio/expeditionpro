@@ -19,6 +19,7 @@ import '@xyflow/react/dist/style.css';
 import { ACOES_DE_DINHEIRO, BLOCOS, GATILHOS, blockLabel, type BlockType } from './blocks.js';
 import { RunLog } from './RunLog.js';
 import { Ensaio } from './Ensaio.js';
+import { porBloco, type PassoEnsaiado } from './simulacao.js';
 import { NODE_TYPES, QuadroContext, type BlockNodeType } from './BlockNode.js';
 import { fromFlow, toFlow } from './flowMapping.js';
 import type { Automation } from './useAutomations.js';
@@ -90,6 +91,11 @@ function Editor({
   const [sujo, setSujo] = useState(false);
   const [verLog, setVerLog] = useState(false);
   const [ensaiando, setEnsaiando] = useState(false);
+  /*
+   * AU-27 — o último ensaio fica com o editor, e não com o painel que o pediu: quem o consome
+   * é cada bloco do quadro, e o painel é só onde se digita o contexto do gatilho.
+   */
+  const [ensaio, setEnsaio] = useState<Map<string, PassoEnsaiado> | null>(null);
   const [menu, setMenu] = useState<'trigger' | 'action' | null>(null);
   const [confirmarDinheiro, setConfirmarDinheiro] = useState(false);
   const quadro = useRef<HTMLDivElement | null>(null);
@@ -241,7 +247,7 @@ function Editor({
       {verLog ? (
         <RunLog automationId={automation.id} />
       ) : (
-        <QuadroContext value={{ readOnly }}>
+        <QuadroContext value={{ readOnly, ensaio }}>
           <div
             className="auto-canvas"
             ref={quadro}
@@ -346,6 +352,7 @@ function Editor({
         <Ensaio
           automationId={automation.id}
           graph={fromFlow(nodes, edges)}
+          onResultado={(passos) => setEnsaio(porBloco(passos))}
           onClose={() => setEnsaiando(false)}
         />
       )}

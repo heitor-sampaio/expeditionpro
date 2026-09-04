@@ -1605,3 +1605,196 @@ describe('AU-26: bloco desligado', () => {
     expect(d.steps.rows.find((s) => s.nodeId === 'c1')?.outcome).toBe('false');
   });
 });
+
+/**
+ * AU-27 — o que entra e o que sai de cada bloco.
+ *
+ * Desenhar um fluxo é encadear dados, e a pergunta que trava quem desenha é sempre a mesma:
+ * "o bloco anterior me entrega o quê?". O ensaio já andava pelo caminho; passou a carregar,
+ * em cada passo, o contexto que **chegou** ali e o que aquele bloco **produziu** — é o que a
+ * tela desenha à esquerda e à direita do bloco aberto.
+ */
+describe('AU-27: entrada e saída por bloco', () => {
+  it('o gatilho entrega o contexto com que a execução começou', async () => {
+    const d = deps({ send_message: vi.fn() });
+    const criada = await ligada(d);
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: { contato: { nome: 'Ana' } },
+      now: AGORA,
+    });
+
+    expect(passos[0]).toMatchObject({
+      nodeId: 'g1',
+      input: { contato: { nome: 'Ana' } },
+      output: { contato: { nome: 'Ana' } },
+    });
+  });
+
+  it('a ação mostra o que receberia, com os marcadores já trocados', async () => {
+    const d = deps({ send_message: vi.fn() });
+    const criada = await ligada(d);
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: { contato: { nome: 'Ana' } },
+      now: AGORA,
+    });
+
+    expect(passos.find((p) => p.nodeId === 'a1')?.output).toEqual({ text: 'Oi Ana!' });
+  });
+
+  it('definir variável entrega só a variável que definiu, não o contexto inteiro', async () => {
+    const d = deps({ send_message: vi.fn() });
+    const g = grafo(
+      { id: 'g1', kind: 'trigger', type: 'message_received' },
+      { id: 's1', kind: 'setVariable', type: 'set', config: { name: 'saudacao', value: 'Oi' } },
+      { id: 'f1', kind: 'end', type: 'end' },
+    );
+    const criada = await ligada(d, g);
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: { contato: { nome: 'Ana' } },
+      now: AGORA,
+    });
+
+    const passo = passos.find((p) => p.nodeId === 's1');
+    expect(passo?.output).toEqual({ saudacao: 'Oi' });
+    // A entrada é o contexto de antes — sem a variável que este bloco ainda não tinha definido.
+    expect(passo?.input).toEqual({ contato: { nome: 'Ana' } });
+  });
+
+  it('o bloco seguinte recebe na entrada o que o anterior produziu', async () => {
+    const d = deps({ send_message: vi.fn() });
+    const g = grafo(
+      { id: 'g1', kind: 'trigger', type: 'message_received' },
+      { id: 's1', kind: 'setVariable', type: 'set', config: { name: 'saudacao', value: 'Oi' } },
+      { id: 'a1', kind: 'action', type: 'send_message', config: { text: '{{saudacao}}!' } },
+      { id: 'f1', kind: 'end', type: 'end' },
+    );
+    const criada = await ligada(d, g);
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: {},
+      now: AGORA,
+    });
+
+    expect(passos.find((p) => p.nodeId === 'a1')?.input).toEqual({ saudacao: 'Oi' });
+  });
+
+  it('a condição entrega o lado e o valor que leu', async () => {
+    const d = deps({});
+    const g: AutomationGraph = {
+      nodes: [
+        {
+          id: 'g1',
+          kind: 'trigger',
+          type: 'message_received',
+          config: {},
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: 'c1',
+          kind: 'condition',
+          type: 'field',
+          config: { field: 'mensagem.texto', operator: 'contains', value: 'preço' },
+          position: { x: 0, y: 1 },
+        },
+        { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 2 } },
+        { id: 'f2', kind: 'end', type: 'end', config: {}, position: { x: 1, y: 2 } },
+      ],
+      edges: [
+        { id: 'e1', from: 'g1', port: 'next', to: 'c1' },
+        { id: 'e2', from: 'c1', port: 'true', to: 'f1' },
+        { id: 'e3', from: 'c1', port: 'false', to: 'f2' },
+      ],
+    };
+    const criada = await ligada(d, g);
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: { mensagem: { texto: 'qual o preço?' } },
+      now: AGORA,
+    });
+
+    expect(passos.find((p) => p.nodeId === 'c1')?.output).toEqual({
+      saida: 'true',
+      campo: 'mensagem.texto',
+      valor: 'qual o preço?',
+    });
+  });
+
+  it('a entrada é um retrato: mexer no contexto depois não muda o que já foi anotado', async () => {
+    const d = deps({ send_message: vi.fn() });
+    const g = grafo(
+      { id: 'g1', kind: 'trigger', type: 'message_received' },
+      { id: 's1', kind: 'setVariable', type: 'set', config: { name: 'x', value: 'depois' } },
+      { id: 'f1', kind: 'end', type: 'end' },
+    );
+    const criada = await ligada(d, g);
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: {},
+      now: AGORA,
+    });
+
+    expect(passos[0]?.input).toEqual({});
+  });
+});
+
+describe('AU-27: o ensaio corre sobre o desenho que está na tela', () => {
+  it('usa o grafo mandado junto, e não o que está salvo', async () => {
+    const d = deps({ send_message: vi.fn() });
+    const criada = await ligada(d);
+    const outro = grafo(
+      { id: 'g1', kind: 'trigger', type: 'message_received' },
+      {
+        id: 's1',
+        kind: 'setVariable',
+        type: 'set',
+        config: { name: 'novo', value: 'ainda não salvo' },
+      },
+      { id: 'f1', kind: 'end', type: 'end' },
+    );
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: {},
+      graph: outro,
+      now: AGORA,
+    });
+
+    expect(passos.map((p) => p.nodeId)).toEqual(['g1', 's1', 'f1']);
+  });
+
+  it('sem grafo junto, continua ensaiando o que está salvo', async () => {
+    const d = deps({ send_message: vi.fn() });
+    const criada = await ligada(d);
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: {},
+      now: AGORA,
+    });
+
+    expect(passos.map((p) => p.nodeId)).toEqual(['g1', 'a1', 'f1']);
+  });
+
+  it('recusa desenho torto: ensaiar o que não fecha daria caminho que não existe', async () => {
+    const d = deps({});
+    const criada = await ligada(d);
+
+    await expect(
+      simulateAutomationRun(d, ctxAdmin(), {
+        automationId: criada.id,
+        variables: {},
+        graph: { nodes: [], edges: [] },
+        now: AGORA,
+      }),
+    ).rejects.toThrow();
+  });
+});
