@@ -1,6 +1,7 @@
 import {
   createAutomation,
   deleteAutomation,
+  duplicateAutomation,
   getAutomation,
   getAutomationRunSteps,
   listAutomationRuns,
@@ -14,6 +15,7 @@ import { z } from 'zod';
 import type { AutomationRunRecord, AutomationRecord, RunStepRecord } from '@expedition/application';
 import type { Port } from '@expedition/domain';
 import { fireAutomation } from './fireAutomation.js';
+import type { AutomationRunner } from '../automation/runner.js';
 
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
@@ -69,7 +71,7 @@ const graph = z.object({
        */
       port: z
         .string()
-        .regex(/^(next|true|false|default|case_[\w-]+)$/)
+        .regex(/^(next|true|false|error|default|case_[\w-]+)$/)
         .transform((valor) => valor as Port),
       to: z.string().min(1),
     }),
@@ -79,7 +81,7 @@ const graph = z.object({
 export function registerAutomationRoutes(
   app: FastifyInstance,
   deps: ServerDeps,
-  runner: { tick(now: Date): Promise<number> },
+  runner: Pick<AutomationRunner, 'tick' | 'simulate'>,
 ): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
   const automacoes = () => ({ automations: deps.automations, audit: deps.audit });
@@ -269,6 +271,44 @@ export function registerAutomationRoutes(
     requireTeamAdmin(ctx, 'rodar o motor de automações');
     return reply.send({ executadas: await runner.tick(new Date()) });
   });
+
+  /*
+   * AU-25 — o ensaio: percorrer o desenho sem ligar a automação e sem executar ação nenhuma.
+   *
+   * É `POST` porque as buscas rodam de verdade e o corpo carrega os dados do gatilho, mas nada
+   * muda no sistema: nenhuma execução é gravada e nenhuma mensagem sai.
+   */
+  typed.post(
+    '/v1/automations/:automationId/simulate',
+    {
+      schema: {
+        params,
+        body: z.object({ variables: z.record(z.string(), z.unknown()).default({}) }),
+      },
+    },
+    async (request, reply) => {
+      const ctx = await deps.resolveContext(request);
+      const passos = await runner.simulate(ctx, {
+        automationId: request.params.automationId,
+        variables: request.body.variables,
+        now: new Date(),
+      });
+      return reply.send(passos);
+    },
+  );
+
+  // AU-26 — duplicar: o fluxo que funciona é o ponto de partida do próximo.
+  typed.post(
+    '/v1/automations/:automationId/duplicate',
+    { schema: { params } },
+    async (request, reply) => {
+      const ctx = await deps.resolveContext(request);
+      const copia = await duplicateAutomation(automacoes(), ctx, {
+        automationId: request.params.automationId,
+      });
+      return reply.status(201).send(toDto(copia));
+    },
+  );
 
   typed.delete('/v1/automations/:automationId', { schema: { params } }, async (request, reply) => {
     const ctx = await deps.resolveContext(request);

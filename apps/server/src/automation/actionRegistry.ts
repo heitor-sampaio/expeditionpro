@@ -1,5 +1,6 @@
 import { lookup } from 'node:dns/promises';
 import { parseCallableUrl } from '@expedition/domain';
+import { runUserCode } from './runUserCode.js';
 import {
   confirmBookingManually,
   createOpportunity,
@@ -130,7 +131,7 @@ export function automationActionRegistry(deps: ServerDeps): AutomationActions {
      * julgado antes e depois do DNS, prazo curto, e resposta cortada — corpo de dez megabytes
      * viraria dez megabytes no `jsonb` da execução.
      */
-    async http_request({ config, variables }) {
+    async http_request({ config }) {
       const metodo = String(config['method'] ?? 'POST').toUpperCase();
       const endereco = String(config['url'] ?? '').trim();
       const url = parseCallableUrl(endereco, await enderecosDe(endereco));
@@ -155,18 +156,38 @@ export function automationActionRegistry(deps: ServerDeps): AutomationActions {
         });
 
         const texto = (await resposta.text()).slice(0, RESPOSTA_MAX_CHARS);
-        // A resposta entra no contexto: é o que permite condicionar o fluxo pelo que o outro
-        // lado disse, em vez de seguir no escuro.
-        variables['resposta'] = { status: resposta.status, corpo: texto };
 
         if (!resposta.ok) {
           throw new Error(`a chamada devolveu ${String(resposta.status)}`);
         }
-        // O log guarda status e endereço, **nunca** os cabeçalhos: é onde mora o token.
-        return { status: resposta.status, url: `${url.hostname}${url.pathname}` };
+        /*
+         * AU-23: status, endereço e corpo — e **nunca** os cabeçalhos, que é onde mora o
+         * token. Isto vai para o log e, quando o bloco pede por `saveAs`, também para o
+         * contexto: é o que permite condicionar o fluxo pelo que o outro lado disse.
+         */
+        return {
+          status: resposta.status,
+          url: `${url.hostname}${url.pathname}`,
+          corpo: texto,
+        };
       } finally {
         clearTimeout(prazo);
       }
+    },
+
+    /**
+     * AU-23 — o pedaço de JavaScript que o catálogo de blocos não cobre.
+     *
+     * O código roda isolado e **síncrono**: sem rede, sem espera, sem timer. Quem precisa
+     * chamar alguém tem o bloco de chamar URL ao lado; misturar as duas coisas aqui daria um
+     * bloco que faz tudo e que ninguém consegue auditar depois.
+     *
+     * O que ele devolve vira variável do fluxo pelo mesmo caminho de qualquer ação: a chave
+     * `saveAs`. Sem ela, o retorno fica só no log.
+     */
+    run_code({ config, variables }) {
+      // Síncrona por dentro: `node:vm` não espera, e é justamente isso que dá o prazo firme.
+      return Promise.resolve(runUserCode(String(config['code'] ?? ''), variables));
     },
   };
 }

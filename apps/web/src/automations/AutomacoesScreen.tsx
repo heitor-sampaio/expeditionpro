@@ -14,7 +14,7 @@ import { GATILHOS } from './blocks.js';
  * `ClientesScreen` → `CustomerScreen`, decidido por estado.
  */
 export function AutomacoesScreen(): React.JSX.Element {
-  const { state, busy, refresh, criar, salvarGrafo, ligar, apagar } = useAutomations();
+  const { state, busy, refresh, criar, salvarGrafo, ligar, duplicar, apagar } = useAutomations();
   const [abertaId, setAbertaId] = useState<string | null>(null);
   const [nova, setNova] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -159,6 +159,11 @@ export function AutomacoesScreen(): React.JSX.Element {
                   const r = await ligar(a.id, !a.enabled);
                   if (!r.ok) setAviso(r.message);
                 }}
+                onDuplicate={async () => {
+                  setAviso(null);
+                  const r = await duplicar(a.id);
+                  if (!r.ok) setAviso(r.message);
+                }}
                 onDelete={async () => {
                   setAviso(null);
                   const r = await apagar(a.id);
@@ -195,12 +200,14 @@ function Linha({
   busy,
   onOpen,
   onToggle,
+  onDuplicate,
   onDelete,
 }: {
   automation: Automation;
   busy: boolean;
   onOpen: () => void;
   onToggle: () => void;
+  onDuplicate: () => void;
   onDelete: () => void;
 }): React.JSX.Element {
   // AU-14: o gatilho é o bloco que está no quadro. A coluna lê o desenho, que é a verdade —
@@ -236,15 +243,29 @@ function Linha({
           onChange={onToggle}
         />
       </span>
-      <button
-        type="button"
-        className="btn btn-secondary btn-sm btn-danger"
-        disabled={busy || automation.enabled}
-        title={automation.enabled ? 'Desligue antes de apagar' : undefined}
-        onClick={onDelete}
-      >
-        Apagar
-      </button>
+      <span className="auto-row-actions">
+        {/*
+         * AU-26 — duplicar fica ao lado de apagar porque as duas são o que se faz com uma
+         * automação inteira. Vale com ela ligada: copiar não mexe no que está rodando.
+         */}
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={busy}
+          onClick={onDuplicate}
+        >
+          Duplicar
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm btn-danger"
+          disabled={busy || automation.enabled}
+          title={automation.enabled ? 'Desligue antes de apagar' : undefined}
+          onClick={onDelete}
+        >
+          Apagar
+        </button>
+      </span>
     </div>
   );
 }

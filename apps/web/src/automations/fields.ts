@@ -75,3 +75,36 @@ export function camposDisponiveis(nodes: readonly BlocoNoQuadro[]): ContextField
 export function camposDoGatilho(trigger: TriggerType): readonly ContextField[] {
   return CAMPOS_DO_GATILHO[trigger];
 }
+
+/**
+ * AU-25 — os campos do ensaio viram o contexto que o gatilho traria.
+ *
+ * A tela pergunta um campo por caminho (`contato.nome`), porque é assim que quem desenha o
+ * fluxo pensa; o motor lê objeto aninhado. Esta é a tradução, e ela mora aqui, testada, em vez
+ * de dentro do componente — montar objeto por caminho é justamente o tipo de coisa que erra
+ * em silêncio.
+ *
+ * Campo em branco fica de fora: no ensaio isso quer dizer "o gatilho não traria este dado", e
+ * é o caso que se quer poder testar.
+ */
+export function variaveisDeCampos(valores: Record<string, string>): Record<string, unknown> {
+  const saida: Record<string, unknown> = {};
+
+  for (const [caminho, valor] of Object.entries(valores)) {
+    if (valor.trim() === '') continue;
+
+    const partes = caminho.split('.');
+    const folha = partes.pop();
+    if (folha === undefined) continue;
+
+    let atual = saida;
+    for (const parte of partes) {
+      const filho = atual[parte];
+      if (filho === undefined || filho === null || typeof filho !== 'object') atual[parte] = {};
+      atual = atual[parte] as Record<string, unknown>;
+    }
+    atual[folha] = valor;
+  }
+
+  return saida;
+}

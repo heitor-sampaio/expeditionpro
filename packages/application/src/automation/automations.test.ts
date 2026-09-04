@@ -7,6 +7,7 @@ import { setAutomationEnabled } from './setAutomationEnabled.js';
 import { listAutomations } from './listAutomations.js';
 import { getAutomation } from './getAutomation.js';
 import { deleteAutomation } from './deleteAutomation.js';
+import { duplicateAutomation } from './duplicateAutomation.js';
 import { BusinessRuleError, ForbiddenError, NotFoundError, RequiredFieldError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { AutomationGraph } from '@expedition/domain';
@@ -439,5 +440,74 @@ describe('AU-14: o gatilho vem do quadro', () => {
     await expect(
       setAutomationEnabled(d, ctxCom('owner'), { automationId: criada.id, enabled: true }),
     ).rejects.toMatchObject({ code: 'invalid_graph' });
+  });
+});
+
+/**
+ * AU-26 — duplicar.
+ *
+ * Um fluxo que funciona é o ponto de partida do próximo, e redesenhar quinze blocos à mão para
+ * mudar uma etapa é onde nasce o erro de digitação que ninguém revisa.
+ */
+describe('AU-26: duplicar automação', () => {
+  it('copia o desenho e nasce desligada, como toda automação nova', async () => {
+    const d = deps();
+    const original = await comAutomacao(d);
+    await saveAutomationGraph(d, ctxCom('owner'), {
+      automationId: original.id,
+      graph: GRAFO_BOM,
+    });
+
+    const copia = await duplicateAutomation(d, ctxCom('owner'), { automationId: original.id });
+
+    expect(copia.id).not.toBe(original.id);
+    expect(copia.graph).toEqual(GRAFO_BOM);
+    expect(copia.enabled).toBe(false);
+  });
+
+  it('põe um nome que não colide, porque nome repetido é recusado', async () => {
+    const d = deps();
+    const original = await comAutomacao(d);
+
+    const copia = await duplicateAutomation(d, ctxCom('owner'), { automationId: original.id });
+    const segunda = await duplicateAutomation(d, ctxCom('owner'), { automationId: original.id });
+
+    expect(copia.name).toBe('Responder quem pergunta preço (cópia)');
+    expect(segunda.name).toBe('Responder quem pergunta preço (cópia 2)');
+  });
+
+  it('leva o gatilho junto: a cópia responde ao mesmo evento que o original', async () => {
+    const d = deps();
+    const original = await comAutomacao(d);
+    await saveAutomationGraph(d, ctxCom('owner'), {
+      automationId: original.id,
+      graph: GRAFO_BOM,
+    });
+
+    const copia = await duplicateAutomation(d, ctxCom('owner'), { automationId: original.id });
+
+    expect(copia.triggerType).toBe('message_received');
+  });
+
+  it('exige owner ou admin, como criar', async () => {
+    const d = deps();
+    const original = await comAutomacao(d);
+
+    await expect(
+      duplicateAutomation(d, ctxCom('operator'), { automationId: original.id }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('automação de outro tenant não existe', async () => {
+    const d = deps();
+    const original = await comAutomacao(d);
+
+    await expect(
+      duplicateAutomation(
+        d,
+        { tenantId: 'tenant-b', actor: { kind: 'team', userId: 'u-b', role: 'owner' } },
+        { automationId: original.id },
+      ),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

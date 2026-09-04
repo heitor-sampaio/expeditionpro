@@ -4,8 +4,12 @@ import {
   resumeDueRuns,
   scanRecurringTriggers,
   scanScheduledTriggers,
+  simulateAutomationRun,
   type AutomationRunnerDeps,
   type EnqueueAutomationRunCommand,
+  type RequestContext,
+  type SimulateCommand,
+  type SimulatedStep,
 } from '@expedition/application';
 import { parseLocalDate } from '@expedition/domain';
 import type { FastifyBaseLogger } from 'fastify';
@@ -54,6 +58,11 @@ export interface AutomationRunner {
   fire(command: EnqueueAutomationRunCommand): void;
   /** Uma passada manual — é por onde os testes andam sem depender de temporizador. */
   tick(now: Date): Promise<number>;
+  /**
+   * AU-25 — o ensaio. Mora aqui porque precisa das mesmas buscas que o motor usa: é o que faz
+   * o ensaio responder com os dados de agora, e não com um retrato de laboratório.
+   */
+  simulate(ctx: RequestContext, command: SimulateCommand): Promise<SimulatedStep[]>;
   stop(): void;
 }
 
@@ -156,6 +165,10 @@ export function automationRunner(
     async tick(now) {
       await varrer(now);
       return drenar(now);
+    },
+
+    simulate(ctx, command) {
+      return simulateAutomationRun(motor, ctx, command);
     },
 
     stop() {

@@ -4981,10 +4981,16 @@
  * ===================================================================================== */
 
 .tbl-auto {
-  min-width: 720px;
+  min-width: 800px;
 }
 .tbl-auto .tbl-row {
-  grid-template-columns: minmax(220px, 2fr) minmax(150px, 1fr) 80px 80px 96px;
+  grid-template-columns: minmax(200px, 2fr) minmax(140px, 1fr) 72px 72px 196px;
+}
+/* AU-26 — duplicar e apagar dividem a última coluna, à direita da linha. */
+.auto-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 .auto-name {
   display: flex;
@@ -5161,6 +5167,20 @@
   width: 9px;
   height: 9px;
   border-width: 1.5px;
+}
+/*
+ * AU-24 — a saída de erro, em vermelho.
+ *
+ * Cor é dado: vermelho já quer dizer "deu errado" no sistema inteiro, e é o que faz alguém
+ * reconhecer de longe qual das duas alças é a do desvio.
+ */
+.auto-canvas .react-flow__handle.auto-handle-erro {
+  background: var(--no);
+  border-color: var(--no);
+}
+.auto-canvas .react-flow__handle.auto-handle-erro + .auto-node-port,
+.auto-canvas .auto-handle-erro .auto-node-port {
+  color: var(--no);
 }
 .auto-canvas .react-flow__handle-connecting {
   background: var(--o);
@@ -5362,7 +5382,88 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * AU-22 — a lista de funções, recolhida por padrão.
+ *
+ * Aberta, ela empurraria o campo de texto para fora da vista em todo bloco que aceita
+ * template. Quem escreve só o marcador e nunca vai precisar de `diasAte` nem abre.
+ */
+.auto-funcs {
+  margin-top: 6px;
+}
+.auto-funcs summary {
+  cursor: pointer;
+  user-select: none;
+}
+.auto-funcs .auto-field-path {
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
 /* O inseridor de campo fica abaixo do texto que ele preenche, e é secundário a ele. */
 .auto-insert {
   margin-top: 6px;
+}
+
+/*
+ * AU-25 — o caminho que o ensaio percorreu, numerado.
+ *
+ * A ordem é o dado: ler "1, 2, 3" é o que responde "por onde ele passa", e é por isso que o
+ * número fica em mono, à esquerda, alinhado como coluna.
+ */
+.auto-ensaio {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.auto-ensaio li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--card-2);
+}
+.auto-ensaio-n {
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--ink-3);
+  min-width: 20px;
+  text-align: right;
+}
+.auto-ensaio-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * AU-26 — o bloco desligado, no quadro e apagado.
+ *
+ * Mesma linguagem da linha cancelada da tabela: opacidade no conteúdo, e o título continua
+ * legível — precisa dar para saber qual bloco está desligado sem clicar nele.
+ */
+.auto-node.is-off {
+  border-style: dashed;
+}
+.auto-node.is-off .auto-node-kind,
+.auto-node.is-off .auto-node-sub {
+  opacity: 0.45;
+}
+.auto-node.is-off .auto-node-label::after {
+  content: ' · desligado';
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
 }

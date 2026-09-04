@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { camposDisponiveis, gatilhoDoQuadro, variaveisDoFluxo } from './fields.js';
+import {
+  camposDisponiveis,
+  gatilhoDoQuadro,
+  variaveisDeCampos,
+  variaveisDoFluxo,
+} from './fields.js';
 
 /**
  * AU-16 — o seletor de campos.
@@ -148,5 +153,29 @@ describe('AU-19: os campos que o bloco de buscar traz', () => {
 
     expect(caminhos).toContain('mensagem.texto');
     expect(caminhos).toContain('contato.nome');
+  });
+});
+
+describe('AU-25: os dados do ensaio, montados dos campos', () => {
+  it('transforma caminho em objeto aninhado, que é a forma que o motor lê', () => {
+    expect(variaveisDeCampos({ 'contato.nome': 'Ana', 'mensagem.texto': 'quanto custa?' })).toEqual(
+      { contato: { nome: 'Ana' }, mensagem: { texto: 'quanto custa?' } },
+    );
+  });
+
+  it('junta campos do mesmo ramo em vez de sobrescrever', () => {
+    expect(variaveisDeCampos({ 'contato.nome': 'Ana', 'contato.telefone': '48999998877' })).toEqual(
+      {
+        contato: { nome: 'Ana', telefone: '48999998877' },
+      },
+    );
+  });
+
+  it('deixa de fora o que ficou em branco — campo vazio é campo que o gatilho não traria', () => {
+    expect(variaveisDeCampos({ 'contato.nome': '', 'contato.telefone': '  ' })).toEqual({});
+  });
+
+  it('caminho sem ponto vira chave de primeiro nível', () => {
+    expect(variaveisDeCampos({ agora: '2026-09-04' })).toEqual({ agora: '2026-09-04' });
   });
 });

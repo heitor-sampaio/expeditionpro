@@ -1,4 +1,5 @@
 import {
+  FUNCOES_DE_TEXTO,
   searchFilters,
   switchCases,
   type ContextField,
@@ -168,6 +169,7 @@ function Campo({
         />
       )}
 
+      {campo.template === true && <AjudaDeFuncoes />}
       {campo.template === true && (
         <InserirCampo
           disponiveis={disponiveis}
@@ -418,7 +420,28 @@ const OPERADORES = [
   { value: 'not_empty', label: 'não está vazio' },
 ] as const;
 
-/** AU-09 · AU-16 — põe `{{campo}}` no texto sem exigir que alguém saiba o nome de cor. */
+/**
+ * AU-22 — as funções que o texto aceita, listadas onde o texto é escrito.
+ *
+ * São poucas e nomeadas de propósito; a lista cabe num detalhe recolhido, e quem não precisa
+ * dela nem a vê. Sem isto, a única forma de descobrir que `data()` existe seria ler o código.
+ */
+function AjudaDeFuncoes(): React.JSX.Element {
+  return (
+    <details className="auto-funcs">
+      <summary className="field-help">Funções que dá para usar</summary>
+      <ul className="auto-fieldlist">
+        {FUNCOES_DE_TEXTO.map((funcao) => (
+          <li key={funcao.nome}>
+            <span className="auto-field-path">{funcao.ajuda}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/** AU-09 · AU-16 — põe {{campo}} no texto sem exigir que alguém saiba o nome de cor. */
 function InserirCampo({
   disponiveis,
   readOnly,

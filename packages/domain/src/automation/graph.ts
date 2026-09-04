@@ -42,7 +42,7 @@ export type NodeKind =
  * fosse a posição na lista, apagar o primeiro valor faria a ligação do segundo passar a
  * apontar para o terceiro, em silêncio, depois de salvo.
  */
-export type Port = 'next' | 'true' | 'false' | 'default' | `case_${string}`;
+export type Port = 'next' | 'true' | 'false' | 'error' | 'default' | `case_${string}`;
 
 export interface AutomationNode {
   readonly id: string;
@@ -97,7 +97,7 @@ const PORTAS_FIXAS: Record<Exclude<NodeKind, 'switch'>, readonly Port[]> = {
   lookup: ['true', 'false'],
   setVariable: ['next'],
   delay: ['next'],
-  action: ['next'],
+  action: ['next', 'error'],
   end: [],
 };
 
@@ -284,3 +284,20 @@ function temCicloSemEspera(
 
   return visitar(inicio);
 }
+
+/**
+ * AU-26 — o bloco que está no quadro e não roda.
+ *
+ * Tirar um bloco para experimentar sem ele custa refazer duas ligações, e depois lembrar de
+ * refazer de novo. Desligado, ele fica no lugar e o fluxo passa por cima.
+ *
+ * Só vale para quem tem **uma saída só**. "Pule o Se" não tem resposta possível — por qual
+ * lado? —, e gatilho e fim desligados dariam um fluxo sem entrada ou sem saída, que é um
+ * desenho quebrado com outro nome.
+ */
+export function isNodeDisabled(node: AutomationNode): boolean {
+  if (node.config['disabled'] !== true) return false;
+  return PODEM_DESLIGAR.has(node.kind);
+}
+
+const PODEM_DESLIGAR = new Set<NodeKind>(['action', 'delay', 'setVariable', 'forEach']);

@@ -141,7 +141,7 @@ página. Página e conta profissional já estão vinculadas.
 ## Automações (§5.18) — no ar, com o quadro mandando
 
 Escopo pedido em 2026-09-02: entrada **Automações** na seção CRM, com CRUD e um editor de
-blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-21`.
+blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-26`.
 
 ### Fatia 1 — desenhar, validar e guardar ✅
 
@@ -472,6 +472,61 @@ ele, a chamada do gancho do site dispararia o fluxo do parceiro), e a tela de In
 a **escolher o poder da chave** — quem integra o formulário do site não ganha, de brinde, o
 poder de disparar automação.
 
+### Fatia 12 — o que valia a pena trazer do n8n ✅
+
+Cinco peças, escolhidas por serem as que faltavam para desenhar sem pedir bloco novo. Ficaram
+de fora os sub-workflows: automação que chama automação traz de volta a classe de laço que
+AU-05 eliminou por desenho.
+
+**Funções no texto** (AU-22). O marcador passou a aceitar chamada: `primeiroNome(contato.nome)`,
+`data(saida.inicio)`, `diasAte(...)`, `dinheiro(centavos)`, `padrao(campo, "quando vazio")`. São
+oito, nomeadas, e a lista aparece na tela onde o texto é escrito.
+
+> **Por que não é uma linguagem de expressão.** Aceitar qualquer expressão dentro de um campo de
+> texto é ganhar código sem revisão, sem teste e sem ninguém que responda por ele — e ainda
+> assim insuficiente, porque na primeira conta de verdade a pessoa quer `if`. Oito funções
+> cobrem o que aparece em mensagem; quem precisa calcular tem o bloco de código, onde a decisão
+> de rodar código foi tomada de olhos abertos. A regra do AU-09 continua por cima de tudo: o que
+> não dá certo vira vazio, nunca `{{contato.nome}}` no WhatsApp de um cliente.
+
+**Nó de código** (AU-23), e com ele o mecanismo que faltava a **toda** ação: a chave `saveAs`
+guarda o que a ação devolveu sob um nome, e o fluxo adiante enxerga (`{{resposta.status}}`).
+Sem nome pedido, o retorno fica só no log — encher o contexto de toda ação seria salvar lixo em
+toda execução do sistema.
+
+> **Até onde vai o isolamento, dito na cara.** O código roda em `node:vm`: contexto sem
+> protótipo, sem `require`, `process`, `fetch` ou timer, geração de código desligada, dados
+> entrando **serializados** e retorno saindo como texto JSON — objeto do host passado direto é a
+> porta de saída mais conhecida que existe, e a suíte cobre essa tentativa. Prazo de 500ms e
+> teto de 20 mil caracteres. Isso torna o escape difícil, **não impossível**: `vm` isola escopo,
+> não processo. A guarda de verdade é quem pode escrever ali — hoje, owner ou admin do próprio
+> tenant. No dia em que houver tenant que não se confia, a troca é `isolated-vm` ou processo
+> separado, e não mais um remendo.
+
+**Caminho de erro por ação** (AU-24). Toda ação passou a ter duas saídas. Ligar a de erro é
+dizer que aquela falha é prevista — o parceiro recusou, o cartão não estava mais lá — e aí o
+motor não insiste: desvia, com o motivo em `erro.motivo`. Sem a saída ligada nada muda, e é o
+certo: para provedor fora do ar, tentar de novo é a resposta. O erro fica no log dos dois
+jeitos — desviar não é esconder.
+
+**Ensaio** (AU-25). Percorre o desenho com os dados que a equipe digita e mostra por onde ele
+passaria, com o texto de cada mensagem já resolvido. Nenhuma ação roda e nada é gravado: ensaio
+não vira execução e não entra no log, senão o registro de "o que o sistema fez sozinho" passaria
+a ter dentro coisas que ele não fez. As buscas rodam, porque só leem — é o que faz o ensaio
+responder à pergunta que interessa, "com os dados de hoje, esta condição dá sim ou não?".
+
+> **Por que o ensaio não é o mesmo código do motor.** O interpretador de verdade é feito de
+> persistência: reivindica, grava passo, dorme, conta tentativa, semeia execução filha. O ensaio
+> anda e anota. Juntar os dois significaria um parâmetro `ensaio` cortando cada bloco daquele
+> arquivo — e é assim que se ganha um motor que faz coisa diferente do que o teste do motor
+> cobre. As decisões de caminho, que são o que não pode divergir, moram no domínio e são as
+> mesmas nos dois.
+
+**Os pequenos** (AU-26): duplicar automação (a cópia leva desenho e gatilho, ganha nome livre e
+nasce desligada), desligar um bloco sem tirá-lo do quadro — só quem tem uma saída só, porque
+"pule o Se" não diz por qual lado —, e o log de condição e escolha passando a guardar **o valor
+que leu**, não só o lado por onde saiu.
+
 ### O que ainda não foi visto por gente
 
 **O motor rodou.** Em 2026-09-03, no ambiente de desenvolvimento contra o banco de verdade, uma
@@ -481,6 +536,11 @@ repetida. É a primeira vez que o motor age fora de teste.
 Falta o que depende de gente: ligar uma automação que **fala com cliente** e mandar uma mensagem
 do celular. A de exemplo ("mensagem contendo preço → responder") continua provada só em teste de
 rota, com o webhook da Evolution simulado.
+
+**O nó de código e o ensaio nunca rodaram fora de teste.** O `node:vm` está coberto por
+suíte — inclusive as tentativas de escapar dele —, mas o primeiro código escrito por gente vai
+encontrar o que teste nenhum previu. O ensaio é o lugar certo para descobrir isso, e é o próximo
+gesto a fazer no ambiente de verdade.
 
 **Os gatilhos de inscrição carregam pouco.** `booking_created`, `booking_confirmed` e
 `payment_registered` põem no contexto só `inscricao.id` — o seletor mostra isso com honestidade,

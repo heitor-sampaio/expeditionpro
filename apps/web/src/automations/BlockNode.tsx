@@ -35,6 +35,9 @@ export type BlockNodeType = Node<BlockData, NodeKind>;
  */
 export const QuadroContext = createContext<{ readOnly: boolean }>({ readOnly: false });
 
+/** AU-26 — quem tem uma saída só pode ser pulado; quem separa caminho, não. */
+const PODEM_DESLIGAR = new Set<NodeKind>(['action', 'delay', 'setVariable', 'forEach']);
+
 const ESPECIE: Record<NodeKind, string> = {
   trigger: 'quando',
   condition: 'se',
@@ -82,7 +85,9 @@ export function BlockNode({
 
   return (
     <div
-      className={`auto-node auto-node-${kind}${selected ? ' is-selected' : ''}`}
+      className={`auto-node auto-node-${kind}${selected ? ' is-selected' : ''}${
+        data.config['disabled'] === true ? ' is-off' : ''
+      }`}
       // AU-15: a escolha múltipla cresce com o número de valores. Sem largura por saída, as
       // alças se amontoam e ligar no caminho certo vira sorte.
       style={saidas.length > 2 && !selected ? { width: `${String(saidas.length * 96)}px` } : {}}
@@ -102,6 +107,24 @@ export function BlockNode({
             readOnly={readOnly}
             onChange={mudarConfig}
           />
+          {/*
+           * AU-26 — desligar sem tirar do quadro. Só aparece em quem tem uma saída só: "pule o
+           * Se" não tem resposta, porque não diz por qual lado o fluxo sai.
+           */}
+          {PODEM_DESLIGAR.has(kind) && (
+            <label className="switch-row nodrag">
+              <span className="switch-label">
+                <span className="rowpanel-title">Bloco ligado</span>
+              </span>
+              <input
+                type="checkbox"
+                className="switch"
+                checked={data.config['disabled'] !== true}
+                disabled={readOnly}
+                onChange={(e) => mudarConfig({ ...data.config, disabled: !e.target.checked })}
+              />
+            </label>
+          )}
           <button
             type="button"
             className="btn btn-secondary btn-sm btn-danger nodrag auto-node-remove"
@@ -118,6 +141,8 @@ export function BlockNode({
           key={saida.port}
           type="source"
           id={saida.port}
+          // Cor é dado: a saída de erro em vermelho, como todo o resto do que deu errado.
+          className={saida.port === 'error' ? 'auto-handle-erro' : undefined}
           position={Position.Bottom}
           // Duas ou mais saídas se dividem a base do bloco; uma só fica no meio, onde o padrão
           // a põe.
@@ -173,6 +198,15 @@ function resumo(data: BlockData): string {
     return `${CATALOGO_DE_BUSCA[entidade].label} · ${modo}${filtro}`;
   }
   if (data.type === 'for_each') return iteratedList(c);
+  if (data.type === 'run_code') {
+    // O código não cabe no cartão: o que interessa de relance é onde a resposta vai parar.
+    const guardar = texto('saveAs').trim();
+    return guardar === '' ? 'só no log' : `→ ${guardar}`;
+  }
+  if (data.type === 'http_request') {
+    const metodo = texto('method') || 'POST';
+    return corta(`${metodo} ${texto('url')}`);
+  }
   if (data.type === 'move_opportunity') return texto('stageName');
   return corta(texto('text') || texto('contactName'));
 }

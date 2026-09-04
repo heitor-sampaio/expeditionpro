@@ -109,12 +109,19 @@ export function useAutomations() {
     [chamar],
   );
 
+  /** AU-26 — duplicar. A cópia nasce desligada, e quem duplica cai nela para editar. */
+  const duplicar = useCallback(
+    (id: string) =>
+      chamar(`/v1/automations/${encodeURIComponent(id)}/duplicate`, { method: 'POST' }),
+    [chamar],
+  );
+
   const apagar = useCallback(
     (id: string) => chamar(`/v1/automations/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     [chamar],
   );
 
-  return { state, busy, refresh, criar, salvarGrafo, ligar, apagar };
+  return { state, busy, refresh, criar, salvarGrafo, ligar, duplicar, apagar };
 }
 
 /**

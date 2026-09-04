@@ -18,6 +18,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { ACOES_DE_DINHEIRO, BLOCOS, GATILHOS, blockLabel, type BlockType } from './blocks.js';
 import { RunLog } from './RunLog.js';
+import { Ensaio } from './Ensaio.js';
 import { NODE_TYPES, QuadroContext, type BlockNodeType } from './BlockNode.js';
 import { fromFlow, toFlow } from './flowMapping.js';
 import type { Automation } from './useAutomations.js';
@@ -88,6 +89,7 @@ function Editor({
   const [aviso, setAviso] = useState<string | null>(null);
   const [sujo, setSujo] = useState(false);
   const [verLog, setVerLog] = useState(false);
+  const [ensaiando, setEnsaiando] = useState(false);
   const [menu, setMenu] = useState<'trigger' | 'action' | null>(null);
   const [confirmarDinheiro, setConfirmarDinheiro] = useState(false);
   const quadro = useRef<HTMLDivElement | null>(null);
@@ -206,6 +208,10 @@ function Editor({
                 }}
               />
             </label>
+            {/* AU-25: ensaiar fica ao lado de salvar porque é o gesto de antes de ligar. */}
+            <button type="button" className="btn btn-secondary" onClick={() => setEnsaiando(true)}>
+              Ensaiar
+            </button>
             <button
               type="button"
               className="btn btn-secondary"
@@ -334,6 +340,14 @@ function Editor({
             </ReactFlow>
           </div>
         </QuadroContext>
+      )}
+
+      {ensaiando && (
+        <Ensaio
+          automationId={automation.id}
+          graph={fromFlow(nodes, edges)}
+          onClose={() => setEnsaiando(false)}
+        />
       )}
 
       {confirmarDinheiro && (

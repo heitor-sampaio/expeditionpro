@@ -192,7 +192,14 @@ export const BLOCOS: readonly BlockType[] = [
     kind: 'action',
     label: 'Chamar URL',
     hint: 'Manda um webhook, ou qualquer chamada HTTP, e lê a resposta',
-    config: { method: 'POST', url: '', headers: '', body: '' },
+    config: { method: 'POST', url: '', headers: '', body: '', saveAs: 'resposta' },
+  },
+  {
+    type: 'run_code',
+    kind: 'action',
+    label: 'Rodar código',
+    hint: 'JavaScript sobre os dados do fluxo, quando nenhum bloco resolve',
+    config: { code: 'return { total: 0 };', saveAs: 'calculo' },
   },
   {
     type: 'end',
@@ -234,7 +241,15 @@ const SAIDAS_FIXAS: Record<Exclude<NodeKind, 'switch'>, readonly Saida[]> = {
   ],
   setVariable: [{ port: 'next', label: '' }],
   delay: [{ port: 'next', label: '' }],
-  action: [{ port: 'next', label: '' }],
+  /*
+   * AU-24: toda ação tem a saída de erro, e ela fica ligada só quando alguém a liga. Desenhar
+   * a alça sempre é o que faz a equipe descobrir que ela existe — botão escondido em menu de
+   * contexto ninguém acha.
+   */
+  action: [
+    { port: 'next', label: '' },
+    { port: 'error', label: 'erro' },
+  ],
   end: [],
 };
 
@@ -496,7 +511,29 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
       kind: 'textarea',
       placeholder: '{"nome": "{{contato.nome}}", "telefone": "{{contato.telefone}}"}',
       template: true,
-      help: 'A resposta fica em resposta.status e resposta.corpo, para o fluxo adiante usar.',
+    },
+    {
+      key: 'saveAs',
+      label: 'Guardar a resposta em',
+      kind: 'text',
+      placeholder: 'resposta',
+      help: 'Fica com status, url e corpo: {{resposta.status}} adiante. Em branco, só vai ao log.',
+    },
+  ],
+  run_code: [
+    {
+      key: 'code',
+      label: 'Código',
+      kind: 'textarea',
+      placeholder: 'return { total: dados.inscricao.valor * 2 };',
+      help: 'JavaScript. Os dados do fluxo entram em `dados`, e o `return` tem que ser objeto.',
+    },
+    {
+      key: 'saveAs',
+      label: 'Guardar em',
+      kind: 'text',
+      placeholder: 'calculo',
+      help: 'O objeto devolvido fica aqui: {{calculo.total}} adiante.',
     },
   ],
   notify_team: [

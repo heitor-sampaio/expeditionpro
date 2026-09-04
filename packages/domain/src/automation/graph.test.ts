@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextNode, portsOf, validateGraph, type AutomationGraph } from './graph.js';
+import { isNodeDisabled, nextNode, portsOf, validateGraph, type AutomationGraph } from './graph.js';
 import { TRIGGER_TYPES } from './triggers.js';
 
 /**
@@ -573,5 +573,79 @@ describe('AU-20: o para cada aponta para uma lista que existe', () => {
       edges: ligacoes,
     };
     expect(validateGraph(graph)).toContain('lista_sem_origem');
+  });
+});
+
+describe('AU-24: o caminho de erro de uma ação', () => {
+  const comErro: AutomationGraph = {
+    nodes: [
+      { id: 'g1', kind: 'trigger', type: 'message_received', config: {}, position: { x: 0, y: 0 } },
+      { id: 'a1', kind: 'action', type: 'http_request', config: {}, position: { x: 0, y: 1 } },
+      { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 2 } },
+      { id: 'a2', kind: 'action', type: 'notify_team', config: {}, position: { x: 1, y: 2 } },
+    ],
+    edges: [
+      { id: 'e1', from: 'g1', port: 'next', to: 'a1' },
+      { id: 'e2', from: 'a1', port: 'next', to: 'f1' },
+      { id: 'e3', from: 'a1', port: 'error', to: 'a2' },
+    ],
+  };
+
+  it('toda ação tem duas saídas: o caminho normal e o caminho de erro', () => {
+    const acao = comErro.nodes.find((no) => no.id === 'a1')!;
+    expect(portsOf(acao)).toEqual(['next', 'error']);
+  });
+
+  it('aceita o grafo que liga a saída de erro a outro bloco', () => {
+    expect(validateGraph(comErro)).toEqual([]);
+  });
+
+  it('não obriga a ligar o erro: a ação sem tratamento continua válida', () => {
+    const semErro: AutomationGraph = {
+      ...comErro,
+      nodes: comErro.nodes.filter((no) => no.id !== 'a2'),
+      edges: comErro.edges.filter((e) => e.port !== 'error'),
+    };
+    expect(validateGraph(semErro)).toEqual([]);
+  });
+
+  it('o bloco que só o erro alcança não é órfão — ele tem entrada, e é essa', () => {
+    expect(validateGraph(comErro)).not.toContain('no_orfao');
+  });
+
+  it('só ação tem caminho de erro: espera e definição de variável seguem com uma saída', () => {
+    const espera = {
+      id: 'w',
+      kind: 'delay' as const,
+      type: 'wait',
+      config: {},
+      position: { x: 0, y: 0 },
+    };
+    expect(portsOf(espera)).toEqual(['next']);
+  });
+});
+
+describe('AU-26: bloco desligado', () => {
+  const no = (kind: string, config: Record<string, unknown>) =>
+    ({ id: 'n1', kind, type: 't', config, position: { x: 0, y: 0 } }) as never;
+
+  it('reconhece a ação desligada', () => {
+    expect(isNodeDisabled(no('action', { disabled: true }))).toBe(true);
+  });
+
+  it('só desliga quem tem uma saída só: desvio não tem lado para pular', () => {
+    expect(isNodeDisabled(no('condition', { disabled: true }))).toBe(false);
+    expect(isNodeDisabled(no('switch', { disabled: true, cases: [] }))).toBe(false);
+    expect(isNodeDisabled(no('lookup', { disabled: true }))).toBe(false);
+  });
+
+  it('gatilho e fim não se desligam — sem eles não há fluxo', () => {
+    expect(isNodeDisabled(no('trigger', { disabled: true }))).toBe(false);
+    expect(isNodeDisabled(no('end', { disabled: true }))).toBe(false);
+  });
+
+  it('sem a marca, o bloco roda — que é o caso de tudo o que já está salvo', () => {
+    expect(isNodeDisabled(no('action', {}))).toBe(false);
+    expect(isNodeDisabled(no('action', { disabled: 'sim' }))).toBe(false);
   });
 });

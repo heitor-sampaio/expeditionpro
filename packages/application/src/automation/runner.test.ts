@@ -9,6 +9,7 @@ import { enqueueAutomationRun } from './enqueueAutomationRun.js';
 import { advanceAutomationRun, TETO_DE_PASSOS } from './advanceAutomationRun.js';
 import { TETO_DA_BUSCA } from './seedRunsFromList.js';
 import { resumeDueRuns } from './resumeDueRuns.js';
+import { simulateAutomationRun } from './simulateAutomationRun.js';
 import type { AutomationActions } from './automationActions.js';
 import type { AutomationFinders } from './automationFinders.js';
 import type { AutomationGraph } from '@expedition/domain';
@@ -1082,5 +1083,525 @@ describe('AU-21: o gancho escolhe quem acorda', () => {
     await ligada(d);
 
     expect(await enfileirarUma(d)).toHaveLength(1);
+  });
+});
+
+describe('AU-23: o que a ação respondeu vira variável do fluxo', () => {
+  it('guarda a resposta sob o nome pedido, e o bloco seguinte a enxerga', async () => {
+    const d = deps({
+      http_request: async () => ({ status: 200, body: '{"plano":"ouro"}' }),
+      send_message: async ({ config }) => ({ enviado: config['text'] }),
+    });
+    const g = grafo(
+      { id: 'g1', kind: 'trigger', type: 'message_received' },
+      {
+        id: 'a1',
+        kind: 'action',
+        type: 'http_request',
+        config: { url: 'https://api.parceiro.com/x', saveAs: 'resposta' },
+      },
+      {
+        id: 'a2',
+        kind: 'action',
+        type: 'send_message',
+        config: { text: 'status {{resposta.status}}' },
+      },
+      { id: 'f1', kind: 'end', type: 'end' },
+    );
+    await ligada(d, g);
+    const [ref] = await enfileirarUma(d);
+
+    await advanceAutomationRun(d, ref!, AGORA);
+
+    const passos = d.steps.rows;
+    const envio = passos.find((p) => p.nodeId === 'a2');
+    expect(envio?.detail).toEqual({ enviado: 'status 200' });
+  });
+
+  it('sem nome pedido, nada entra no contexto — o log continua sendo o registro', async () => {
+    const d = deps({
+      http_request: async () => ({ status: 500 }),
+      send_message: async ({ config }) => ({ enviado: config['text'] }),
+    });
+    const g = grafo(
+      { id: 'g1', kind: 'trigger', type: 'message_received' },
+      { id: 'a1', kind: 'action', type: 'http_request', config: { url: 'https://x.com/y' } },
+      { id: 'a2', kind: 'action', type: 'send_message', config: { text: 'v={{resposta.status}}' } },
+      { id: 'f1', kind: 'end', type: 'end' },
+    );
+    await ligada(d, g);
+    const [ref] = await enfileirarUma(d);
+
+    await advanceAutomationRun(d, ref!, AGORA);
+
+    const passos = d.steps.rows;
+    expect(passos.find((p) => p.nodeId === 'a2')?.detail).toEqual({ enviado: 'v=' });
+  });
+
+  it('a variável guardada sobrevive a uma espera, porque é salva com a execução', async () => {
+    const d = deps({
+      http_request: async () => ({ status: 201 }),
+      send_message: async ({ config }) => ({ enviado: config['text'] }),
+    });
+    const g = grafo(
+      { id: 'g1', kind: 'trigger', type: 'message_received' },
+      {
+        id: 'a1',
+        kind: 'action',
+        type: 'http_request',
+        config: { url: 'https://x/y', saveAs: 'r' },
+      },
+      { id: 'w1', kind: 'delay', type: 'wait', config: { minutes: 60 } },
+      { id: 'a2', kind: 'action', type: 'send_message', config: { text: 'saiu {{r.status}}' } },
+      { id: 'f1', kind: 'end', type: 'end' },
+    );
+    await ligada(d, g);
+    const [ref] = await enfileirarUma(d);
+    await advanceAutomationRun(d, ref!, AGORA);
+
+    const depois = new Date(AGORA.getTime() + 61 * 60_000);
+    const [retomada] = await d.runs.claimDue('worker', depois, 10, 300_000);
+    await advanceAutomationRun(d, retomada!, depois);
+
+    const passos = d.steps.rows;
+    expect(passos.find((p) => p.nodeId === 'a2')?.detail).toEqual({ enviado: 'saiu 201' });
+  });
+});
+
+describe('AU-23: o código do bloco chega ao vm como foi escrito', () => {
+  it('não troca marcador dentro do código — bloco dentro de bloco não é variável', async () => {
+    let recebido = '';
+    const d = deps({
+      run_code: async ({ config }) => {
+        recebido = String(config['code']);
+        return { ok: true };
+      },
+    });
+    const g = grafo(
+      { id: 'g1', kind: 'trigger', type: 'message_received' },
+      {
+        id: 'a1',
+        kind: 'action',
+        type: 'run_code',
+        config: { code: 'let y = 1; if (dados.x) {{ y }} return { y };' },
+      },
+      { id: 'f1', kind: 'end', type: 'end' },
+    );
+    await ligada(d, g);
+    const [ref] = await enfileirarUma(d);
+
+    await advanceAutomationRun(d, ref!, AGORA);
+
+    expect(recebido).toBe('let y = 1; if (dados.x) {{ y }} return { y };');
+  });
+});
+
+/**
+ * AU-24 — o caminho de erro.
+ *
+ * Antes disto, ação que falha só tinha um destino: tentar de novo e, no fim, parar tudo. É o
+ * certo para provedor fora do ar, e é o errado para "o parceiro respondeu 422" — aí o fluxo
+ * tem o que fazer, e quem desenhou sabe o quê. Ligar a saída de erro é dizer justamente isso:
+ * **este erro é previsto, não insista, siga por aqui**.
+ */
+describe('AU-24: o caminho de erro por ação', () => {
+  function comSaidaDeErro(): AutomationGraph {
+    return {
+      nodes: [
+        {
+          id: 'g1',
+          kind: 'trigger',
+          type: 'message_received',
+          config: {},
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: 'a1',
+          kind: 'action',
+          type: 'http_request',
+          config: { url: 'https://x/y' },
+          position: { x: 0, y: 1 },
+        },
+        { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 2 } },
+        {
+          id: 'a2',
+          kind: 'action',
+          type: 'notify_team',
+          config: { text: 'deu ruim: {{erro.motivo}}' },
+          position: { x: 1, y: 2 },
+        },
+        { id: 'f2', kind: 'end', type: 'end', config: {}, position: { x: 1, y: 3 } },
+      ],
+      edges: [
+        { id: 'e1', from: 'g1', port: 'next', to: 'a1' },
+        { id: 'e2', from: 'a1', port: 'next', to: 'f1' },
+        { id: 'e3', from: 'a1', port: 'error', to: 'a2' },
+        { id: 'e4', from: 'a2', port: 'next', to: 'f2' },
+      ],
+    };
+  }
+
+  it('segue pela saída de erro em vez de tentar de novo', async () => {
+    const avisar = vi.fn().mockResolvedValue({ ok: true });
+    const d = deps({
+      http_request: vi.fn().mockRejectedValue(new Error('a chamada devolveu 422')),
+      notify_team: avisar,
+    });
+    await ligada(d, comSaidaDeErro());
+    await enfileirarUma(d);
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    expect(avisar).toHaveBeenCalledTimes(1);
+    expect(d.runs.rows[0]).toMatchObject({ status: 'done', attempts: 0 });
+  });
+
+  it('o motivo do erro entra no contexto, para o caminho de erro poder dizer o que houve', async () => {
+    const avisar = vi.fn().mockResolvedValue({ ok: true });
+    const d = deps({
+      http_request: vi.fn().mockRejectedValue(new Error('a chamada devolveu 422')),
+      notify_team: avisar,
+    });
+    await ligada(d, comSaidaDeErro());
+    await enfileirarUma(d);
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    expect(avisar.mock.calls[0]?.[0]?.config).toMatchObject({
+      text: 'deu ruim: a chamada devolveu 422',
+    });
+  });
+
+  it('o erro fica no log do mesmo jeito — desviar não é esconder', async () => {
+    const d = deps({
+      http_request: vi.fn().mockRejectedValue(new Error('a chamada devolveu 422')),
+      notify_team: vi.fn().mockResolvedValue({}),
+    });
+    await ligada(d, comSaidaDeErro());
+    await enfileirarUma(d);
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    const erro = d.steps.rows.find((s) => s.outcome === 'erro');
+    expect(erro).toMatchObject({ nodeId: 'a1', detail: { motivo: 'a chamada devolveu 422' } });
+  });
+
+  it('sem saída de erro ligada, continua tentando de novo como antes', async () => {
+    const d = deps({ send_message: vi.fn().mockRejectedValue(new Error('provedor fora do ar')) });
+    await ligada(d);
+    await enfileirarUma(d);
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    expect(d.runs.rows[0]).toMatchObject({ status: 'pending', attempts: 1 });
+  });
+});
+
+/**
+ * AU-25 — o ensaio.
+ *
+ * Ligar uma automação para descobrir o que ela faz é caro: ela age sobre gente de verdade, e o
+ * que sai não volta. O ensaio percorre o mesmo grafo, pelo mesmo interpretador de caminho, e
+ * mostra por onde ele passaria — **sem executar ação nenhuma e sem gravar execução nenhuma**.
+ *
+ * As buscas rodam de verdade, porque elas só leem: é o que faz o ensaio responder "com os dados
+ * de agora, esta condição dá sim ou não?", que é justamente a pergunta.
+ */
+describe('AU-25: ensaiar sem ligar', () => {
+  it('mostra o caminho e não executa ação nenhuma', async () => {
+    const enviar = vi.fn();
+    const d = deps({ send_message: enviar });
+    const criada = await ligada(d);
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: { contato: { nome: 'Ana' } },
+      now: AGORA,
+    });
+
+    expect(enviar).not.toHaveBeenCalled();
+    expect(passos.map((p) => p.nodeId)).toEqual(['g1', 'a1', 'f1']);
+    expect(passos.find((p) => p.nodeId === 'a1')).toMatchObject({
+      outcome: 'faria',
+      detail: { text: 'Oi Ana!' },
+    });
+  });
+
+  it('não grava execução nem passo — ensaio não aparece no log da automação', async () => {
+    const d = deps({ send_message: vi.fn() });
+    const criada = await ligada(d);
+
+    await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: {},
+      now: AGORA,
+    });
+
+    expect(d.runs.rows).toHaveLength(0);
+    expect(d.steps.rows).toHaveLength(0);
+  });
+
+  it('decide a condição com os dados dados, e mostra por qual lado saiu', async () => {
+    const d = deps({ send_message: vi.fn() });
+    const g: AutomationGraph = {
+      nodes: [
+        {
+          id: 'g1',
+          kind: 'trigger',
+          type: 'message_received',
+          config: {},
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: 'c1',
+          kind: 'condition',
+          type: 'field',
+          config: { field: 'mensagem.texto', operator: 'contains', value: 'preço' },
+          position: { x: 0, y: 1 },
+        },
+        { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 2 } },
+        { id: 'f2', kind: 'end', type: 'end', config: {}, position: { x: 1, y: 2 } },
+      ],
+      edges: [
+        { id: 'e1', from: 'g1', port: 'next', to: 'c1' },
+        { id: 'e2', from: 'c1', port: 'true', to: 'f1' },
+        { id: 'e3', from: 'c1', port: 'false', to: 'f2' },
+      ],
+    };
+    const criada = await ligada(d, g);
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: { mensagem: { texto: 'qual o preço?' } },
+      now: AGORA,
+    });
+
+    expect(passos.find((p) => p.nodeId === 'c1')?.outcome).toBe('true');
+    expect(passos.at(-1)?.nodeId).toBe('f1');
+  });
+
+  it('a espera não espera: mostra até quando seria e segue', async () => {
+    const d = deps({ send_message: vi.fn() });
+    const g = grafo(
+      { id: 'g1', kind: 'trigger', type: 'message_received' },
+      { id: 'w1', kind: 'delay', type: 'wait', config: { amount: 2, unit: 'days' } },
+      { id: 'a1', kind: 'action', type: 'send_message', config: { text: 'oi' } },
+      { id: 'f1', kind: 'end', type: 'end' },
+    );
+    const criada = await ligada(d, g);
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: {},
+      now: AGORA,
+    });
+
+    expect(passos.map((p) => p.nodeId)).toEqual(['g1', 'w1', 'a1', 'f1']);
+    expect(passos.find((p) => p.nodeId === 'w1')?.outcome).toBe('esperaria');
+  });
+
+  it('ensaia automação desligada — é para isso que ele serve, decidir se liga', async () => {
+    const d = deps({ send_message: vi.fn() });
+    const criada = await d.automations.create({
+      tenantId: 't1',
+      name: 'Rascunho',
+      description: null,
+      graph: SIMPLES,
+      createdBy: 'u-ana',
+    });
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: {},
+      now: AGORA,
+    });
+
+    expect(passos).not.toHaveLength(0);
+  });
+
+  it('para no teto de passos, como o motor de verdade', async () => {
+    const d = deps({ send_message: vi.fn() });
+    const g: AutomationGraph = {
+      nodes: [
+        {
+          id: 'g1',
+          kind: 'trigger',
+          type: 'message_received',
+          config: {},
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: 's1',
+          kind: 'setVariable',
+          type: 'set',
+          config: { name: 'x', value: '1' },
+          position: { x: 0, y: 1 },
+        },
+      ],
+      edges: [
+        { id: 'e1', from: 'g1', port: 'next', to: 's1' },
+        { id: 'e2', from: 's1', port: 'next', to: 's1' },
+      ],
+    };
+    const criada = await ligada(d, g);
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: {},
+      now: AGORA,
+    });
+
+    expect(passos).toHaveLength(TETO_DE_PASSOS);
+  });
+
+  it('recusa quem não é da equipe — ensaiar mostra dado de cliente', async () => {
+    const d = deps({});
+    const criada = await ligada(d);
+
+    await expect(
+      simulateAutomationRun(
+        d,
+        { tenantId: 't1', actor: { kind: 'customer' as const, customerId: 'c1', userId: 'u-cli' } },
+        { automationId: criada.id, variables: {}, now: AGORA },
+      ),
+    ).rejects.toThrow();
+  });
+});
+
+function ctxAdmin() {
+  return {
+    tenantId: 't1',
+    actor: { kind: 'team' as const, userId: 'u-ana', role: 'admin' as const },
+  };
+}
+
+describe('AU-26: o log guarda o valor que o desvio leu', () => {
+  it('grava campo e valor no passo da condição, não só o lado por onde saiu', async () => {
+    const d = deps({ send_message: vi.fn().mockResolvedValue({}) });
+    const g: AutomationGraph = {
+      nodes: [
+        {
+          id: 'g1',
+          kind: 'trigger',
+          type: 'message_received',
+          config: {},
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: 'c1',
+          kind: 'condition',
+          type: 'field',
+          config: { field: 'mensagem.texto', operator: 'contains', value: 'preço' },
+          position: { x: 0, y: 1 },
+        },
+        { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 2 } },
+        { id: 'f2', kind: 'end', type: 'end', config: {}, position: { x: 1, y: 2 } },
+      ],
+      edges: [
+        { id: 'e1', from: 'g1', port: 'next', to: 'c1' },
+        { id: 'e2', from: 'c1', port: 'true', to: 'f1' },
+        { id: 'e3', from: 'c1', port: 'false', to: 'f2' },
+      ],
+    };
+    await ligada(d, g);
+    await enfileirarUma(d);
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    expect(d.steps.rows.find((s) => s.nodeId === 'c1')?.detail).toEqual({
+      campo: 'mensagem.texto',
+      valor: 'quanto custa?',
+    });
+  });
+});
+
+/**
+ * AU-26 — desligar um bloco sem tirá-lo do quadro.
+ *
+ * Tirar o bloco para testar sem ele custa refazer duas ligações e, depois, lembrar de refazer
+ * de novo. Desligado, ele fica no desenho, no lugar, e o fluxo passa por cima.
+ */
+describe('AU-26: bloco desligado', () => {
+  it('pula a ação desligada e segue o fluxo', async () => {
+    const enviar = vi.fn().mockResolvedValue({});
+    const avisar = vi.fn().mockResolvedValue({});
+    const d = deps({ send_message: enviar, notify_team: avisar });
+    const g = grafo(
+      { id: 'g1', kind: 'trigger', type: 'message_received' },
+      {
+        id: 'a1',
+        kind: 'action',
+        type: 'send_message',
+        config: { text: 'oi', disabled: true },
+      },
+      { id: 'a2', kind: 'action', type: 'notify_team', config: { text: 'avisa' } },
+      { id: 'f1', kind: 'end', type: 'end' },
+    );
+    await ligada(d, g);
+    await enfileirarUma(d);
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    expect(enviar).not.toHaveBeenCalled();
+    expect(avisar).toHaveBeenCalledTimes(1);
+    expect(d.steps.rows.find((s) => s.nodeId === 'a1')?.outcome).toBe('pulou');
+  });
+
+  it('espera desligada não segura o fluxo', async () => {
+    const enviar = vi.fn().mockResolvedValue({});
+    const d = deps({ send_message: enviar });
+    const g = grafo(
+      { id: 'g1', kind: 'trigger', type: 'message_received' },
+      {
+        id: 'w1',
+        kind: 'delay',
+        type: 'wait',
+        config: { amount: 3, unit: 'days', disabled: true },
+      },
+      { id: 'a1', kind: 'action', type: 'send_message', config: { text: 'oi' } },
+      { id: 'f1', kind: 'end', type: 'end' },
+    );
+    await ligada(d, g);
+    await enfileirarUma(d);
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    expect(enviar).toHaveBeenCalledTimes(1);
+    expect(d.runs.rows[0]?.status).toBe('done');
+  });
+
+  it('desvio desligado é ignorado: quem tem dois lados não dá para pular', async () => {
+    const d = deps({ send_message: vi.fn().mockResolvedValue({}) });
+    const g: AutomationGraph = {
+      nodes: [
+        {
+          id: 'g1',
+          kind: 'trigger',
+          type: 'message_received',
+          config: {},
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: 'c1',
+          kind: 'condition',
+          type: 'field',
+          config: { field: 'mensagem.texto', operator: 'contains', value: 'zzz', disabled: true },
+          position: { x: 0, y: 1 },
+        },
+        { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 2 } },
+        { id: 'f2', kind: 'end', type: 'end', config: {}, position: { x: 1, y: 2 } },
+      ],
+      edges: [
+        { id: 'e1', from: 'g1', port: 'next', to: 'c1' },
+        { id: 'e2', from: 'c1', port: 'true', to: 'f1' },
+        { id: 'e3', from: 'c1', port: 'false', to: 'f2' },
+      ],
+    };
+    await ligada(d, g);
+    await enfileirarUma(d);
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    expect(d.steps.rows.find((s) => s.nodeId === 'c1')?.outcome).toBe('false');
   });
 });

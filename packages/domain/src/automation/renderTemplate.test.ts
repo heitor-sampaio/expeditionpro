@@ -58,3 +58,79 @@ describe('AU-09: variáveis no texto', () => {
     expect(renderTemplate('desconto de {{50', contexto)).toBe('desconto de {{50');
   });
 });
+
+/**
+ * AU-22 — funções dentro do marcador.
+ *
+ * Substituir crua não basta para escrever uma frase decente: "sua saída é dia 2026-10-10" e
+ * "Oi, Ana Prado Silva" são o que sai hoje, e nenhuma das duas é o que se manda para um
+ * cliente. As funções são **nomeadas e poucas**, de propósito — expressão que aceita qualquer
+ * coisa vira código, e código dentro de um campo de texto é código sem revisão e sem teste.
+ */
+describe('AU-22: funções no texto', () => {
+  const contexto = {
+    contato: { nome: 'ana prado silva', telefone: '5548999998877' },
+    saida: { inicio: '2026-10-10' },
+    inscricao: { totalCentavos: 258000 },
+  };
+  const hoje = new Date('2026-10-07T12:00:00.000Z');
+
+  it('primeiro nome tira o resto', () => {
+    expect(renderTemplate('Oi, {{primeiroNome(contato.nome)}}!', contexto)).toBe('Oi, ana!');
+  });
+
+  it('capitaliza nome próprio, e as preposições ficam minúsculas', () => {
+    expect(renderTemplate('{{nomeProprio(contato.nome)}}', contexto)).toBe('Ana Prado Silva');
+    expect(renderTemplate('{{nomeProprio("joao da silva")}}', contexto)).toBe('Joao da Silva');
+  });
+
+  it('data em português', () => {
+    expect(renderTemplate('Saída em {{data(saida.inicio)}}', contexto)).toBe('Saída em 10/10/2026');
+  });
+
+  it('dias até a data, contando de hoje', () => {
+    expect(renderTemplate('faltam {{diasAte(saida.inicio)}} dias', contexto, { agora: hoje })).toBe(
+      'faltam 3 dias',
+    );
+  });
+
+  /** Dinheiro é centavos no sistema inteiro; escrever "R$ 258000" seria o erro mais caro. */
+  it('dinheiro sai em reais, a partir de centavos', () => {
+    expect(renderTemplate('{{dinheiro(inscricao.totalCentavos)}}', contexto)).toBe('R$ 2.580,00');
+  });
+
+  it('padrão cobre o campo vazio', () => {
+    expect(renderTemplate('Oi, {{padrao(contato.apelido, "tudo bem")}}!', contexto)).toBe(
+      'Oi, tudo bem!',
+    );
+    expect(renderTemplate('{{padrao(contato.telefone, "sem telefone")}}', contexto)).toBe(
+      '5548999998877',
+    );
+  });
+
+  it('maiúscula e minúscula', () => {
+    expect(renderTemplate('{{maiuscula(contato.nome)}}', contexto)).toBe('ANA PRADO SILVA');
+    expect(renderTemplate('{{minuscula("GRITANDO")}}', contexto)).toBe('gritando');
+  });
+
+  /** AU-09 continua valendo: o que não dá certo vira vazio, nunca o marcador na cara do cliente. */
+  it('função desconhecida vira vazio', () => {
+    expect(renderTemplate('[{{inventada(contato.nome)}}]', contexto)).toBe('[]');
+  });
+
+  it('argumento que não existe vira vazio, e a função lida com isso', () => {
+    expect(renderTemplate('[{{primeiroNome(nao.existe)}}]', contexto)).toBe('[]');
+    expect(renderTemplate('[{{data(nao.existe)}}]', contexto)).toBe('[]');
+  });
+
+  it('sem relógio, o que depende de data vira vazio em vez de mentir', () => {
+    expect(renderTemplate('[{{diasAte(saida.inicio)}}]', contexto)).toBe('[]');
+  });
+
+  it('a substituição continua sendo de uma passada só', () => {
+    const malicioso = { contato: { nome: '{{contato.telefone}}' }, telefone: '5548999998877' };
+    expect(renderTemplate('{{primeiroNome(contato.nome)}}', malicioso)).toBe(
+      '{{contato.telefone}}',
+    );
+  });
+});

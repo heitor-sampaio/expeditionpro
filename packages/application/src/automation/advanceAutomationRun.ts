@@ -1,9 +1,12 @@
 import {
+  actionResultName,
   evaluateCondition,
+  isNodeDisabled,
   iteratedList,
   listItems,
   listName,
   nextNode,
+  readPath,
   renderTemplate,
   resolveDelay,
   resolveSwitch,
@@ -90,6 +93,18 @@ export async function advanceAutomationRun(
     }
     passos += 1;
 
+    /*
+     * AU-26 — bloco desligado fica no desenho e não roda.
+     *
+     * Vale só para quem tem uma saída só. Desvio desligado não tem resposta possível — "pule
+     * o Se" não diz por qual lado — e por isso a tela nem oferece, e aqui ele roda normal.
+     */
+    if (isNodeDisabled(atual)) {
+      await registrar(deps, ref, atual, 'pulou', {});
+      atual = nextNode(automacao.graph, atual.id, 'next');
+      continue;
+    }
+
     // A espera não é um passo que se executa: é onde a execução dorme. Guarda o **próximo**
     // nó, para acordar continuando em vez de refazer o que já rodou.
     if (atual.kind === 'delay') {
@@ -122,15 +137,15 @@ export async function advanceAutomationRun(
 
     if (atual.kind === 'condition') {
       porta = evaluateCondition(atual.config, variaveis) ? 'true' : 'false';
-      await registrar(deps, ref, atual, porta, { campo: atual.config['field'] });
+      await registrar(deps, ref, atual, porta, comValorLido(atual, variaveis));
     } else if (atual.kind === 'switch') {
       // AU-15: a porta escolhida é o que o log guarda. "Por que este cliente recebeu a
       // mensagem do outro roteiro?" só tem resposta se o desvio ficar escrito.
       porta = resolveSwitch(atual.config, variaveis);
-      await registrar(deps, ref, atual, porta, { campo: atual.config['field'] });
+      await registrar(deps, ref, atual, porta, comValorLido(atual, variaveis));
     } else if (atual.kind === 'setVariable') {
       const nome = String(atual.config['name'] ?? '').trim();
-      const valor = renderTemplate(String(atual.config['value'] ?? ''), variaveis);
+      const valor = renderTemplate(String(atual.config['value'] ?? ''), variaveis, { agora: now });
       if (nome !== '') variaveis[nome] = valor;
       await registrar(deps, ref, atual, 'definiu', { [nome]: valor });
     } else if (atual.kind === 'lookup') {
@@ -216,8 +231,19 @@ export async function advanceAutomationRun(
       });
       return;
     } else if (atual.kind === 'action') {
-      const erro = await executarAcao(deps, ref, atual, ctx, variaveis, now, run.attempts, passos);
-      if (erro) return;
+      const saida = await executarAcao(
+        deps,
+        ref,
+        automacao.graph,
+        atual,
+        ctx,
+        variaveis,
+        now,
+        run.attempts,
+        passos,
+      );
+      if (saida === null) return;
+      porta = saida;
     } else {
       // O gatilho não faz nada: ele é a porta de entrada, e já foi cumprido quando o evento
       // aconteceu. Fica no log para o fluxo ser legível de ponta a ponta.
@@ -238,19 +264,22 @@ export async function advanceAutomationRun(
 }
 
 /**
- * Executa uma ação e trata a falha. Devolve `true` quando a execução foi encerrada aqui — por
- * erro, por ação desconhecida ou por tentativas esgotadas — e o laço deve parar.
+ * Executa uma ação e trata a falha. Devolve a porta por onde seguir — `next` quando deu certo,
+ * `error` quando falhou e o desenho tem caminho de erro — ou `null` quando a execução foi
+ * encerrada aqui, por ação desconhecida, por espera de nova tentativa ou por tentativas
+ * esgotadas.
  */
 async function executarAcao(
   deps: AutomationRunnerDeps,
   ref: DueRunRef,
+  graph: AutomationGraph,
   no: AutomationNode,
   ctx: RequestContext,
   variaveis: RunContext,
   now: Date,
   tentativasAnteriores: number,
   passos: number,
-): Promise<boolean> {
+): Promise<Port | null> {
   const acao = deps.actions[no.type];
   if (acao === undefined) {
     // Ação que o registro não conhece é grafo salvo por uma versão que este servidor não tem.
@@ -263,7 +292,7 @@ async function executarAcao(
       lastError: `este servidor não conhece a ação "${no.type}"`,
       release: true,
     });
-    return true;
+    return null;
   }
 
   try {
@@ -271,15 +300,39 @@ async function executarAcao(
       ctx,
       // AU-09: o texto vai para a ação com as variáveis já trocadas. Marcador cru nunca
       // chega na cara do cliente.
-      config: comTextoResolvido(no.config, variaveis),
+      config: comTextoResolvido(no.config, variaveis, now),
       variables: variaveis,
     });
     await registrar(deps, ref, no, 'fez', detalhe);
-    return false;
+
+    /*
+     * AU-23 — a resposta da ação vira variável, quando o bloco pede.
+     *
+     * Sem nome pedido nada entra: a maioria das ações não tem resposta que interesse ao fluxo,
+     * e encher o contexto de todas seria salvar lixo em toda execução do sistema.
+     */
+    const guardarEm = actionResultName(no.config);
+    if (guardarEm !== null) variaveis[guardarEm] = detalhe;
+
+    return 'next';
   } catch (error) {
     const motivo = motivoDe(error);
     const tentativas = tentativasAnteriores + 1;
     await registrar(deps, ref, no, 'erro', { motivo });
+
+    /*
+     * AU-24 — a saída de erro, quando o desenho tem uma.
+     *
+     * Ligar essa saída é dizer que **este** erro é previsto: o parceiro recusou, o cartão não
+     * estava mais lá. Aí insistir três vezes não conserta nada, e o fluxo tem o que fazer.
+     * Sem a saída ligada, nada muda — o erro continua sendo tentativa e, no fim, falha.
+     *
+     * O erro fica no log de qualquer jeito: desviar não é esconder.
+     */
+    if (graph.edges.some((ligacao) => ligacao.from === no.id && ligacao.port === 'error')) {
+      variaveis['erro'] = { motivo, bloco: no.id };
+      return 'error';
+    }
 
     if (tentativas >= TETO_DE_TENTATIVAS) {
       await deps.runs.update(ref.tenantId, ref.id, {
@@ -290,7 +343,7 @@ async function executarAcao(
         lastError: motivo,
         release: true,
       });
-      return true;
+      return null;
     }
 
     // Volta para a fila, e mais tarde a cada vez: martelar um provedor que caiu não o levanta.
@@ -306,7 +359,7 @@ async function executarAcao(
       lastError: motivo,
       release: true,
     });
-    return true;
+    return null;
   }
 }
 
@@ -335,13 +388,24 @@ async function contextoDeQuemLigou(
 function comTextoResolvido(
   config: Record<string, unknown>,
   variaveis: RunContext,
+  now: Date,
 ): Record<string, unknown> {
   const saida: Record<string, unknown> = {};
   for (const [chave, valor] of Object.entries(config)) {
-    saida[chave] = typeof valor === 'string' ? renderTemplate(valor, variaveis) : valor;
+    const trocar = typeof valor === 'string' && !CHAVES_CRUAS.has(chave);
+    saida[chave] = trocar ? renderTemplate(valor as string, variaveis, { agora: now }) : valor;
   }
   return saida;
 }
+
+/**
+ * AU-23 — o que **não** passa pela troca de marcador.
+ *
+ * O código do bloco de código é o caso: `if (x) {{ y }}` é bloco dentro de bloco em
+ * JavaScript, e o marcador comeria o miolo dele em silêncio. Quem escreve código já enxerga o
+ * contexto em `dados` e não precisa de marcador nenhum.
+ */
+const CHAVES_CRUAS = new Set(['code']);
 
 async function registrar(
   deps: AutomationRunnerDeps,
@@ -374,4 +438,16 @@ function motivoDe(error: unknown): string {
     return codigo === '' ? error.message : `${error.message} (${codigo})`;
   }
   return codigo === '' ? error.name : codigo;
+}
+
+/**
+ * AU-26 — o valor que o desvio leu, junto do campo.
+ *
+ * "Saiu pelo não" é metade da resposta; a outra metade é *o que estava lá*. Sem isso, entender
+ * por que um cliente pegou o caminho errado exige reconstituir o contexto de cabeça, meses
+ * depois, com dados que já mudaram.
+ */
+function comValorLido(no: AutomationNode, variaveis: RunContext): Record<string, unknown> {
+  const campo = String(no.config['field'] ?? '');
+  return { campo, valor: campo === '' ? null : readPath(variaveis, campo) };
 }

@@ -999,6 +999,15 @@ export {
 export { listAutomations } from './automation/listAutomations.js';
 export { getAutomation, type AutomationRef } from './automation/getAutomation.js';
 export { deleteAutomation } from './automation/deleteAutomation.js';
+export {
+  duplicateAutomation,
+  type DuplicateAutomationCommand,
+} from './automation/duplicateAutomation.js';
+export {
+  simulateAutomationRun,
+  type SimulateCommand,
+  type SimulatedStep,
+} from './automation/simulateAutomationRun.js';
 
 // §5.18 — o motor (AU-04, AU-05, AU-06, AU-11, AU-12).
 export type {

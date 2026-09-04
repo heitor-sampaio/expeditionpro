@@ -47,9 +47,15 @@ export {
   type AutomationEdge,
   type NodeKind,
   type Port,
+  isNodeDisabled,
   type GraphProblem,
 } from './automation/graph.js';
-export { renderTemplate } from './automation/renderTemplate.js';
+export {
+  renderTemplate,
+  FUNCOES_DE_TEXTO,
+  type RenderOptions,
+} from './automation/renderTemplate.js';
+export { actionResultName } from './automation/actionResult.js';
 export {
   evaluateCondition,
   readPath,
