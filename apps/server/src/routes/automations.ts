@@ -13,9 +13,17 @@ import {
 import { z } from 'zod';
 import type { AutomationRunRecord, AutomationRecord, RunStepRecord } from '@expedition/application';
 import type { Port } from '@expedition/domain';
+import { fireAutomation } from './fireAutomation.js';
+
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { ServerDeps } from '../buildServer.js';
+
+/**
+ * AU-21 — o escopo da chave que abre o gancho. Separado do de inscrições de propósito: quem
+ * integra um formulário no site não deveria ganhar, de brinde, o poder de disparar automação.
+ */
+const ESCOPO_DO_GANCHO = 'automation:trigger';
 
 /**
  * §5.18 — as automações pelo HTTP.
@@ -82,6 +90,66 @@ export function registerAutomationRoutes(
     runs: deps.automationRuns,
     steps: deps.automationRunSteps,
   });
+
+  /*
+   * AU-21 — o gancho: alguém de fora bate aqui e a automação daquele nome roda.
+   *
+   * Autentica pela **API key do tenant**, com escopo próprio, no mesmo desenho do webhook de
+   * inscrições (§5.7) e pelas mesmas três razões: o endereço é público por natureza (nenhum
+   * sistema de fora carrega o JWT do tenant), **401 e nunca 403** porque a URL traz o slug e um
+   * 403 confirmaria que aquele tenant existe, e rate limit **pela chave** para uma integração
+   * barulhenta não afetar as outras.
+   *
+   * Responde `202` e volta: quem chama não espera o fluxo rodar. Se esperasse, o tempo da
+   * automação viraria o tempo do formulário de quem chamou.
+   */
+  typed.post(
+    '/v1/automations/hooks/:tenantSlug/:hookName',
+    {
+      schema: {
+        params: z.object({
+          tenantSlug: z.string().min(1),
+          hookName: z.string().min(1).max(60),
+        }),
+      },
+      config: {
+        rateLimit: {
+          max: 120,
+          timeWindow: '1 minute',
+          keyGenerator: (request) =>
+            (request.headers['api_token'] as string | undefined) ?? request.ip,
+        },
+      },
+    },
+    async (request, reply) => {
+      const token = request.headers['api_token'] as string | undefined;
+      const chave =
+        token === undefined
+          ? null
+          : await deps.apiKeys.verify(token, request.params.tenantSlug, ESCOPO_DO_GANCHO);
+      if (chave === null) return reply.status(401).send({ error: 'unauthorized' });
+
+      const recebidoEm = new Date().toISOString();
+      fireAutomation(
+        app,
+        chave.tenantId,
+        'webhook_received',
+        { hook: request.params.hookName },
+        {
+          webhook: {
+            nome: request.params.hookName,
+            recebidoEm,
+            // O corpo é de quem chama: entra como veio, e quem lê escreve o caminho à mão.
+            corpo: request.body ?? {},
+          },
+        },
+        // AU-21: só a automação **daquele** gancho acorda. Sem isto, a chamada do site
+        // dispararia o fluxo do parceiro, com o corpo errado no contexto.
+        { name: request.params.hookName },
+      );
+      return reply.status(202).send({ status: 'queued' });
+    },
+  );
 
   typed.get('/v1/automations', async (request, reply) => {
     const ctx = await deps.resolveContext(request);

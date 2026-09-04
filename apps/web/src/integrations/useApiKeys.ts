@@ -47,24 +47,31 @@ export function useApiKeys() {
 
   const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
 
-  const create = useCallback(async (name: string): Promise<CreateResult> => {
-    setBusy(true);
-    try {
-      const res = await api('/v1/api-keys', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name, scopes: ['intake:write'] }),
-      });
-      if (!res.ok) return { ok: false, message: `Não deu para criar a chave (${res.status}).` };
-      const body = (await res.json()) as { token: string; key: ApiKey };
-      setReloadKey((k) => k + 1);
-      return { ok: true, token: body.token, key: body.key };
-    } catch {
-      return { ok: false, message: 'Falha de conexão.' };
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  /**
+   * AU-21 — o escopo é escolhido na criação: a chave do formulário do site não deveria ganhar,
+   * de brinde, o poder de disparar automação.
+   */
+  const create = useCallback(
+    async (name: string, scope = 'intake:write'): Promise<CreateResult> => {
+      setBusy(true);
+      try {
+        const res = await api('/v1/api-keys', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name, scopes: [scope] }),
+        });
+        if (!res.ok) return { ok: false, message: `Não deu para criar a chave (${res.status}).` };
+        const body = (await res.json()) as { token: string; key: ApiKey };
+        setReloadKey((k) => k + 1);
+        return { ok: true, token: body.token, key: body.key };
+      } catch {
+        return { ok: false, message: 'Falha de conexão.' };
+      } finally {
+        setBusy(false);
+      }
+    },
+    [],
+  );
 
   const revoke = useCallback(async (id: string): Promise<{ ok: boolean }> => {
     setBusy(true);

@@ -141,7 +141,7 @@ página. Página e conta profissional já estão vinculadas.
 ## Automações (§5.18) — no ar, com o quadro mandando
 
 Escopo pedido em 2026-09-02: entrada **Automações** na seção CRM, com CRUD e um editor de
-blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-20`.
+blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-21`.
 
 ### Fatia 1 — desenhar, validar e guardar ✅
 
@@ -441,6 +441,36 @@ O que ficou no lugar:
   `enabled` antes de cada execução, então desligar **cancela o que está na fila**. Uma regra ruim
   para de verdade, mesmo com novecentas execuções pendentes.
 - O teto de 50 passos por execução e as três tentativas por ação continuam onde estavam.
+
+### Fatia 11 — a porta para fora e para dentro ✅
+
+**Chamar URL** (AU-21) é webhook de saída quando o método é POST, e HTTP genérico quando não é.
+É a ação mais perigosa que este sistema já teve, e por três motivos diferentes: manda dado de
+cliente para fora, faz **o servidor** bater onde o desenho mandar, e pode travar a fila se o
+outro lado não responder.
+
+> **O ataque que a guarda impede não é contra a internet: é contra a rede de dentro.** Quem
+> desenha a automação passa a mandar o servidor chamar qualquer endereço — e o alvo interessante
+> é o que só ele alcança: o metadado da nuvem em `169.254.169.254`, o Postgres em `10.x`, a
+> própria API em `localhost`, que confiaria na chamada por vir de dentro. Por isso `parseCallableUrl`
+> exige `https`, recusa credencial na URL e recusa endereço interno **duas vezes**: pelo nome e,
+> depois, pelos IPs que o DNS devolveu — um domínio público pode apontar para IP interno, e é
+> assim que se contorna uma checagem só de nome.
+
+Somam-se prazo de dez segundos (automação que espera meio minuto trava a fila atrás dela),
+resposta cortada em dois mil caracteres (corpo de dez megabytes viraria dez megabytes no `jsonb`
+da execução) e o log com status e endereço, **nunca com os cabeçalhos** — é onde mora o token.
+
+**Webhook recebido** é o gatilho de entrada: `POST /v1/automations/hooks/<tenant>/<gancho>`,
+autenticado pela **API key do tenant** com escopo próprio (`automation:trigger`), 401 uniforme e
+rate limit por chave — o mesmo desenho do webhook de inscrições, pelas mesmas razões. O corpo
+entra em `webhook.corpo` e os campos de dentro se escrevem à mão, porque o corpo é de quem chama
+e prometer campo que talvez não venha seria pior que não prometer.
+
+Duas peças menores foram junto: o enfileiramento ganhou filtro por configuração do gatilho (sem
+ele, a chamada do gancho do site dispararia o fluxo do parceiro), e a tela de Integrações passou
+a **escolher o poder da chave** — quem integra o formulário do site não ganha, de brinde, o
+poder de disparar automação.
 
 ### O que ainda não foi visto por gente
 

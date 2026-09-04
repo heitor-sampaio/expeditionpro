@@ -11,6 +11,15 @@ export interface EnqueueAutomationRunCommand {
   readonly variables: Record<string, unknown>;
   /** AU-12: só no gatilho temporal, que é varrido e passa de novo pela mesma saída. */
   readonly idempotencyKey?: string;
+  /**
+   * AU-21 — quando o tipo do gatilho não basta para escolher quem acorda.
+   *
+   * Um tenant tem vários ganchos de webhook — o do site, o do formulário, o do parceiro — e
+   * todos chegam pelo mesmo tipo. Sem isto, a chamada do site dispararia o fluxo do parceiro,
+   * com o corpo errado no contexto. Compara pares da configuração do gatilho; ausente, o
+   * comportamento é o de sempre e todas as automações daquele tipo acordam.
+   */
+  readonly matchConfig?: Record<string, unknown>;
   readonly now: Date;
 }
 
@@ -31,7 +40,10 @@ export async function enqueueAutomationRun(
   command: EnqueueAutomationRunCommand,
 ): Promise<AutomationRunRecord[]> {
   const todas = await deps.automations.list(command.tenantId);
-  const interessadas = todas.filter((a) => a.enabled && a.triggerType === command.triggerType);
+  const interessadas = todas.filter(
+    (a) =>
+      a.enabled && a.triggerType === command.triggerType && casaConfig(a.triggerConfig, command),
+  );
 
   const abertas: AutomationRunRecord[] = [];
 
@@ -53,4 +65,22 @@ export async function enqueueAutomationRun(
   }
 
   return abertas;
+}
+
+/**
+ * AU-21 — a configuração do gatilho casa com o que o acontecimento traz?
+ *
+ * Comparação como texto, de propósito: o que está no `jsonb` do desenho e o que chega da borda
+ * passaram por caminhos diferentes, e um número que virou string numa das pontas não deveria
+ * mudar quem acorda.
+ */
+function casaConfig(
+  triggerConfig: Record<string, unknown>,
+  command: EnqueueAutomationRunCommand,
+): boolean {
+  const exigido = command.matchConfig;
+  if (exigido === undefined) return true;
+  return Object.entries(exigido).every(
+    ([chave, valor]) => String(triggerConfig[chave] ?? '') === String(valor ?? ''),
+  );
 }

@@ -24,7 +24,9 @@ export type TriggerType =
   /** AU-12: em relação à data de início de uma saída. É varrido, não agendado. */
   | 'scheduled'
   /** AU-17: de tempos em tempos, sem entidade por trás. Varrido por fatia de tempo. */
-  | 'recurring';
+  | 'recurring'
+  /** AU-21: alguém de fora bate numa URL desta automação, com a API key do tenant. */
+  | 'webhook_received';
 
 export const TRIGGER_TYPES = [
   'message_received',
@@ -38,6 +40,7 @@ export const TRIGGER_TYPES = [
   'payment_registered',
   'scheduled',
   'recurring',
+  'webhook_received',
 ] as const satisfies readonly TriggerType[];
 
 /** Um campo do contexto, como o seletor o mostra: o caminho que vale, e o nome que se lê. */
@@ -86,6 +89,16 @@ export const CAMPOS_DO_GATILHO: Record<TriggerType, readonly ContextField[]> = {
   recurring: [
     { path: 'agora.data', label: 'Data de hoje (aaaa-mm-dd)' },
     { path: 'agora.hora', label: 'Hora agora (hh:mm)' },
+  ],
+  /*
+   * AU-21: o corpo do webhook é de quem chama, e por isso o catálogo promete só o que é sempre
+   * verdade. Os campos de dentro do corpo se escrevem à mão — `webhook.corpo.email` —, que é
+   * o que a opção "outro campo" existe para atender.
+   */
+  webhook_received: [
+    { path: 'webhook.nome', label: 'Nome do gancho chamado' },
+    { path: 'webhook.recebidoEm', label: 'Quando chegou (ISO)' },
+    { path: 'webhook.corpo', label: 'O corpo inteiro (use webhook.corpo.campo)' },
   ],
 };
 

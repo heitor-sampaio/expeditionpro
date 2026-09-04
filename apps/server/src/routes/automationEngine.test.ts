@@ -3,6 +3,7 @@ import { buildServer } from '../buildServer.js';
 import { inMemoryServerDeps } from '../dev/inMemoryServerDeps.js';
 import { inMemoryAutomations, inMemoryAutomationRuns } from '../dev/inMemoryAutomations.js';
 import { inMemoryChannelIntegrations, inMemoryConversations } from '../dev/inMemoryMessaging.js';
+import { inMemoryApiKeys } from '../dev/inMemoryIntake.js';
 import type { ServerDeps } from '../buildServer.js';
 import { CAMPOS_DO_GATILHO } from '@expedition/domain';
 import type { RequestContext } from '@expedition/application';
@@ -85,6 +86,15 @@ async function comMotor() {
         webhookToken: 'SEGREDO',
         active: true,
         connectedAt: new Date('2026-09-01T00:00:00Z'),
+      },
+    ]),
+    apiKeys: inMemoryApiKeys([
+      {
+        keyId: 'k-auto',
+        tenantId: TENANT,
+        tenantSlug: 'dev',
+        token: 'CHAVE-DE-AUTOMACAO',
+        scopes: ['automation:trigger'],
       },
     ]),
     resolveContext: () => Promise.resolve(ctx),
@@ -518,6 +528,101 @@ describe('AU-17: mensagem enviada dispara na caixa, e o eco não', () => {
     });
 
     expect(await runs.automationRuns.listByAutomation(TENANT, criada.id, 10)).toHaveLength(0);
+    await app.close();
+  });
+});
+
+/**
+ * AU-21 — o gatilho de webhook: alguém de fora bate numa URL e o fluxo roda.
+ *
+ * Autentica pela **API key do tenant**, o mesmo desenho do webhook de inscrições (§5.7): chave
+ * revogável na tela, escopo próprio, e 401 uniforme para slug desconhecido e chave errada — 403
+ * confirmaria que aquele tenant existe, e isso é enumeração de clientes da plataforma.
+ */
+describe('AU-21: gatilho de webhook', () => {
+  async function comGancho(app: Awaited<ReturnType<typeof comMotor>>['app'], nome: string) {
+    const criada = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/automations',
+        payload: { name: `Gancho ${nome}` },
+      })
+    ).json() as { id: string };
+    await app.inject({
+      method: 'PUT',
+      url: `/v1/automations/${criada.id}/graph`,
+      payload: {
+        graph: {
+          nodes: [
+            {
+              id: 'g1',
+              kind: 'trigger',
+              type: 'webhook_received',
+              config: { name: nome },
+              position: { x: 0, y: 0 },
+            },
+            { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 90 } },
+          ],
+          edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'f1' }],
+        },
+      },
+    });
+    await app.inject({
+      method: 'PUT',
+      url: `/v1/automations/${criada.id}/enabled`,
+      payload: { enabled: true },
+    });
+    return criada;
+  }
+
+  it('a chamada com chave válida abre execução, com o corpo no contexto', async () => {
+    const { app, runs } = await comMotor();
+    const criada = await comGancho(app, 'site');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/automations/hooks/dev/site',
+      headers: { api_token: 'CHAVE-DE-AUTOMACAO' },
+      payload: { email: 'ana@exemplo.com', origem: 'landing' },
+    });
+
+    expect(res.statusCode).toBe(202);
+    const [aberta] = await runs.automationRuns.listByAutomation(TENANT, criada.id, 5);
+    expect(aberta?.variables).toMatchObject({
+      webhook: { nome: 'site', corpo: { email: 'ana@exemplo.com' } },
+    });
+    await app.close();
+  });
+
+  it('sem chave, 401 — e nada roda', async () => {
+    const { app, runs } = await comMotor();
+    const criada = await comGancho(app, 'site');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/automations/hooks/dev/site',
+      payload: { x: 1 },
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(await runs.automationRuns.listByAutomation(TENANT, criada.id, 5)).toHaveLength(0);
+    await app.close();
+  });
+
+  /** Cada gancho acorda o seu: a chamada do site não dispara o fluxo do parceiro. */
+  it('o gancho de outro nome não é acordado', async () => {
+    const { app, runs } = await comMotor();
+    await comGancho(app, 'site');
+    const parceiro = await comGancho(app, 'parceiro');
+
+    await app.inject({
+      method: 'POST',
+      url: '/v1/automations/hooks/dev/site',
+      headers: { api_token: 'CHAVE-DE-AUTOMACAO' },
+      payload: {},
+    });
+
+    expect(await runs.automationRuns.listByAutomation(TENANT, parceiro.id, 5)).toHaveLength(0);
     await app.close();
   });
 });

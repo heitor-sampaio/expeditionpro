@@ -1,3 +1,5 @@
+import { lookup } from 'node:dns/promises';
+import { parseCallableUrl } from '@expedition/domain';
 import {
   confirmBookingManually,
   createOpportunity,
@@ -117,7 +119,96 @@ export function automationActionRegistry(deps: ServerDeps): AutomationActions {
       );
       return { bookingId };
     },
+
+    /**
+     * AU-21 — chamar uma URL de fora. É "mandar webhook" quando o método é POST, e HTTP
+     * genérico quando não é.
+     *
+     * **É a ação mais perigosa do sistema**, e por três motivos diferentes: manda dado de
+     * cliente para fora, faz o servidor bater onde o desenho mandar (ver `parseCallableUrl`) e
+     * pode travar o motor se o outro lado não responder. As três guardas estão aqui: endereço
+     * julgado antes e depois do DNS, prazo curto, e resposta cortada — corpo de dez megabytes
+     * viraria dez megabytes no `jsonb` da execução.
+     */
+    async http_request({ config, variables }) {
+      const metodo = String(config['method'] ?? 'POST').toUpperCase();
+      const endereco = String(config['url'] ?? '').trim();
+      const url = parseCallableUrl(endereco, await enderecosDe(endereco));
+
+      const corpo = String(config['body'] ?? '');
+      const temCorpo = metodo !== 'GET' && metodo !== 'HEAD' && corpo.trim() !== '';
+      const controle = new AbortController();
+      const prazo = setTimeout(() => {
+        controle.abort();
+      }, TEMPO_LIMITE_MS);
+
+      try {
+        const resposta = await fetch(url.href, {
+          method: metodo,
+          headers: {
+            ...cabecalhos(String(config['headers'] ?? '')),
+            ...(temCorpo ? { 'content-type': 'application/json' } : {}),
+          },
+          ...(temCorpo ? { body: corpo } : {}),
+          signal: controle.signal,
+          redirect: 'error',
+        });
+
+        const texto = (await resposta.text()).slice(0, RESPOSTA_MAX_CHARS);
+        // A resposta entra no contexto: é o que permite condicionar o fluxo pelo que o outro
+        // lado disse, em vez de seguir no escuro.
+        variables['resposta'] = { status: resposta.status, corpo: texto };
+
+        if (!resposta.ok) {
+          throw new Error(`a chamada devolveu ${String(resposta.status)}`);
+        }
+        // O log guarda status e endereço, **nunca** os cabeçalhos: é onde mora o token.
+        return { status: resposta.status, url: `${url.hostname}${url.pathname}` };
+      } finally {
+        clearTimeout(prazo);
+      }
+    },
   };
+}
+
+/** Prazo curto: automação que espera meio minuto por um servidor mudo trava a fila atrás dela. */
+const TEMPO_LIMITE_MS = 10_000;
+
+/** O que cabe no contexto sem inchar o `jsonb` da execução. */
+const RESPOSTA_MAX_CHARS = 2_000;
+
+/**
+ * AU-21 — os endereços para onde o host aponta **agora**.
+ *
+ * Um domínio público pode resolver para IP interno, e é assim que se contorna uma checagem
+ * feita só sobre o nome. Falha de DNS devolve lista vazia de propósito: quem decide é
+ * `parseCallableUrl`, e o `fetch` seguinte falharia de qualquer jeito.
+ */
+async function enderecosDe(endereco: string): Promise<string[]> {
+  try {
+    const { hostname } = new URL(endereco);
+    const achados = await lookup(hostname.replace(/^\[|]$/g, ''), { all: true });
+    return achados.map((achado) => achado.address);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Cabeçalhos como a tela os pede: um por linha, `Nome: valor`. Linha sem dois-pontos é
+ * ignorada — texto solto num campo de cabeçalho é engano, e mandar lixo para o outro lado é
+ * pior que não mandar nada.
+ */
+function cabecalhos(texto: string): Record<string, string> {
+  const saida: Record<string, string> = {};
+  for (const linha of texto.split('\n')) {
+    const corte = linha.indexOf(':');
+    if (corte <= 0) continue;
+    const nome = linha.slice(0, corte).trim();
+    const valor = linha.slice(corte + 1).trim();
+    if (nome !== '' && valor !== '') saida[nome] = valor;
+  }
+  return saida;
 }
 
 function comFunil(deps: ServerDeps) {

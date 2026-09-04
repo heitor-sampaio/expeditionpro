@@ -1012,3 +1012,75 @@ describe('AU-05: a passada drena em lotes', () => {
     );
   });
 });
+
+/**
+ * AU-21 — o gatilho de webhook acorda **a automação daquele gancho**, e não todas.
+ *
+ * Um tenant tem vários ganchos — um do site, um do formulário, um do parceiro —, e todos
+ * chegam pelo mesmo tipo de gatilho. Sem o nome no filtro, a chamada do site dispararia
+ * também o fluxo do parceiro, com o corpo errado no contexto.
+ */
+describe('AU-21: o gancho escolhe quem acorda', () => {
+  async function comGancho(d: Deps, nome: string) {
+    const graph = grafo(
+      { id: 'g1', kind: 'trigger', type: 'webhook_received', config: { name: nome } },
+      { id: 'f1', kind: 'end', type: 'end' },
+    );
+    const criada = await d.automations.create({
+      tenantId: 't1',
+      name: `Gancho ${nome}`,
+      description: null,
+      graph,
+      createdBy: 'u-ana',
+    });
+    await d.automations.update('t1', criada.id, {
+      enabled: true,
+      runAsUserId: 'u-ana',
+      triggerType: 'webhook_received',
+      triggerConfig: { name: nome },
+    });
+    return criada;
+  }
+
+  it('só a automação do nome chamado abre execução', async () => {
+    const d = deps();
+    const doSite = await comGancho(d, 'site');
+    await comGancho(d, 'parceiro');
+
+    const abertas = await enqueueAutomationRun(d, {
+      tenantId: 't1',
+      triggerType: 'webhook_received',
+      triggerRef: { hook: 'site' },
+      matchConfig: { name: 'site' },
+      variables: { webhook: { nome: 'site' } },
+      now: AGORA,
+    });
+
+    expect(abertas).toHaveLength(1);
+    expect(abertas[0]?.automationId).toBe(doSite.id);
+  });
+
+  it('nome que ninguém espera não abre nada', async () => {
+    const d = deps();
+    await comGancho(d, 'site');
+
+    const abertas = await enqueueAutomationRun(d, {
+      tenantId: 't1',
+      triggerType: 'webhook_received',
+      triggerRef: {},
+      matchConfig: { name: 'outro' },
+      variables: {},
+      now: AGORA,
+    });
+
+    expect(abertas).toHaveLength(0);
+  });
+
+  /** Sem filtro, o comportamento é o de sempre: todo mundo daquele gatilho acorda. */
+  it('gatilho sem filtro continua acordando todas', async () => {
+    const d = deps();
+    await ligada(d);
+
+    expect(await enfileirarUma(d)).toHaveLength(1);
+  });
+});

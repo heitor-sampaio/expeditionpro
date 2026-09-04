@@ -18,12 +18,15 @@ export function fireAutomation(
   triggerType: TriggerType,
   triggerRef: Record<string, unknown>,
   variables: Record<string, unknown>,
+  /** AU-21: quando o tipo não basta para escolher quem acorda — o nome do gancho, por exemplo. */
+  matchConfig?: Record<string, unknown>,
 ): void {
   const command: EnqueueAutomationRunCommand = {
     tenantId,
     triggerType,
     triggerRef,
     variables,
+    ...(matchConfig === undefined ? {} : { matchConfig }),
     now: new Date(),
   };
   app.automations.fire(command);

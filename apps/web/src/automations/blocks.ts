@@ -100,6 +100,13 @@ export const GATILHOS: readonly BlockType[] = [
     hint: 'A cada tantos minutos, horas ou dias',
     config: { amount: 1, unit: 'days' },
   },
+  {
+    type: 'webhook_received',
+    kind: 'trigger',
+    label: 'Webhook recebido',
+    hint: 'Alguém de fora chamou a URL deste gancho',
+    config: { name: '' },
+  },
 ];
 
 export const BLOCOS: readonly BlockType[] = [
@@ -179,6 +186,13 @@ export const BLOCOS: readonly BlockType[] = [
     label: 'Confirmar inscrição',
     hint: 'Sem pagamento, com motivo registrado. Mexe no financeiro',
     config: { note: '' },
+  },
+  {
+    type: 'http_request',
+    kind: 'action',
+    label: 'Chamar URL',
+    hint: 'Manda um webhook, ou qualquer chamada HTTP, e lê a resposta',
+    config: { method: 'POST', url: '', headers: '', body: '' },
   },
   {
     type: 'end',
@@ -431,6 +445,58 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
       kind: 'text',
       placeholder: 'pagou por fora, cortesia…',
       help: 'Fica no histórico financeiro da inscrição, junto da marca de que foi automação.',
+    },
+  ],
+  // AU-21: o gancho é identificado pelo nome, que também vai na URL.
+  webhook_received: [
+    {
+      key: 'name',
+      label: 'Nome do gancho',
+      kind: 'text',
+      placeholder: 'site-contato',
+      help: 'Entra na URL: /v1/automations/hooks/<seu-tenant>/<nome>. Sem espaço nem acento.',
+    },
+  ],
+  /*
+   * AU-21: chamar para fora. É a ação mais perigosa do sistema — manda dado de cliente embora e
+   * faz o servidor bater onde o desenho mandar —, e por isso só https, sem endereço de rede
+   * interna, com prazo de dez segundos.
+   */
+  http_request: [
+    {
+      key: 'method',
+      label: 'Método',
+      kind: 'select',
+      options: [
+        { value: 'POST', label: 'POST' },
+        { value: 'GET', label: 'GET' },
+        { value: 'PUT', label: 'PUT' },
+        { value: 'PATCH', label: 'PATCH' },
+        { value: 'DELETE', label: 'DELETE' },
+      ],
+    },
+    {
+      key: 'url',
+      label: 'Endereço',
+      kind: 'text',
+      placeholder: 'https://api.parceiro.com/hooks/lead',
+      template: true,
+      help: 'Só https, e nunca endereço de rede interna.',
+    },
+    {
+      key: 'headers',
+      label: 'Cabeçalhos',
+      kind: 'textarea',
+      placeholder: 'Authorization: Bearer abc123',
+      help: 'Um por linha, Nome: valor. Fica salvo no desenho — quem edita a automação vê.',
+    },
+    {
+      key: 'body',
+      label: 'Corpo (JSON)',
+      kind: 'textarea',
+      placeholder: '{"nome": "{{contato.nome}}", "telefone": "{{contato.telefone}}"}',
+      template: true,
+      help: 'A resposta fica em resposta.status e resposta.corpo, para o fluxo adiante usar.',
     },
   ],
   notify_team: [

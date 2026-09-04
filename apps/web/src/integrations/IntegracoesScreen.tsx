@@ -28,12 +28,13 @@ export function IntegracoesScreen(): React.JSX.Element {
 function ApiKeysCard(): React.JSX.Element {
   const { state, refresh, create, revoke, busy } = useApiKeys();
   const [name, setName] = useState('');
+  const [scope, setScope] = useState('intake:write');
   const [freshToken, setFreshToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const onCreate = async () => {
     setError(null);
-    const result = await create(name.trim());
+    const result = await create(name.trim(), scope);
     if (result.ok) {
       setFreshToken(result.token);
       setName('');
@@ -78,6 +79,19 @@ function ApiKeysCard(): React.JSX.Element {
           onChange={(e) => setName(e.target.value)}
           placeholder="Nome da chave (ex.: formulário do site)"
         />
+        {/*
+         * AU-21 — o poder da chave é escolhido aqui. Quem integra o formulário do site não
+         * deveria ganhar, de brinde, o poder de disparar automação.
+         */}
+        <select
+          className="field-input"
+          value={scope}
+          onChange={(e) => setScope(e.target.value)}
+          aria-label="Para que serve a chave"
+        >
+          <option value="intake:write">Receber inscrições</option>
+          <option value="automation:trigger">Disparar automação</option>
+        </select>
         <button
           type="button"
           className="btn btn-primary"

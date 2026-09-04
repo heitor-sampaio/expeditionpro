@@ -69,6 +69,7 @@ export {
   type ContextField,
   type TriggerType,
 } from './automation/triggers.js';
+export { parseCallableUrl, InvalidCallableUrlError } from './automation/callableUrl.js';
 export {
   CATALOGO_DE_BUSCA,
   SEARCH_ENTITIES,
