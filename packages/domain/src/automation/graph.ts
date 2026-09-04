@@ -25,6 +25,11 @@ export type NodeKind =
    * cliente?" e o que evita um laço no grafo.
    */
   | 'forEach'
+  /**
+   * AU-19: traz **um** item para o contexto e separa o caminho em achou e não achou. É o que
+   * permite perguntar pelo que o gatilho não trouxe — "existe cartão deste contato no funil?".
+   */
+  | 'lookup'
   | 'setVariable'
   | 'delay'
   | 'action'
@@ -80,12 +85,14 @@ export type GraphProblem =
   | 'escolha_incompleta'
   | 'busca_sem_caminho'
   | 'busca_duplicada'
+  | 'busca_um_incompleta'
   | 'ciclo_sem_espera';
 
 const PORTAS_FIXAS: Record<Exclude<NodeKind, 'switch'>, readonly Port[]> = {
   trigger: ['next'],
   condition: ['true', 'false'],
   forEach: ['next'],
+  lookup: ['true', 'false'],
   setVariable: ['next'],
   delay: ['next'],
   action: ['next'],
@@ -163,11 +170,22 @@ export function validateGraph(graph: AutomationGraph): GraphProblem[] {
   }
 
   /*
-   * AU-18 — a busca precisa levar a algum lugar, e não pode haver duas.
+   * AU-19 — buscar **um** não semeia nada, então duas no mesmo fluxo são legítimas. O que elas
+   * precisam é dos dois caminhos, pela mesma razão da condição: "não achou" é um destino tão
+   * legítimo quanto "achou", e é justamente nele que mora o "então crie".
+   */
+  for (const no of graph.nodes.filter((n) => n.kind === 'lookup')) {
+    const achou = graph.edges.some((e) => e.from === no.id && e.port === 'true');
+    const naoAchou = graph.edges.some((e) => e.from === no.id && e.port === 'false');
+    if (!achou || !naoAchou) problemas.add('busca_um_incompleta');
+  }
+
+  /*
+   * AU-18 — a busca que semeia precisa levar a algum lugar, e não pode haver duas.
    *
-   * Buscar sem caminho depois é abrir execução à toa, de cinco em cinco minutos. E duas buscas
-   * seriam fan-out de fan-out: dez conversas viram dez execuções, cada uma buscando de novo —
-   * o crescimento é multiplicativo, e o teto por hora descobriria isso tarde demais.
+   * Buscar sem caminho depois é abrir execução à toa, de cinco em cinco minutos. E duas seriam
+   * fan-out de fan-out: dez conversas viram dez execuções, cada uma buscando de novo — o
+   * crescimento é multiplicativo, e o teto por hora descobriria isso tarde demais.
    */
   const buscas = graph.nodes.filter((no) => no.kind === 'forEach');
   if (buscas.length > 1) problemas.add('busca_duplicada');

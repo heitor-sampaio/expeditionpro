@@ -105,3 +105,40 @@ describe('AU-18: os filtros do bloco', () => {
     expect(searchFilters({ filters: [{ field: 'sem id' }] })).toEqual([]);
   });
 });
+
+/**
+ * AU-19 — o valor do filtro aceita variável.
+ *
+ * É a peça que faltava para perguntar "existe cartão **deste** contato?": sem ela, o filtro só
+ * compara com texto fixo, e uma automação que reage a uma mensagem não tem como procurar pelo
+ * telefone de quem escreveu.
+ *
+ * A esquerda é o item da lista; a direita é o contexto da execução. Dois contextos diferentes,
+ * de propósito — misturá-los faria o filtro comparar o item consigo mesmo.
+ */
+describe('AU-19: variável no valor do filtro', () => {
+  const cartao = { contato: { telefone: '5548999998877' }, oportunidade: { etapa: 'Novo' } };
+  const daExecucao = { contato: { telefone: '5548999998877', nome: 'Ana' } };
+
+  const filtro = (value: string) => ({
+    filters: [{ id: 'f1', field: 'contato.telefone', operator: 'equals', value }],
+  });
+
+  it('a variável é trocada pelo valor do contexto da execução', () => {
+    expect(matchesFilters(filtro('{{contato.telefone}}'), cartao, daExecucao)).toBe(true);
+  });
+
+  it('variável que não casa barra o item', () => {
+    const outro = { contato: { telefone: '5511888887777' } };
+    expect(matchesFilters(filtro('{{contato.telefone}}'), outro, daExecucao)).toBe(false);
+  });
+
+  /** AU-09: variável ausente vira vazio, e o filtro compara com vazio em vez de com o marcador. */
+  it('variável ausente vira vazio', () => {
+    expect(matchesFilters(filtro('{{contato.email}}'), cartao, daExecucao)).toBe(false);
+  });
+
+  it('sem contexto de execução, o valor vale como texto', () => {
+    expect(matchesFilters(filtro('5548999998877'), cartao, {})).toBe(true);
+  });
+});

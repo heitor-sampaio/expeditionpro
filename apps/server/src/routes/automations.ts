@@ -38,6 +38,7 @@ const graph = z.object({
         'condition',
         'switch',
         'forEach',
+        'lookup',
         'setVariable',
         'delay',
         'action',

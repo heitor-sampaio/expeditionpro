@@ -141,7 +141,7 @@ página. Página e conta profissional já estão vinculadas.
 ## Automações (§5.18) — no ar, com o quadro mandando
 
 Escopo pedido em 2026-09-02: entrada **Automações** na seção CRM, com CRUD e um editor de
-blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-18`.
+blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-19`.
 
 ### Fatia 1 — desenhar, validar e guardar ✅
 
@@ -371,6 +371,30 @@ O fluxo que o dono pediu fica assim, montado por ele: **Tempo: de tempos em temp
 → Para cada (oportunidades do funil, só as que `oportunidade.paradaHaMin é maior que 30` e
 `oportunidade.fechada é igual a false`) → Mover de etapa.** Pelo lado da caixa, a mesma coisa
 com `conversa.quemDeve é igual a contato` e `conversa.paradaHaMin é maior que 30`.
+
+### Fatia 8 — buscar um item, e o "Se" enxergar o que o gatilho não trouxe ✅
+
+O pedido veio de um fluxo que não dava para montar: *"quando o lead enviar mensagem, se não
+houver oportunidade no funil, criar"*. O gatilho traz conversa, contato e texto — e nada do
+funil. O "Se" só lê o contexto, então a pergunta não existia.
+
+**Bloco "Buscar"** (AU-19): procura **um** item na mesma lista do "para cada", com os mesmos
+filtros, e separa o caminho em **achou** e **não achou**. O que ele acha entra no contexto, e a
+partir dali o "Se" e as ações enxergam os campos daquela entidade — que é literalmente o pedido:
+o "Se" passa a ter os campos que dá para obter com um get.
+
+Duas saídas, e não uma: "não achou" é onde mora o "então crie". Com saída única, dizer a coisa
+mais simples exigiria inverter o fluxo inteiro.
+
+**O valor do filtro passou a aceitar variável**, e essa é a peça que faltava para a busca ser
+útil: o campo se lê no **item** da lista, o valor se lê no **contexto da execução**. É o que
+permite `contato.telefone é igual a {{contato.telefone}}` — "o cartão de quem acabou de
+escrever". Sem isso o filtro só comparava com texto fixo, e nenhuma automação disparada por
+mensagem tinha como procurar por ela mesma.
+
+O fluxo do pedido, montado no quadro: **Mensagem recebida → Buscar** (oportunidades do funil, o
+primeiro que `contato.telefone é igual a {{contato.telefone}}`) **→ não achou → Criar
+oportunidade**; **achou → Fim**.
 
 ### O que ainda não foi visto por gente
 

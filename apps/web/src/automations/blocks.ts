@@ -125,6 +125,13 @@ export const BLOCOS: readonly BlockType[] = [
     config: { entity: 'opportunities', filters: [], limit: 10 },
   },
   {
+    type: 'find_one',
+    kind: 'lookup',
+    label: 'Buscar',
+    hint: 'Procura um item e separa o caminho em achou e não achou',
+    config: { entity: 'opportunities', filters: [] },
+  },
+  {
     type: 'set',
     kind: 'setVariable',
     label: 'Definir variável',
@@ -202,6 +209,11 @@ const SAIDAS_FIXAS: Record<Exclude<NodeKind, 'switch'>, readonly Saida[]> = {
   trigger: [{ port: 'next', label: '' }],
   // AU-18: a busca tem uma saída só, e ela quer dizer "para cada achado, siga daqui".
   forEach: [{ port: 'next', label: 'cada um' }],
+  // AU-19: "não achou" é um destino tão legítimo quanto "achou" — e é onde mora o "então crie".
+  lookup: [
+    { port: 'true', label: 'achou' },
+    { port: 'false', label: 'não achou' },
+  ],
   condition: [
     { port: 'true', label: 'sim' },
     { port: 'false', label: 'não' },
@@ -285,6 +297,24 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
    * AU-18: a busca é um mecanismo, não uma pergunta pronta. A equipe escolhe a lista, monta o
    * filtro com os campos dela, e o fluxo adiante roda uma vez por item.
    */
+  /**
+   * AU-19: buscar um item, e o que ele achar entra no contexto — inclusive para o bloco "Se"
+   * adiante. Mesmos campos do "para cada", porque é a mesma pergunta feita à mesma lista.
+   */
+  find_one: [
+    {
+      key: 'entity',
+      label: 'Procurar em',
+      kind: 'select',
+      options: ENTIDADES.map((entidade) => ({ value: entidade.entity, label: entidade.label })),
+    },
+    {
+      key: 'filters',
+      label: 'O primeiro que',
+      kind: 'filters',
+      help: 'O valor aceita variável: para achar o cartão de quem escreveu, compare com {{contato.telefone}}.',
+    },
+  ],
   for_each: [
     {
       key: 'entity',

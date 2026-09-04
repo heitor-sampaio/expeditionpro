@@ -733,3 +733,119 @@ describe('AU-18: a busca semeia uma execução por achado', () => {
     });
   });
 });
+
+/**
+ * AU-19 — buscar um item e trazê-lo para o contexto.
+ *
+ * O caso que pediu: "o lead mandou mensagem; se não existe cartão dele no funil, crie". O
+ * gatilho traz conversa e contato, e nada do funil — a busca é quem vai ver, e o resultado dela
+ * fica no contexto para o resto do fluxo usar.
+ *
+ * Duas saídas, como a condição. "Não achou" é onde mora o "então crie", e um bloco que só
+ * tivesse "achou" obrigaria a inverter o fluxo inteiro para dizer a coisa mais simples.
+ */
+describe('AU-19: buscar um item', () => {
+  const comLookup = (): AutomationGraph => ({
+    nodes: [
+      {
+        id: 'g1',
+        kind: 'trigger',
+        type: 'message_received',
+        config: {},
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: 'b1',
+        kind: 'lookup',
+        type: 'find_one',
+        config: { entity: 'opportunities', filters: [] },
+        position: { x: 0, y: 60 },
+      },
+      { id: 'a1', kind: 'action', type: 'send_message', config: {}, position: { x: 0, y: 120 } },
+      {
+        id: 'a2',
+        kind: 'action',
+        type: 'create_opportunity',
+        config: {},
+        position: { x: 120, y: 120 },
+      },
+    ],
+    edges: [
+      { id: 'e1', from: 'g1', port: 'next', to: 'b1' },
+      { id: 'e2', from: 'b1', port: 'true', to: 'a1' },
+      { id: 'e3', from: 'b1', port: 'false', to: 'a2' },
+    ],
+  });
+
+  async function rodarCom(achados: { key: string; variables: Record<string, unknown> }[]) {
+    const achou = vi.fn().mockResolvedValue({});
+    const naoAchou = vi.fn().mockResolvedValue({});
+    const d = deps({ send_message: achou, create_opportunity: naoAchou });
+    d.finders = { find_one: vi.fn().mockResolvedValue(achados) };
+    await ligada(d, comLookup());
+    await enfileirarUma(d);
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    return { d, achou, naoAchou };
+  }
+
+  it('achando, segue pelo caminho de achou', async () => {
+    const { achou, naoAchou } = await rodarCom([
+      { key: 'op-1', variables: { oportunidade: { id: 'op-1', etapa: 'Em conversa' } } },
+    ]);
+
+    expect(achou).toHaveBeenCalledOnce();
+    expect(naoAchou).not.toHaveBeenCalled();
+  });
+
+  it('o item achado entra no contexto, e o resto do fluxo o enxerga', async () => {
+    const { d } = await rodarCom([
+      { key: 'op-1', variables: { oportunidade: { id: 'op-1', etapa: 'Em conversa' } } },
+    ]);
+
+    expect(d.runs.rows[0]?.variables).toMatchObject({
+      oportunidade: { id: 'op-1', etapa: 'Em conversa' },
+      contato: { nome: 'Ana' },
+    });
+  });
+
+  /** O caminho que o pedido queria: não achou nada, então cria. */
+  it('sem achado, segue pelo caminho de não achou', async () => {
+    const { achou, naoAchou } = await rodarCom([]);
+
+    expect(naoAchou).toHaveBeenCalledOnce();
+    expect(achou).not.toHaveBeenCalled();
+  });
+
+  it('o log guarda por onde saiu', async () => {
+    const { d } = await rodarCom([]);
+
+    expect(d.runs.rows[0]?.status).toBe('done');
+    expect(d.steps.rows.find((s) => s.nodeId === 'b1')?.outcome).toBe('false');
+  });
+
+  /** Achando mais de um, o primeiro ganha: "um item" é a promessa que o bloco faz na tela. */
+  it('com vários achados, o primeiro entra no contexto', async () => {
+    const { d } = await rodarCom([
+      { key: 'op-1', variables: { oportunidade: { id: 'op-1' } } },
+      { key: 'op-2', variables: { oportunidade: { id: 'op-2' } } },
+    ]);
+
+    expect(d.runs.rows[0]?.variables).toMatchObject({ oportunidade: { id: 'op-1' } });
+  });
+
+  it('busca desconhecida falha com o nome dela no motivo', async () => {
+    const d = deps();
+    d.finders = {};
+    await ligada(d, comLookup());
+    await enfileirarUma(d);
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    expect(d.runs.rows[0]).toMatchObject({
+      status: 'failed',
+      lastError: expect.stringContaining('find_one'),
+    });
+  });
+});

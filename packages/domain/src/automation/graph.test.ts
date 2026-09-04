@@ -440,3 +440,66 @@ describe('AU-18: o bloco de busca', () => {
     expect(portsOf(busca)).toEqual(['next']);
   });
 });
+
+/**
+ * AU-19 — o bloco que **traz** um item para o contexto.
+ *
+ * O caso que o pediu: "o lead mandou mensagem; se não existe cartão dele no funil, crie". O
+ * gatilho traz a conversa e o contato, e nada do funil — sem um bloco que vá buscar, a
+ * pergunta não tem como ser feita.
+ *
+ * Duas saídas, como a condição, e pela mesma razão: "não achou" é um caminho tão legítimo
+ * quanto "achou", e é justamente nele que mora o "então crie".
+ */
+describe('AU-19: o bloco de buscar um', () => {
+  const busca = {
+    id: 'b1',
+    kind: 'lookup',
+    type: 'find_one',
+    config: { entity: 'opportunities', filters: [] },
+    position: { x: 0, y: 60 },
+  } as const;
+
+  it('tem as saídas de achou e não achou', () => {
+    expect(portsOf(busca)).toEqual(['true', 'false']);
+  });
+
+  it('com os dois caminhos ligados, passa', () => {
+    const graph: AutomationGraph = {
+      nodes: [gatilho, busca, fim],
+      edges: [
+        { id: 'e1', from: 'g1', port: 'next', to: 'b1' },
+        { id: 'e2', from: 'b1', port: 'true', to: 'f1' },
+        { id: 'e3', from: 'b1', port: 'false', to: 'f1' },
+      ],
+    };
+    expect(validateGraph(graph)).toEqual([]);
+  });
+
+  /** Um lado só é armadilha: o outro caminho existe na cabeça de quem desenhou, e não no fluxo. */
+  it('sem o caminho de não achou, é recusado', () => {
+    const graph: AutomationGraph = {
+      nodes: [gatilho, busca, fim],
+      edges: [
+        { id: 'e1', from: 'g1', port: 'next', to: 'b1' },
+        { id: 'e2', from: 'b1', port: 'true', to: 'f1' },
+      ],
+    };
+    expect(validateGraph(graph)).toContain('busca_um_incompleta');
+  });
+
+  /** Diferente do "para cada": buscar um não semeia nada, então dois no fluxo são legítimos. */
+  it('duas buscas de um item no mesmo desenho passam', () => {
+    const graph: AutomationGraph = {
+      nodes: [gatilho, busca, { ...busca, id: 'b2' }, fim],
+      edges: [
+        { id: 'e1', from: 'g1', port: 'next', to: 'b1' },
+        { id: 'e2', from: 'b1', port: 'true', to: 'b2' },
+        { id: 'e3', from: 'b1', port: 'false', to: 'b2' },
+        { id: 'e4', from: 'b2', port: 'true', to: 'f1' },
+        { id: 'e5', from: 'b2', port: 'false', to: 'f1' },
+      ],
+    };
+    expect(validateGraph(graph)).toEqual([]);
+  });
+});

@@ -129,6 +129,35 @@ export async function advanceAutomationRun(
       const valor = renderTemplate(String(atual.config['value'] ?? ''), variaveis);
       if (nome !== '') variaveis[nome] = valor;
       await registrar(deps, ref, atual, 'definiu', { [nome]: valor });
+    } else if (atual.kind === 'lookup') {
+      /*
+       * AU-19 — traz **um** item para o contexto e desvia por achou / não achou.
+       *
+       * O que ele acha entra nas variáveis da execução, então o resto do fluxo — inclusive o
+       * bloco "Se" — passa a enxergar campos que o gatilho não trouxe. É o que permite
+       * perguntar "existe cartão deste contato?" numa automação disparada por mensagem.
+       */
+      const busca = deps.finders[atual.type];
+      if (busca === undefined) {
+        await registrar(deps, ref, atual, 'erro', { motivo: 'busca desconhecida' });
+        await deps.runs.update(ref.tenantId, ref.id, {
+          status: 'failed',
+          variables: variaveis,
+          stepsTaken: passos,
+          lastError: `este servidor não conhece a busca "${atual.type}"`,
+          release: true,
+        });
+        return;
+      }
+
+      const achados = await busca({ ctx, config: atual.config, variables: variaveis, now });
+      const primeiro = achados[0];
+      porta = primeiro === undefined ? 'false' : 'true';
+      if (primeiro !== undefined) Object.assign(variaveis, primeiro.variables);
+      await registrar(deps, ref, atual, porta, {
+        entidade: atual.config['entity'],
+        achados: achados.length,
+      });
     } else if (atual.kind === 'forEach') {
       /*
        * AU-18 — a busca semeia e **encerra esta execução**.

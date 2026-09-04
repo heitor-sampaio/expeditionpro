@@ -32,6 +32,7 @@ const ESPECIE: Record<NodeKind, string> = {
   condition: 'se',
   switch: 'conforme',
   forEach: 'para cada',
+  lookup: 'busca',
   setVariable: 'variável',
   delay: 'espera',
   action: 'faz',
@@ -155,11 +156,12 @@ function resumo(data: BlockData): string {
     if (dias === 0) return 'no dia da saída';
     return dias < 0 ? `${String(-dias)} dias antes` : `${String(dias)} dias depois`;
   }
-  if (data.type === 'for_each') {
+  if (data.type === 'for_each' || data.type === 'find_one') {
     const entidade = searchEntityOf(c);
     if (entidade === null) return '';
     const quantos = searchFilters(c).filter((filtro) => filtro.field !== '').length;
-    const filtro = quantos === 0 ? 'a lista inteira' : `${String(quantos)} filtro(s)`;
+    const semFiltro = data.type === 'find_one' ? 'o primeiro' : 'a lista inteira';
+    const filtro = quantos === 0 ? semFiltro : `${String(quantos)} filtro(s)`;
     return `${CATALOGO_DE_BUSCA[entidade].label} · ${filtro}`;
   }
   if (data.type === 'move_opportunity') return texto('stageName');
@@ -190,6 +192,7 @@ export const NODE_TYPES = {
   condition: BlockNode,
   switch: BlockNode,
   forEach: BlockNode,
+  lookup: BlockNode,
   setVariable: BlockNode,
   delay: BlockNode,
   action: BlockNode,

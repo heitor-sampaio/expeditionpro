@@ -55,8 +55,10 @@ export function variaveisDoFluxo(nodes: readonly BlocoNoQuadro[]): ContextField[
  * lista, o seletor ficaria vazio justamente onde é mais necessário.
  */
 export function camposDisponiveis(nodes: readonly BlocoNoQuadro[]): ContextField[] {
+  // AU-18 · AU-19: as duas buscas trazem campos — a que semeia e a que traz um item para o
+  // contexto. Sem elas na lista, o "Se" não teria como perguntar pelo que o gatilho não trouxe.
   const daBusca = nodes
-    .filter((no) => no.type === 'forEach')
+    .filter((no) => no.type === 'forEach' || no.type === 'lookup')
     .flatMap((no) => entityFieldsOf(no.data.config));
 
   const todos = [

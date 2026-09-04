@@ -120,3 +120,33 @@ describe('AU-18: os campos vindos da busca', () => {
     expect(new Set(caminhos).size).toBe(caminhos.length);
   });
 });
+
+/**
+ * AU-19 — o que a busca traz entra na lista do "Se".
+ *
+ * É o pedido inteiro numa frase: "preciso que o Se tenha os campos que dá para obter com um
+ * get". Com o bloco de buscar no quadro, os campos da entidade que ele procura passam a ser
+ * oferecidos — e a condição pode perguntar por eles.
+ */
+describe('AU-19: os campos que o bloco de buscar traz', () => {
+  const comBuscarUm = [
+    { data: { type: 'message_received', config: {} }, type: 'trigger' },
+    { data: { type: 'find_one', config: { entity: 'opportunities' } }, type: 'lookup' },
+    { data: { type: 'field', config: {} }, type: 'condition' },
+  ];
+
+  it('o "Se" passa a enxergar os campos da entidade buscada', () => {
+    const caminhos = camposDisponiveis(comBuscarUm).map((c) => c.path);
+
+    expect(caminhos).toContain('oportunidade.id');
+    expect(caminhos).toContain('oportunidade.etapa');
+  });
+
+  /** E o que o gatilho já trazia continua lá: a busca soma, não substitui. */
+  it('os campos do gatilho continuam na lista', () => {
+    const caminhos = camposDisponiveis(comBuscarUm).map((c) => c.path);
+
+    expect(caminhos).toContain('mensagem.texto');
+    expect(caminhos).toContain('contato.nome');
+  });
+});

@@ -366,14 +366,24 @@ function ListaDeFiltros({
           </div>
           {/* "Está vazio" e "não está vazio" não comparam com nada: o campo some. */}
           {filtro.operator !== 'empty' && filtro.operator !== 'not_empty' && (
-            <input
-              className="field-input nodrag"
-              value={filtro.value}
-              disabled={readOnly}
-              placeholder="valor"
-              aria-label="Valor"
-              onChange={(e) => trocar(filtro.id, { value: e.target.value })}
-            />
+            <>
+              <input
+                className="field-input nodrag"
+                value={filtro.value}
+                disabled={readOnly}
+                placeholder="valor"
+                aria-label="Valor"
+                onChange={(e) => trocar(filtro.id, { value: e.target.value })}
+              />
+              {/* AU-19: o valor aceita variável — é assim que se procura pelo contato do gatilho. */}
+              <InserirCampo
+                disponiveis={disponiveis}
+                readOnly={readOnly}
+                onInserir={(caminho) =>
+                  trocar(filtro.id, { value: `${filtro.value}{{${caminho}}}` })
+                }
+              />
+            </>
           )}
         </div>
       ))}

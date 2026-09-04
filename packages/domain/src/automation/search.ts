@@ -1,4 +1,5 @@
 import { evaluateCondition, type RunContext } from './interpreter.js';
+import { renderTemplate } from './renderTemplate.js';
 import type { ContextField } from './triggers.js';
 
 /**
@@ -116,16 +117,30 @@ export function searchFilters(config: Record<string, unknown>): SearchFilter[] {
  * a escolha múltipla adiante. Sem filtro nenhum, tudo passa — é a lista inteira, e o quadro
  * mostra isso.
  *
+ * **Dois contextos, e não um.** O campo (esquerda) se lê no **item** da lista; o valor
+ * (direita) aceita variável e se lê no **contexto da execução**. É o que permite perguntar
+ * "existe cartão com o telefone de quem acabou de escrever" — sem isso, o filtro só compara
+ * com texto fixo, e uma automação que reage a uma mensagem não tem como procurar por ela.
+ *
  * A comparação é a **mesma** do bloco "Se": filtrar aqui e perguntar ali têm que dar a mesma
  * resposta, senão a equipe filtra uma coisa e a condição seguinte discorda dela.
  */
-export function matchesFilters(config: Record<string, unknown>, contexto: RunContext): boolean {
+export function matchesFilters(
+  config: Record<string, unknown>,
+  item: RunContext,
+  daExecucao: RunContext = {},
+): boolean {
   return searchFilters(config).every((filtro) =>
     filtro.field === ''
       ? true
       : evaluateCondition(
-          { field: filtro.field, operator: filtro.operator, value: filtro.value },
-          contexto,
+          {
+            field: filtro.field,
+            operator: filtro.operator,
+            // AU-09: variável ausente vira vazio, nunca o marcador cru virando texto de busca.
+            value: renderTemplate(filtro.value, daExecucao),
+          },
+          item,
         ),
   );
 }

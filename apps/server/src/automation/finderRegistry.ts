@@ -19,23 +19,29 @@ import type { ServerDeps } from '../buildServer.js';
  * própria execução, com o log e os tetos que toda execução tem.
  */
 export function automationFinderRegistry(deps: ServerDeps): AutomationFinders {
-  return {
-    async for_each(input): Promise<readonly FoundItem[]> {
-      const entidade = searchEntityOf(input.config);
-      if (entidade === null) {
-        throw new Error('a busca está sem entidade escolhida');
-      }
+  /**
+   * A mesma leitura serve aos dois blocos: "para cada" percorre o que voltar, "buscar um" pega
+   * o primeiro. Separá-las em duas implementações seria duas verdades sobre a mesma lista.
+   */
+  const buscar = async (input: AutomationFinderInput): Promise<readonly FoundItem[]> => {
+    const entidade = searchEntityOf(input.config);
+    if (entidade === null) {
+      throw new Error('a busca está sem entidade escolhida');
+    }
 
-      const itens =
-        entidade === 'opportunities'
-          ? await cartoesDoFunil(deps, input)
-          : await conversas(deps, input);
+    const itens =
+      entidade === 'opportunities'
+        ? await cartoesDoFunil(deps, input)
+        : await conversas(deps, input);
 
-      // O filtro é do domínio, e é o **mesmo** do bloco "Se": filtrar aqui e perguntar ali
-      // precisam decidir igual, senão o quadro mostra uma regra e a execução faz outra.
-      return itens.filter((item) => matchesFilters(input.config, item.variables));
-    },
+    // O filtro é do domínio, e é o **mesmo** do bloco "Se": filtrar aqui e perguntar ali
+    // precisam decidir igual, senão o quadro mostra uma regra e a execução faz outra.
+    // AU-19: o valor do filtro aceita variável, e ela se lê no contexto da execução — é o
+    // que permite procurar "o cartão do telefone de quem acabou de escrever".
+    return itens.filter((item) => matchesFilters(input.config, item.variables, input.variables));
   };
+
+  return { for_each: buscar, find_one: buscar };
 }
 
 /** OP-01 — os cartões do funil, com etapa, origem e há quanto tempo ninguém mexe neles. */
