@@ -32,8 +32,18 @@ import { automationFinderRegistry } from './finderRegistry.js';
 /** A rede de segurança. Lenta porque nada normal depende dela. */
 const VARREDURA_MS = 60_000;
 
-/** O lote por passada: duzentas saídas vencidas viram uma fila que drena, não um estouro. */
+/** O lote: é ele que impede duzentas execuções vencidas de virarem duzentas mensagens no
+ * mesmo segundo. */
 const LOTE = 25;
+
+/**
+ * AU-05 — quantos lotes uma passada encadeia antes de devolver o processo.
+ *
+ * A fila não recusa trabalho: o que não coube fica pendente e a passada seguinte pega. Este
+ * número é o outro lado — um processo preso numa fila de mil execuções não faria a varredura
+ * seguinte nem responderia ao empurrão de um gatilho novo.
+ */
+const LOTES_POR_PASSADA = 8;
 
 export interface AutomationRunner {
   /**
@@ -82,7 +92,12 @@ export function automationRunner(
     try {
       do {
         pendente = false;
-        feitas += await resumeDueRuns(motor, { workerId, now, limit: LOTE });
+        feitas += await resumeDueRuns(motor, {
+          workerId,
+          now,
+          limit: LOTE,
+          maxBatches: LOTES_POR_PASSADA,
+        });
       } while (pendente);
     } catch (error) {
       log.error({ err: error }, 'motor de automações falhou numa passada');

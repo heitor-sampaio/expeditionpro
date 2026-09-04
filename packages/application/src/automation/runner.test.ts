@@ -5,7 +5,7 @@ import {
   fakeAutomationRunStepRepository,
 } from './automationRunRepository.fake.js';
 import { fakeMembershipRepository } from '../team/membershipRepository.fake.js';
-import { enqueueAutomationRun, TETO_POR_HORA } from './enqueueAutomationRun.js';
+import { enqueueAutomationRun } from './enqueueAutomationRun.js';
 import { advanceAutomationRun, TETO_DE_PASSOS } from './advanceAutomationRun.js';
 import { TETO_DA_BUSCA } from './seedRunsFromList.js';
 import { resumeDueRuns } from './resumeDueRuns.js';
@@ -171,21 +171,6 @@ describe('AU-04: o gatilho enfileira', () => {
 
     expect(segunda).toHaveLength(0);
     expect(d.runs.rows).toHaveLength(1);
-  });
-
-  /**
-   * AU-05: uma regra ruim manda a mesma mensagem para trinta pessoas antes de alguém ver. O
-   * teto por hora é o que transforma isso em "trinta tentativas, N entregues e o resto barrado".
-   */
-  it('para de enfileirar ao estourar o teto por hora', async () => {
-    const d = deps();
-    await ligada(d);
-    for (let i = 0; i < TETO_POR_HORA; i += 1) await enfileirarUma(d);
-
-    const excedente = await enfileirarUma(d);
-
-    expect(excedente).toHaveLength(0);
-    expect(d.runs.rows).toHaveLength(TETO_POR_HORA);
   });
 });
 
@@ -890,5 +875,140 @@ describe('AU-18: os tetos do para cada', () => {
       currentNodeId: 'a1',
       variables: { cliente: { id: 'c0' } },
     });
+  });
+});
+
+/**
+ * AU-05 (revisto) — nada é descartado: o que não cabe agora fica na fila.
+ *
+ * O teto por hora recusava execuções, e recusar é perder trabalho: a lista de duzentos clientes
+ * virava vinte alcançados e cento e oitenta que ninguém alcançaria nunca. O motor é uma fila
+ * durável desde o começo — o freio certo é a **vazão**, não a porta fechada. Quem controla o
+ * ritmo é o lote de cada passada; quem controla o estrago continua sendo o interruptor, que
+ * cancela o que estiver na fila.
+ */
+describe('AU-05: a fila absorve, em vez de recusar', () => {
+  const comLista = (): AutomationGraph => ({
+    nodes: [
+      { id: 'g1', kind: 'trigger', type: 'recurring', config: {}, position: { x: 0, y: 0 } },
+      {
+        id: 'p1',
+        kind: 'forEach',
+        type: 'for_each',
+        config: { list: 'itens' },
+        position: { x: 0, y: 60 },
+      },
+      { id: 'a1', kind: 'action', type: 'send_message', config: {}, position: { x: 0, y: 120 } },
+    ],
+    edges: [
+      { id: 'e1', from: 'g1', port: 'next', to: 'p1' },
+      { id: 'e2', from: 'p1', port: 'next', to: 'a1' },
+    ],
+  });
+
+  const lista = (quantos: number) =>
+    Array.from({ length: quantos }, (_, i) => ({
+      chave: `c${String(i)}`,
+      dados: { cliente: { id: `c${String(i)}` } },
+    }));
+
+  it('cem itens viram cem execuções, e nenhuma é recusada', async () => {
+    const d = deps({ send_message: vi.fn().mockResolvedValue({}) });
+    await ligada(d, comLista());
+    await enqueueAutomationRun(d, {
+      tenantId: 't1',
+      triggerType: 'recurring',
+      triggerRef: {},
+      variables: { itens: lista(100) },
+      now: AGORA,
+    });
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    // A mãe mais as cem filhas.
+    expect(d.runs.rows).toHaveLength(101);
+  });
+
+  /** Muitos gatilhos seguidos também não são recusados: a fila cresce e drena. */
+  it('o gatilho continua enfileirando depois de vinte execuções na hora', async () => {
+    const d = deps();
+    await ligada(d);
+    for (let i = 0; i < 25; i += 1) await enfileirarUma(d);
+
+    expect(d.runs.rows).toHaveLength(25);
+  });
+
+  /**
+   * O que segura o ritmo é o lote da passada: cem na fila não viram cem mensagens no mesmo
+   * segundo. As que sobram continuam pendentes, e a passada seguinte as pega.
+   */
+  it('a passada processa o lote e deixa o resto na fila', async () => {
+    const d = deps({ send_message: vi.fn().mockResolvedValue({}) });
+    await ligada(d);
+    for (let i = 0; i < 30; i += 1) await enfileirarUma(d);
+
+    const feitas = await resumeDueRuns(d, { workerId: 'w1', now: AGORA, limit: 10 });
+
+    expect(feitas).toBe(10);
+    expect(d.runs.rows.filter((r) => r.status === 'pending')).toHaveLength(20);
+  });
+
+  /**
+   * O freio de mão: desligar a automação cancela o que ainda não rodou. É o que faz uma regra
+   * ruim parar **de verdade**, mesmo com novecentas execuções na fila.
+   */
+  it('desligar a automação cancela o que está na fila', async () => {
+    const d = deps({ send_message: vi.fn().mockResolvedValue({}) });
+    const criada = await ligada(d);
+    await enfileirarUma(d);
+    await d.automations.update('t1', criada.id, { enabled: false });
+
+    await advanceAutomationRun(d, ref(d), AGORA);
+
+    expect(d.runs.rows[0]?.status).toBe('cancelled');
+  });
+});
+
+/**
+ * AU-05 — a passada drena a fila em lotes, em vez de parar no primeiro.
+ *
+ * Sem isto, cem execuções na fila levariam cinco varreduras — cinco minutos — para rodar, e a
+ * automação pareceria travada. O lote continua existindo (é ele que impede cem mensagens no
+ * mesmo instante), mas a passada repete o lote enquanto houver trabalho vencido, até o teto de
+ * lotes: um processo não pode ficar preso numa fila infinita, senão a varredura seguinte nunca
+ * acontece.
+ */
+describe('AU-05: a passada drena em lotes', () => {
+  async function comFila(quantas: number) {
+    const d = deps({ send_message: vi.fn().mockResolvedValue({}) });
+    await ligada(d);
+    for (let i = 0; i < quantas; i += 1) await enfileirarUma(d);
+    return d;
+  }
+
+  it('processa mais que um lote na mesma passada', async () => {
+    const d = await comFila(30);
+
+    const feitas = await resumeDueRuns(d, { workerId: 'w1', now: AGORA, limit: 10, maxBatches: 4 });
+
+    expect(feitas).toBe(30);
+    expect(d.runs.rows.every((r) => r.status === 'done')).toBe(true);
+  });
+
+  it('para no teto de lotes, e deixa o resto para a passada seguinte', async () => {
+    const d = await comFila(30);
+
+    const feitas = await resumeDueRuns(d, { workerId: 'w1', now: AGORA, limit: 10, maxBatches: 2 });
+
+    expect(feitas).toBe(20);
+    expect(d.runs.rows.filter((r) => r.status === 'pending')).toHaveLength(10);
+  });
+
+  it('fila vazia não custa nada', async () => {
+    const d = deps();
+
+    expect(await resumeDueRuns(d, { workerId: 'w1', now: AGORA, limit: 10, maxBatches: 4 })).toBe(
+      0,
+    );
   });
 });

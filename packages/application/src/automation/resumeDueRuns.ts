@@ -14,6 +14,15 @@ export interface ResumeDueRunsCommand {
   /** O lote. É o que transforma duzentas saídas vencidas numa fila que drena, e não em
    * duzentas mensagens no mesmo segundo. */
   readonly limit: number;
+  /**
+   * AU-05 — quantos lotes uma passada pode encadear antes de devolver o processo.
+   *
+   * A fila **não recusa** trabalho: o que não coube numa passada fica pendente e a seguinte o
+   * pega. Este número existe pelo outro lado do problema — um processo preso numa fila de mil
+   * execuções não faria a varredura seguinte, não responderia ao empurrão de um gatilho novo, e
+   * um deploy no meio disso deixaria tudo carimbado esperando o prazo de abandono.
+   */
+  readonly maxBatches?: number;
 }
 
 /**
@@ -31,17 +40,26 @@ export async function resumeDueRuns(
   deps: AutomationRunnerDeps,
   command: ResumeDueRunsCommand,
 ): Promise<number> {
-  const lote = await deps.runs.claimDue(
-    command.workerId,
-    command.now,
-    command.limit,
-    ABANDONADA_APOS_MS,
-  );
-
+  const maxLotes = Math.max(command.maxBatches ?? 1, 1);
   let feitas = 0;
-  for (const ref of lote) {
-    await advanceAutomationRun(deps, ref, command.now);
-    feitas += 1;
+
+  for (let volta = 0; volta < maxLotes; volta += 1) {
+    const lote = await deps.runs.claimDue(
+      command.workerId,
+      command.now,
+      command.limit,
+      ABANDONADA_APOS_MS,
+    );
+    if (lote.length === 0) break;
+
+    for (const ref of lote) {
+      await advanceAutomationRun(deps, ref, command.now);
+      feitas += 1;
+    }
+
+    // Lote incompleto quer dizer fila seca: parar aqui poupa uma reivindicação inútil.
+    if (lote.length < command.limit) break;
   }
+
   return feitas;
 }

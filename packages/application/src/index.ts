@@ -1027,7 +1027,6 @@ export { seedRunsFromList, TETO_DA_BUSCA } from './automation/seedRunsFromList.j
 export type { AutomationRunnerDeps } from './automation/runnerDeps.js';
 export {
   enqueueAutomationRun,
-  TETO_POR_HORA,
   type EnqueueAutomationRunCommand,
 } from './automation/enqueueAutomationRun.js';
 export {

@@ -1,16 +1,17 @@
-import { TETO_POR_HORA } from './enqueueAutomationRun.js';
 import type { AutomationRunnerDeps } from './runnerDeps.js';
 import type { AutomationNode, ListItem, RunContext } from '@expedition/domain';
 import type { DueRunRef } from './automationRunRepository.js';
 
 /**
- * AU-18 — quantos itens um "para cada" pode semear numa passada, aconteça o que acontecer.
+ * AU-05 · AU-18 — quantos itens um "para cada" semeia numa passada, aconteça o que acontecer.
  *
- * O bloco tem o próprio "no máximo", mas ele é digitado por gente e vai para `jsonb`. Este é o
- * teto que não depende de ninguém ter pensado direito: uma lista com duzentos clientes abriria
- * duzentas execuções antes de o teto por hora perceber.
+ * **Não é para recusar trabalho, é para não gravar demais de uma vez.** Nada é descartado: o
+ * que passar deste número fica para a passada seguinte, porque a lista é recalculada a cada
+ * volta e o que ainda casa com o filtro continua lá. O bloco tem o próprio "no máximo", mas ele
+ * é digitado por gente e vai para `jsonb`; este é o teto que não depende de ninguém ter pensado
+ * direito.
  */
-export const TETO_DA_BUSCA = 25;
+export const TETO_DA_BUSCA = 500;
 
 export interface SeedResult extends Record<string, unknown> {
   readonly itens: number;
@@ -40,15 +41,9 @@ export async function seedRunsFromList(
   now: Date,
 ): Promise<SeedResult> {
   const limite = Math.min(Number(no.config['limit']) || TETO_DA_BUSCA, TETO_DA_BUSCA);
-  const umaHoraAtras = new Date(now.getTime() - 3_600_000);
   let semeados = 0;
 
   for (const item of itens.slice(0, limite)) {
-    // AU-05: o teto por hora vale para o total da automação, e as filhas contam. É o mesmo
-    // freio que impede uma regra ruim de alcançar trinta pessoas antes de alguém perceber.
-    const naUltimaHora = await deps.runs.countSince(ref.tenantId, ref.automationId, umaHoraAtras);
-    if (naUltimaHora >= TETO_POR_HORA) break;
-
     const aberta = await deps.runs.enqueue({
       tenantId: ref.tenantId,
       automationId: ref.automationId,

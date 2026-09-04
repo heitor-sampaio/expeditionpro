@@ -2,15 +2,6 @@ import type { AutomationRunnerDeps } from './runnerDeps.js';
 import type { AutomationRunRecord } from './automationRunRepository.js';
 import type { TriggerType } from './automationRepository.js';
 
-/**
- * AU-05 — quantas execuções uma automação pode abrir por hora.
- *
- * Existe porque automação erra **em escala**: uma regra ruim manda a mesma mensagem para trinta
- * pessoas antes de alguém perceber. O teto não conserta a regra; ele transforma "trinta clientes
- * receberam" em "vinte tentativas foram barradas e o problema apareceu no log".
- */
-export const TETO_POR_HORA = 20;
-
 export interface EnqueueAutomationRunCommand {
   readonly tenantId: string;
   readonly triggerType: TriggerType;
@@ -42,13 +33,9 @@ export async function enqueueAutomationRun(
   const todas = await deps.automations.list(command.tenantId);
   const interessadas = todas.filter((a) => a.enabled && a.triggerType === command.triggerType);
 
-  const umaHoraAtras = new Date(command.now.getTime() - 3_600_000);
   const abertas: AutomationRunRecord[] = [];
 
   for (const automacao of interessadas) {
-    const naUltimaHora = await deps.runs.countSince(command.tenantId, automacao.id, umaHoraAtras);
-    if (naUltimaHora >= TETO_POR_HORA) continue;
-
     const run = await deps.runs.enqueue({
       tenantId: command.tenantId,
       automationId: automacao.id,

@@ -209,8 +209,8 @@ impedido por chave única, não pela precisão do relógio.
 
 **O laço não existe por desenho** (AU-05): o gatilho nasce na rota, o motor chama o caso de uso
 direto. O teste do eco prova — a resposta da automação volta do provedor e não dispara nada.
-Somam-se teto de 50 passos por execução, 20 execuções por hora por automação e lote de 25 por
-passada, que transforma duzentas saídas vencidas numa fila que drena.
+Somam-se teto de 50 passos por execução e o lote de 25 por passada, que transforma duzentas
+saídas vencidas numa fila que drena.
 
 O motor liga por `AUTOMATION_ENGINE` (ligado em produção). A variável existe para parar tudo
 sem deploy, se uma automação começar a fazer algo que o interruptor dela não cobre.
@@ -363,9 +363,9 @@ cinco minutos encontra a mesma conversa parada doze vezes por hora; a chave de i
 `bloco : conversa : fatia de "parado há N minutos"`, então ela entra uma vez por intervalo. Sem
 isso, o cliente receberia doze mensagens.
 
-Tetos: 25 por passada no motor (o campo "no máximo" do bloco fica abaixo disso), uma busca por
-automação — duas seriam fan-out de fan-out, e o crescimento multiplicativo só apareceria no teto
-por hora, tarde demais —, e as execuções semeadas contam no teto de 20 por hora da automação.
+Limites: um "para cada" por automação — dois seriam fan-out de fan-out, e o crescimento
+multiplicativo apareceria tarde demais — e o lote de cada passada, que espalha o trabalho no
+tempo em vez de recusá-lo (ver a fatia 10).
 
 O fluxo que o dono pediu fica assim, montado por ele: **Tempo: de tempos em tempos (5 minutos)
 → Para cada (oportunidades do funil, só as que `oportunidade.paradaHaMin é maior que 30` e
@@ -416,6 +416,31 @@ de mensagem (AU-09) e filtro salvo no quadro; documento de identidade não tem p
 por aí para nada do que uma automação faz. Foi preciso um `listAll` no repositório de clientes —
 o que existia listava só os responsáveis, e filtrar por família é papel do filtro, não de um
 método por pergunta.
+
+### Fatia 10 — o teto por hora sai; a fila absorve ✅
+
+Havia um teto de **20 execuções por hora por automação**, e ele **recusava**: a vigésima primeira
+não acontecia, nunca. Numa automação de evento isso quase não aparecia; com o "para cada", virou
+o gargalo — uma lista de duzentos clientes alcançava dezenove e descartava o resto, e nem o
+campo "no máximo por passada" mudava isso, porque o balde era o mesmo.
+
+O dono cortou o teto, e a saída que ele apontou é a que o motor já sabia fazer: **enfileirar e
+executar da fila.** Recusar é perder trabalho; espalhar no tempo é fazer o mesmo trabalho mais
+devagar. A tabela de execuções sempre foi uma fila durável — o teto é que estava jogando fora o
+que não coubesse no minuto.
+
+O que ficou no lugar:
+
+- **Nada é descartado.** O gatilho enfileira sempre; o "para cada" semeia a lista inteira (o
+  campo "no máximo" virou opcional, e vazio quer dizer tudo).
+- **O ritmo é o lote**: 25 execuções por vez. A passada encadeia até oito lotes — duzentas por
+  passada — e devolve o processo; o que sobrou fica pendente e a passada seguinte pega. Um
+  processo preso numa fila de mil não faria a varredura seguinte nem responderia ao empurrão de
+  um gatilho novo.
+- **O freio de mão continua sendo o interruptor**, e ele é melhor que o teto era: o motor relê
+  `enabled` antes de cada execução, então desligar **cancela o que está na fila**. Uma regra ruim
+  para de verdade, mesmo com novecentas execuções pendentes.
+- O teto de 50 passos por execução e as três tentativas por ação continuam onde estavam.
 
 ### O que ainda não foi visto por gente
 

@@ -129,7 +129,7 @@ export const BLOCOS: readonly BlockType[] = [
     kind: 'forEach',
     label: 'Para cada',
     hint: 'Percorre a lista que uma busca guardou e segue o fluxo item a item',
-    config: { list: 'resultado', limit: 10 },
+    config: { list: 'resultado', limit: 0 },
   },
   {
     type: 'set',
@@ -351,8 +351,8 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
       key: 'limit',
       label: 'No máximo, por passada',
       kind: 'number',
-      placeholder: '10',
-      help: 'Teto de 25. O limite de 20 execuções por hora vale para o total da automação.',
+      placeholder: 'tudo',
+      help: 'Deixe vazio para percorrer tudo. O que não couber numa passada fica na fila para a seguinte.',
     },
   ],
   set: [
