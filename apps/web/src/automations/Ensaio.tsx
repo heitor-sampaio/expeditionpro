@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { api } from '../auth/api.js';
 import { blockLabel } from './blocks.js';
 import { camposDoGatilho, gatilhoDoQuadro, variaveisDeCampos } from './fields.js';
+import { fonteDoGatilho } from './fonteDoContexto.js';
+import { useRecentBookings } from '../queue/useRecentBookings.js';
 import type { AutomationGraph } from '@expedition/domain';
 import type { PassoEnsaiado } from './simulacao.js';
 
@@ -41,9 +43,21 @@ export function Ensaio({
   const gatilho = gatilhoDoQuadro(
     graph.nodes.map((no) => ({ type: no.kind, data: { type: no.type, config: no.config } })),
   );
-  const campos = gatilho === null ? [] : camposDoGatilho(gatilho);
+  const fonte = fonteDoGatilho(gatilho);
+  // Com uma inscrição de verdade escolhida, não há campo nenhum para preencher.
+  const campos = gatilho === null || fonte !== 'manual' ? [] : camposDoGatilho(gatilho);
   const [valores, setValores] = useState<Record<string, string>>({});
+  const [inscricao, setInscricao] = useState<string>('');
   const [estado, setEstado] = useState<Estado>({ status: 'form' });
+
+  /** O que vai no corpo: a fonte, quando há uma; o que foi digitado, quando não há. */
+  const amostra = (): Record<string, unknown> => {
+    if (fonte === 'agora') return { source: { kind: 'agora' } };
+    if (fonte === 'inscricao' && inscricao !== '') {
+      return { source: { kind: 'inscricao', bookingId: inscricao } };
+    }
+    return { variables: variaveisDeCampos(valores) };
+  };
 
   const ensaiar = async (): Promise<void> => {
     setEstado({ status: 'loading' });
@@ -53,7 +67,7 @@ export function Ensaio({
         headers: { 'content-type': 'application/json' },
         // AU-27: vai o desenho da tela junto — ensaiar o que está salvo, depois de mexer
         // num bloco, faria a pessoa concluir a coisa errada sobre a própria mudança.
-        body: JSON.stringify({ variables: variaveisDeCampos(valores), graph }),
+        body: JSON.stringify({ ...amostra(), graph }),
       });
       if (!res.ok) {
         setEstado({
@@ -90,6 +104,19 @@ export function Ensaio({
             <span className="feedback-dot" />
             <span>Ponha o bloco de gatilho no quadro para saber quais campos preencher.</span>
           </div>
+        )}
+
+        {/*
+         * AU-25 — com uma inscrição de verdade, não há campo para preencher: o contexto sai da
+         * mesma função que a borda usa no gatilho, então o ensaio responde pelo que a execução
+         * real teria — e não por dezoito valores inventados na hora.
+         */}
+        {fonte === 'inscricao' && <EscolherInscricao valor={inscricao} onEscolher={setInscricao} />}
+
+        {fonte === 'agora' && (
+          <p className="field-help">
+            Este gatilho não pende de entidade nenhuma: o ensaio usa a data e a hora de agora.
+          </p>
         )}
 
         <div className="form-grid">
@@ -154,7 +181,7 @@ export function Ensaio({
           </ol>
         )}
 
-        <div className="modal-actions">
+        <div className="form-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Fechar
           </button>
@@ -187,4 +214,52 @@ function texto(valor: unknown): string {
   if (valor === null || valor === undefined) return '—';
   if (typeof valor === 'object') return JSON.stringify(valor);
   return String(valor);
+}
+
+/**
+ * AU-25 — a inscrição que vai alimentar o ensaio.
+ *
+ * A lista é a mesma que a fila de alocação já usa (IN-17b): as últimas que entraram, com
+ * responsável e saída no rótulo. Escolher pelo nome de quem se inscreveu é o que torna o gesto
+ * possível — uma lista de ids não seria escolha, seria sorteio.
+ */
+function EscolherInscricao({
+  valor,
+  onEscolher,
+}: {
+  valor: string;
+  onEscolher: (bookingId: string) => void;
+}): React.JSX.Element {
+  const { state } = useRecentBookings();
+
+  if (state.status === 'loading') {
+    return <p className="field-help">Carregando as últimas inscrições…</p>;
+  }
+  if (state.status === 'error') {
+    return <p className="field-help">Não deu para carregar as inscrições. Digite os campos.</p>;
+  }
+  if (state.rows.length === 0) {
+    return (
+      <p className="field-help">
+        Nenhuma inscrição ainda. Quando houver uma, dá para ensaiar com os dados dela.
+      </p>
+    );
+  }
+
+  return (
+    <label className="field field-full">
+      <span className="field-label">Ensaiar com esta inscrição</span>
+      <select className="field-input" value={valor} onChange={(e) => onEscolher(e.target.value)}>
+        <option value="">Escolha uma inscrição</option>
+        {state.rows.map((linha) => (
+          <option key={linha.bookingId} value={linha.bookingId}>
+            {linha.responsibleName} · {linha.groupName}
+          </option>
+        ))}
+      </select>
+      <span className="field-help">
+        Os campos do gatilho saem dela, do mesmo jeito que sairiam numa execução de verdade.
+      </span>
+    </label>
+  );
 }

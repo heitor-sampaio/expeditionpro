@@ -1111,3 +1111,134 @@ describe('AU-04: o webhook do gateway dispara pagamento e confirmação', () => 
     await app.close();
   });
 });
+
+/**
+ * AU-25 — ensaiar com uma inscrição de verdade, em vez de dezoito campos digitados.
+ *
+ * Depois que os gatilhos de inscrição passaram a trazer contato, saída e dinheiro (AU-16),
+ * ensaiar virou preencher dezoito caixas de texto antes de ver qualquer coisa — e ninguém
+ * confere um fluxo assim: inventa três valores, erra o quarto, e conclui sobre uma automação
+ * que nunca vai receber esses dados.
+ */
+describe('AU-25: o ensaio a partir de uma inscrição', () => {
+  const PRECOS = {
+    validFrom: '2025-01-01',
+    coupleCents: 200000,
+    soloCents: 120000,
+    extraAdultCents: 80000,
+    childMidCents: 60000,
+    childYoungCents: 40000,
+  };
+
+  const soGatilho = {
+    nodes: [
+      {
+        id: 'g1',
+        kind: 'trigger',
+        type: 'booking_created',
+        config: {},
+        position: { x: 0, y: 0 },
+      },
+      { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 90 } },
+    ],
+    edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'f1' }],
+  };
+
+  async function comInscricao(app: Awaited<ReturnType<typeof comMotor>>['app']) {
+    const itinerario = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/itineraries',
+        payload: { name: 'Coxilha Rica', prices: PRECOS },
+      })
+    ).json() as { id: string };
+    const evento = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/schedule-events',
+        payload: { itineraryId: itinerario.id, startDate: '2026-11-10', endDate: '2026-11-14' },
+      })
+    ).json() as { group: { id: string } };
+    const cliente = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/customers',
+        payload: {
+          fullName: 'Vanessa Santos',
+          cpf: '90000010057',
+          birthDate: '1989-01-14',
+          email: 'vanessa@exemplo.com',
+          phone: '48999998877',
+        },
+      })
+    ).json() as { id: string };
+    const inscricao = (
+      await app.inject({
+        method: 'POST',
+        url: `/v1/groups/${evento.group.id}/bookings`,
+        payload: { responsibleCustomerId: cliente.id, participantCustomerIds: [cliente.id] },
+      })
+    ).json() as { id: string };
+    return inscricao.id;
+  }
+
+  it('o contexto do ensaio é o da inscrição escolhida', async () => {
+    const { app } = await comMotor();
+    const criada = (
+      await app.inject({ method: 'POST', url: '/v1/automations', payload: { name: 'amostra' } })
+    ).json() as { id: string };
+    const bookingId = await comInscricao(app);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/automations/${criada.id}/simulate`,
+      payload: { source: { kind: 'inscricao', bookingId }, graph: soGatilho },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const passos = res.json() as { nodeId: string; output: Record<string, unknown> }[];
+    // O gatilho **é** a entrada: o que sai dele é o contexto inteiro, montado do jeito exato
+    // que a borda montaria quando a inscrição de verdade entrasse.
+    expect(passos[0]?.output).toMatchObject({
+      contato: { nome: 'Vanessa Santos', email: 'vanessa@exemplo.com' },
+      inscricao: { id: bookingId, status: 'pending', totalCents: 120000 },
+      saida: { roteiro: 'Coxilha Rica', inicio: '2026-11-10' },
+    });
+    await app.close();
+  });
+
+  /** Escolher uma inscrição que sumiu é erro à vista, e não um fluxo inteiro com tudo vazio. */
+  it('inscrição inexistente responde 404', async () => {
+    const { app } = await comMotor();
+    const criada = (
+      await app.inject({ method: 'POST', url: '/v1/automations', payload: { name: 'amostra' } })
+    ).json() as { id: string };
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/automations/${criada.id}/simulate`,
+      payload: { source: { kind: 'inscricao', bookingId: 'bk-sumiu' }, graph: soGatilho },
+    });
+
+    expect(res.statusCode).toBe(404);
+    await app.close();
+  });
+
+  /** Quem digitou o contexto continua podendo: o campo velho não foi substituído, foi somado. */
+  it('sem fonte, o contexto digitado continua valendo', async () => {
+    const { app } = await comMotor();
+    const criada = (
+      await app.inject({ method: 'POST', url: '/v1/automations', payload: { name: 'amostra' } })
+    ).json() as { id: string };
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/automations/${criada.id}/simulate`,
+      payload: { variables: { contato: { nome: 'Ana' } }, graph: soGatilho },
+    });
+
+    const passos = res.json() as { output: Record<string, unknown> }[];
+    expect(passos[0]?.output).toEqual({ contato: { nome: 'Ana' } });
+    await app.close();
+  });
+});

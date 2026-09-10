@@ -1042,6 +1042,7 @@ export {
   buildBookingContext,
   type BuildBookingContextDeps,
 } from './automation/buildBookingContext.js';
+export { buildSampleContext, type SampleSource } from './automation/buildSampleContext.js';
 export {
   advanceAutomationRun,
   TETO_DE_PASSOS,

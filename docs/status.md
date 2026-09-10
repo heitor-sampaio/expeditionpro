@@ -141,7 +141,7 @@ página. Página e conta profissional já estão vinculadas.
 ## Automações (§5.18) — no ar, com o quadro mandando
 
 Escopo pedido em 2026-09-02: entrada **Automações** na seção CRM, com CRUD e um editor de
-blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-27`.
+blocos em quadro infinito. PRD em **§5.18**, requisitos `AU-01..AU-28`.
 
 ### Fatia 1 — desenhar, validar e guardar ✅
 
@@ -626,6 +626,66 @@ contexto de inscrição produzem o mesmo `saida.inicio`.
 **Suíte em 2.176 testes unitários** (eram 2.140), todos os portões limpos. Sem migration: nenhuma
 tabela, nenhuma coluna, nenhuma policy.
 
+### Fatia 15 — o bloco aberto saiu do quadro, e o ensaio deixou de ser digitação ✅ (2026-09-10)
+
+**AU-27 revisto · AU-28.** O dono olhou o painel de ensaio e disse que estava muito ruim,
+pedindo o comportamento do n8n: uma coluna com o que o bloco recebeu do anterior, a
+configuração no meio, o resultado à direita. As três colunas já existiam desde a fatia 13 — o
+que estava errado era **onde** elas moravam e **de onde vinha o dado**.
+
+**Onde:** dentro do nó, o painel era desenhado pelo mesmo transform que dá zoom ao canvas. A
+0,4 de escala o texto ficava em 40% e não se lia o valor de nada — justamente num fluxo grande,
+que é onde o zoom serve para alguma coisa. Agora abre **sobre a tela**, sempre do tamanho que é.
+É `.modal.modal-full`: uma largura a mais no Modal que já existe, e não família nova de
+componente — a skill manda parar e perguntar antes de criar, e a resposta do dono foi essa.
+
+**Selecionado deixou de ser aberto.** Eram a mesma coisa: clicar num bloco para movê-lo
+escancarava um formulário, e a tecla de apagar do quadro alcançava o campo de texto. Abre por
+duplo clique e por botão no cartão, para quem não descobre o gesto.
+
+**De onde vinha o dado:** ensaiar pedia um `<input>` por variável do gatilho, e depois da fatia
+14 isso virou **dezoito campos** para preencher antes de ver qualquer coisa. Agora a equipe
+escolhe uma **inscrição de verdade** numa lista (a mesma de IN-17b, com responsável e saída no
+rótulo) e o servidor monta o contexto pela **mesma função** que a borda usa no gatilho
+(`buildBookingContext`). Uma verdade só: o ensaio não pode responder por um contexto que a
+execução real não teria.
+
+> **O silêncio muda de lado entre a borda e o ensaio, e é de propósito.** No gatilho, inscrição
+> não encontrada degrada para o id e a automação segue — perder o disparo seria pior. No ensaio
+> é erro à vista: quem escolheu uma inscrição numa lista precisa saber que ela sumiu, senão lê
+> um fluxo inteiro com o contexto vazio e conclui que o desenho é que está errado.
+
+**Três defeitos que só apareciam usando, e saíram junto:**
+
+- **O ensaio nunca era limpo.** Mexer num campo e olhar o bloco entregava o resultado do desenho
+  **anterior**, sem nada dizendo que era velho. Não é ausência de resposta: é resposta errada
+  com cara de certa, o pior defeito de uma tela feita para explicar. Agora o resultado anda junto
+  da assinatura do desenho que o produziu — e a assinatura ignora posição, porque arrumar o
+  quadro não muda pergunta nenhuma. Sendo **derivado** e não apagado por efeito, mexer e desfazer
+  devolve o ensaio.
+- **A variável entrava no fim do texto**, nunca na posição do cursor. Numa coluna de 200px
+  ninguém notava; escrevendo a mensagem inteira do cliente, é a diferença entre a ferramenta
+  servir e não servir.
+- **A coluna "Sai" nascia vazia e sem saída** ("ensaie para ver"), enquanto a da esquerda já
+  listava os campos. Virou convite com a ação ao lado, que é o que o design system manda.
+
+**Duas mentiras de tela corrigidas.** O 403 dizia "ensaiar é de owner ou admin" enquanto o
+servidor pede `requireTeam`, que **inclui o viewer** — ensaiar não executa nada e não grava
+nada. Agora o botão nasce desabilitado com o motivo, em vez de a permissão se aprender por um
+erro depois de preencher um formulário. E o valor de uma variável usava `.cell-sub`, que é
+segunda linha de célula de tabela e vem com `nowrap` para não esticar a linha: cortava
+exatamente o que se veio ler. Virou classe própria, em `--ink`, porque valor é **dado**.
+
+**A rota `/simulate` ganhou teto** (30/min). Ensaiar roda as buscas de verdade (AU-25) e cada
+busca varre a entidade inteira do tenant — era o caminho mais caro que uma tecla abria neste
+servidor, e o único sem limite.
+
+`BlockNode` caiu de 381 para 186 linhas: o que saiu dele **mudou de casa**, não foi copiado.
+Suíte em **2.213 testes** (eram 2.176). Sem migration.
+
+**O que ainda não foi visto por gente:** o painel em si — largura, rolagem das três colunas e o
+colapso para uma coluna abaixo de 900px foram feitos olhando o CSS, não o navegador.
+
 ### O que ainda não foi visto por gente
 
 **O motor rodou.** Em 2026-09-03, no ambiente de desenvolvimento contra o banco de verdade, uma
@@ -636,9 +696,10 @@ Falta o que depende de gente: ligar uma automação que **fala com cliente** e m
 do celular. A de exemplo ("mensagem contendo preço → responder") continua provada só em teste de
 rota, com o webhook da Evolution simulado.
 
-**As três colunas do bloco aberto não foram vistas em tela.** O layout de 720px foi feito
-olhando o CSS, não o navegador — o quadro tem espaço, mas quem sabe se o bloco aberto no meio
-de um fluxo de dez fica confortável é quem usa. É o primeiro lugar onde eu esperaria ajuste.
+~~**As três colunas do bloco aberto não foram vistas em tela.**~~ — foram, e o veredito foi que
+o layout de 720px dentro do quadro não servia. A **fatia 15** tirou o painel de dentro do nó.
+Continua valendo o mesmo aviso para o formato novo: largura, rolagem e o colapso em tela
+estreita foram feitos olhando o CSS, não o navegador.
 
 **O nó de código e o ensaio nunca rodaram fora de teste.** O `node:vm` está coberto por
 suíte — inclusive as tentativas de escapar dele —, mas o primeiro código escrito por gente vai
@@ -651,9 +712,10 @@ disparar. O que **falta ver por gente** é o outro lado disso: nenhuma dessas me
 um celular ainda. O primeiro alvo natural é `payment_registered` — lançar um recebimento de
 verdade e ler no log de passos (AU-06) o texto com nome, valor e saída já trocados.
 
-**O painel do ensaio cresceu de 1 campo para 18** e não foi olhado em tela. O `.form-grid` é
-flex-wrap de 220px e deve absorver, mas quem sabe se preencher dezoito campos para ensaiar é
-razoável — ou se ali cabe um "preencher com uma inscrição de verdade" — é quem usa.
+~~**O painel do ensaio cresceu de 1 campo para 18**~~ — o dono olhou, disse que estava muito
+ruim, e a **fatia 15** resolveu: os dezoito campos viraram a escolha de uma inscrição de
+verdade. Era o que estava previsto aqui como pergunta ("ou se ali cabe um preencher com uma
+inscrição de verdade"), e a resposta veio de quem usa, que é como tinha que ser.
 
 ---
 

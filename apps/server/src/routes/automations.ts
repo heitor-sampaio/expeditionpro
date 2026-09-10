@@ -1,4 +1,5 @@
 import {
+  buildSampleContext,
   createAutomation,
   deleteAutomation,
   duplicateAutomation,
@@ -285,18 +286,45 @@ export function registerAutomationRoutes(
         params,
         body: z.object({
           variables: z.record(z.string(), z.unknown()).default({}),
+          /**
+           * AU-25 — de onde o contexto sai, quando não é digitado.
+           *
+           * Escolher uma inscrição de verdade poupa dezoito campos e, mais que isso, faz o
+           * ensaio responder pelo que a execução real teria: o contexto vem da mesma função
+           * que a borda usa no gatilho, e não de valores inventados na hora.
+           */
+          source: z
+            .discriminatedUnion('kind', [
+              z.object({ kind: z.literal('inscricao'), bookingId: z.string().min(1) }),
+              z.object({ kind: z.literal('agora') }),
+            ])
+            .optional(),
           // AU-27: o desenho que está na tela, para ensaiar o que se acabou de mexer.
           graph: graph.optional(),
         }),
       },
+      /*
+       * Ensaiar **roda as buscas de verdade** (AU-25), e cada busca varre a entidade inteira do
+       * tenant. É leitura, e por isso é seguro; mas é o caminho mais caro que uma tecla abre
+       * neste servidor, e o único sem teto até agora.
+       */
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
     },
     async (request, reply) => {
       const ctx = await deps.resolveContext(request);
+      const now = new Date();
+      const variables =
+        request.body.source === undefined
+          ? request.body.variables
+          : await buildSampleContext(contextoDeps(deps), ctx, {
+              source: request.body.source,
+              now,
+            });
       const passos = await runner.simulate(ctx, {
         automationId: request.params.automationId,
-        variables: request.body.variables,
+        variables,
         ...(request.body.graph === undefined ? {} : { graph: request.body.graph }),
-        now: new Date(),
+        now,
       });
       return reply.send(passos);
     },
@@ -369,5 +397,20 @@ function toStepDto(step: RunStepRecord) {
     outcome: step.outcome,
     detail: step.detail,
     at: step.at.toISOString(),
+  };
+}
+
+/**
+ * As leituras que montam o contexto de amostra (AU-25). Ficam à parte das do motor: o
+ * interpretador não sabe o que é uma inscrição, e é esse recorte que o mantém fora do caminho
+ * de cada entidade nova.
+ */
+function contextoDeps(deps: ServerDeps) {
+  return {
+    bookings: deps.bookings,
+    schedule: deps.schedule,
+    customers: deps.customers,
+    payments: deps.payments,
+    itineraries: deps.itineraries,
   };
 }
