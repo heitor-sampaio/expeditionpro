@@ -1039,6 +1039,10 @@ export {
   type EnqueueAutomationRunCommand,
 } from './automation/enqueueAutomationRun.js';
 export {
+  buildBookingContext,
+  type BuildBookingContextDeps,
+} from './automation/buildBookingContext.js';
+export {
   advanceAutomationRun,
   TETO_DE_PASSOS,
   TETO_DE_TENTATIVAS,

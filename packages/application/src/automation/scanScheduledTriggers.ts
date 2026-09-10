@@ -1,4 +1,4 @@
-import { addDays, compareLocalDate, type LocalDate } from '@expedition/domain';
+import { addDays, compareLocalDate, formatLocalDateISO, type LocalDate } from '@expedition/domain';
 import { enqueueAutomationRun } from './enqueueAutomationRun.js';
 import type { AutomationRunnerDeps } from './runnerDeps.js';
 import type { ScheduleEventWithGroup } from '../schedule/scheduleRepository.js';
@@ -58,7 +58,7 @@ export async function scanScheduledTriggers(
         tenantId: alvo.tenantId,
         triggerType: 'scheduled',
         triggerRef: { scheduleEventId: event.id, groupId: group.id },
-        variables: { saida: { nome: group.name, inicio: isoDe(event.startDate) } },
+        variables: { saida: { nome: group.name, inicio: formatLocalDateISO(event.startDate) } },
         // A chave que impede o segundo disparo. O deslocamento entra nela porque duas
         // automações podem olhar a mesma saída em dias diferentes.
         idempotencyKey: `${event.id}:${String(offsetDe(alvo.triggerConfig))}`,
@@ -78,10 +78,4 @@ export async function scanScheduledTriggers(
 function offsetDe(triggerConfig: Record<string, unknown>): number {
   const bruto = Number(triggerConfig['offsetDays']);
   return Number.isFinite(bruto) ? Math.trunc(bruto) : 0;
-}
-
-function isoDe(data: LocalDate): string {
-  const mes = String(data.month).padStart(2, '0');
-  const dia = String(data.day).padStart(2, '0');
-  return `${String(data.year)}-${mes}-${dia}`;
 }

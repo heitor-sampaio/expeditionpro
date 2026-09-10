@@ -338,7 +338,13 @@ function toDto(automation: AutomationRecord) {
   };
 }
 
-/** AU-06 — a execução como a tela a mostra. Sem `variables`: elas guardam dado do cliente. */
+/**
+ * AU-06 — a execução como a tela a mostra.
+ *
+ * **Sem `variables`.** Elas guardam dado do cliente, e desde que os gatilhos de inscrição
+ * passaram a carregar contato e valores (AU-16) isso quer dizer nome, telefone, e-mail e
+ * quanto a família deve. Este DTO é a única barreira entre esse `jsonb` e a rede.
+ */
 function toRunDto(run: AutomationRunRecord) {
   return {
     id: run.id,

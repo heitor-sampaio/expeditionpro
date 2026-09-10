@@ -51,6 +51,15 @@ const LOTES_POR_PASSADA = 8;
 
 export interface AutomationRunner {
   /**
+   * O motor está de pé neste processo?
+   *
+   * Quem monta contexto **antes** de disparar precisa saber: o `fire` já sai de graça com o
+   * motor desligado, mas as leituras da montagem aconteceriam do lado de fora dele, e toda
+   * alocação e todo pagamento pagariam consulta jogada fora — inclusive na suíte de rota, que
+   * roda com o motor desligado de propósito.
+   */
+  readonly enabled: boolean;
+  /**
    * Enfileira as execuções de um acontecimento e acorda o motor. Best-effort, no molde do
    * `fireBookingNotification`: loga e engole. Automação com problema **nunca** derruba a
    * operação de negócio que já concluiu.
@@ -150,6 +159,8 @@ export function automationRunner(
   timer?.unref();
 
   return {
+    enabled: options.enabled,
+
     fire(command) {
       if (!options.enabled) return;
       void enqueueAutomationRun(motor, command)

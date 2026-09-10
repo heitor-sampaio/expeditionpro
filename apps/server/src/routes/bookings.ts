@@ -17,7 +17,7 @@ import {
   restoreBookingTablePrice,
   undoCheckIn,
 } from '@expedition/application';
-import { cents } from '@expedition/domain';
+import { cents, formatLocalDateISO } from '@expedition/domain';
 import {
   convoyFileName,
   insuranceFileName,
@@ -42,7 +42,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { ServerDeps } from '../buildServer.js';
 import { fireBookingNotification } from './notify.js';
-import { fireAutomation } from './fireAutomation.js';
+import { fireBookingAutomations } from './fireAutomation.js';
 
 /**
  * Rotas de inscrição (GR-01/GR-03/GR-04 · IN-07/IN-18): alocar uma família num grupo
@@ -97,13 +97,7 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
         { groupId: request.params.groupId, ...request.body, source: 'manual' },
       );
       await fireBookingNotification(deps, request.log, ctx, allocated.booking.id, 'received');
-      fireAutomation(
-        app,
-        ctx.tenantId,
-        'booking_created',
-        { bookingId: allocated.booking.id },
-        { inscricao: { id: allocated.booking.id } },
-      );
+      fireBookingAutomations(app, deps, ctx, allocated.booking.id, [{ tipo: 'booking_created' }]);
       return reply.status(201).send(toDto(allocated.booking, allocated.totalCents));
     },
   );
@@ -135,13 +129,7 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
         },
       );
       await fireBookingNotification(deps, request.log, ctx, allocated.booking.id, 'received');
-      fireAutomation(
-        app,
-        ctx.tenantId,
-        'booking_created',
-        { bookingId: allocated.booking.id },
-        { inscricao: { id: allocated.booking.id } },
-      );
+      fireBookingAutomations(app, deps, ctx, allocated.booking.id, [{ tipo: 'booking_created' }]);
       return reply.status(201).send(toDto(allocated.booking, allocated.totalCents));
     },
   );
@@ -401,6 +389,12 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
         ctx,
         { bookingId: request.params.bookingId, ...request.body },
       );
+      /*
+       * Sem gatilho aqui, e é de propósito: `payment_registered` quer dizer **dinheiro
+       * entrando**, e devolver é o contrário disso. Uma automação de agradecimento disparada
+       * por estorno agradeceria o cliente por receber o próprio dinheiro de volta. Quando
+       * houver reação a devolver, ela merece gatilho próprio, com nome próprio.
+       */
       return reply.status(201).send(result);
     },
   );
@@ -431,21 +425,25 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
           request.params.bookingId,
           'confirmed',
         );
-        fireAutomation(
-          app,
-          ctx.tenantId,
-          'booking_confirmed',
-          { bookingId: request.params.bookingId },
-          { inscricao: { id: request.params.bookingId } },
-        );
       }
-      fireAutomation(
-        app,
-        ctx.tenantId,
-        'payment_registered',
-        { bookingId: request.params.bookingId },
-        { inscricao: { id: request.params.bookingId } },
-      );
+      /*
+       * O dinheiro entrou e **por isso** confirmou: os dois gatilhos saem nessa ordem, com uma
+       * leitura de contexto só. Quem precisa de ordem entre duas mensagens põe uma espera no
+       * desenho — a fila não promete sequência entre execuções.
+       */
+      fireBookingAutomations(app, deps, ctx, request.params.bookingId, [
+        {
+          tipo: 'payment_registered',
+          pagamento: {
+            // PG-08: o que quita, não o que o cliente pagou — é o que casa com o saldo.
+            valorCents: Number(result.payment.amountCents),
+            metodo: result.payment.method,
+            data: formatLocalDateISO(result.payment.paidAt),
+            confirmou: result.confirmedNow,
+          },
+        },
+        ...(result.confirmedNow ? [{ tipo: 'booking_confirmed' } as const] : []),
+      ]);
       return reply.status(201).send(paymentToDto(result));
     },
   );
@@ -483,6 +481,15 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
           note: request.body.note,
         },
       );
+      /*
+       * IN-08 — confirmar pela mesa é confirmar do mesmo jeito.
+       *
+       * Só o caminho do primeiro recebimento disparava, então quem pagou por fora e foi
+       * confirmado à mão deixava a automação de boas-vindas muda, sem nada que explicasse.
+       */
+      fireBookingAutomations(app, deps, ctx, request.params.bookingId, [
+        { tipo: 'booking_confirmed' },
+      ]);
       return reply.send(statusDto(booking));
     },
   );
@@ -504,13 +511,9 @@ export function registerBookingRoutes(app: FastifyInstance, deps: ServerDeps): v
       );
       // AU-17: o motivo vai junto — "cancelou por desistência" e "cancelou por chuva" pedem
       // reações diferentes, e sem ele a automação só saberia que alguém saiu.
-      fireAutomation(
-        app,
-        ctx.tenantId,
-        'booking_cancelled',
-        { bookingId: request.params.bookingId },
-        { inscricao: { id: request.params.bookingId, motivo: request.body.reason } },
-      );
+      fireBookingAutomations(app, deps, ctx, request.params.bookingId, [
+        { tipo: 'booking_cancelled', motivo: request.body.reason },
+      ]);
       return reply.send(statusDto(booking));
     },
   );

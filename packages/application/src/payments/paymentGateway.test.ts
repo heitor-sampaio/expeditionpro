@@ -781,3 +781,119 @@ describe('PG-08: um lançamento por cobrança, pelo valor da inscrição', () =>
     expect(s.bookings.rows[0]!.status).toBe('confirmed');
   });
 });
+
+/**
+ * AU-04 — o webhook do gateway também é um acontecimento de inscrição.
+ *
+ * Pagar pelo link do ASAAS lança o recebimento e confirma a inscrição (PG-03), e mesmo assim
+ * este caminho não acordava automação nenhuma: quem ligasse "pagamento entrou → mande o
+ * comprovante" via a automação funcionar no lançamento manual e ficar muda justamente quando o
+ * cliente paga sozinho, que é o caminho que o gateway existe para atender.
+ *
+ * O caso de uso **devolve** o que aconteceu e quem dispara é a borda, no molde do webhook da
+ * caixa (AT-02): dentro do caso de uso, ação de automação viraria automação chamando automação
+ * (AU-05).
+ */
+describe('AU-04 · PG-03: o webhook devolve o que a borda precisa para disparar', () => {
+  async function comCobranca() {
+    const s = await seed();
+    const conexao = await conectado(s);
+    const charge = await createBookingCharge(chargeDeps(s), owner, {
+      bookingId: s.booking.id,
+      environment: 'sandbox',
+      billingType: 'PIX',
+      dueDate: '2026-09-05',
+    });
+    return { s, charge, token: conexao.webhookToken! };
+  }
+
+  const evento = (paymentId: string, value: number) => ({
+    event: 'PAYMENT_RECEIVED',
+    payment: {
+      id: paymentId,
+      value,
+      billingType: 'PIX',
+      status: 'RECEIVED',
+      dueDate: '2026-09-05',
+      paymentDate: '2026-09-02',
+    },
+  });
+
+  it('recebimento entra com o valor que quita, o método e a data', async () => {
+    const { s, charge, token } = await comCobranca();
+
+    const result = await settleChargeFromWebhook(webhookDeps(s), sistema, {
+      token,
+      body: evento(charge.externalId, Number(charge.amountCents) / 100),
+    });
+
+    expect(result.trigger).toEqual({
+      bookingId: s.booking.id,
+      // PG-08: o líquido, que é o que casa com o saldo — o cliente pagou o bruto.
+      amountCents: 120000,
+      method: 'pix',
+      paidAt: '2026-09-02',
+      confirmedNow: true,
+    });
+  });
+
+  /**
+   * IN-08: só o **primeiro** recebimento confirma. Numa inscrição que já estava confirmada, o
+   * dinheiro entra e mais nada — e quem escrever "sua vaga está garantida" no gatilho de
+   * confirmação não pode ver essa frase sair de novo a cada parcela.
+   */
+  it('inscrição já confirmada recebe sem dizer que confirmou', async () => {
+    const { s, charge, token } = await comCobranca();
+    s.bookings.rows[0] = { ...s.bookings.rows[0]!, status: 'confirmed' };
+
+    const result = await settleChargeFromWebhook(webhookDeps(s), sistema, {
+      token,
+      body: evento(charge.externalId, Number(charge.amountCents) / 100),
+    });
+
+    expect(result.trigger?.confirmedNow).toBe(false);
+  });
+
+  /**
+   * **Nada de gatilho no que foi ignorado.** O ASAAS reenvia até receber 200, e um gatilho por
+   * reenvio é uma mensagem de WhatsApp por reenvio — o mesmo motivo pelo qual o eco do
+   * provedor não dispara na caixa (AU-05).
+   */
+  it('reenvio do mesmo evento não dispara de novo', async () => {
+    const { s, charge, token } = await comCobranca();
+    const body = evento(charge.externalId, 1200);
+
+    await settleChargeFromWebhook(webhookDeps(s), sistema, { token, body });
+    const segundo = await settleChargeFromWebhook(webhookDeps(s), sistema, { token, body });
+
+    expect(segundo.trigger).toBeUndefined();
+  });
+
+  it('cobrança de outro sistema não dispara', async () => {
+    const { s, token } = await comCobranca();
+    const result = await settleChargeFromWebhook(webhookDeps(s), sistema, {
+      token,
+      body: evento('pay_de_outro_sistema', 500),
+    });
+    expect(result.trigger).toBeUndefined();
+  });
+
+  /** Mudar de estado não é dinheiro entrando: vencer uma cobrança não é receber. */
+  it('evento que não é recebimento não dispara', async () => {
+    const { s, charge, token } = await comCobranca();
+    const result = await settleChargeFromWebhook(webhookDeps(s), sistema, {
+      token,
+      body: { event: 'PAYMENT_OVERDUE', payment: { id: charge.externalId } },
+    });
+    expect(result.trigger).toBeUndefined();
+  });
+
+  it('corpo que não entendemos não dispara', async () => {
+    const { s, token } = await comCobranca();
+    const result = await settleChargeFromWebhook(webhookDeps(s), sistema, {
+      token,
+      body: { event: 'PAYMENT_ANTICIPATED' },
+    });
+    expect(result.trigger).toBeUndefined();
+  });
+});

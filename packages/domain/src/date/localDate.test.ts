@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseLocalDate,
   formatLocalDateBR,
+  formatLocalDateISO,
   fullYearsBetween,
   InvalidLocalDateError,
 } from './localDate.js';
@@ -16,6 +17,16 @@ describe('LocalDate — data civil sem fuso', () => {
   it('formatLocalDateBR exibe dd/mm/aaaa com zero à esquerda', () => {
     expect(formatLocalDateBR(parseLocalDate('1989-01-14'))).toBe('14/01/1989');
     expect(formatLocalDateBR(parseLocalDate('2026-12-05'))).toBe('05/12/2026');
+  });
+
+  /**
+   * O caminho de volta do `parseLocalDate` — o formato em que a data sai para DTO, documento e
+   * contexto de automação. Existia copiado dentro de meia dúzia de arquivos, cada cópia livre
+   * para divergir da outra; datas que discordam entre duas telas nascem exatamente assim.
+   */
+  it('formatLocalDateISO devolve aaaa-mm-dd, com zero à esquerda', () => {
+    expect(formatLocalDateISO(parseLocalDate('1989-01-14'))).toBe('1989-01-14');
+    expect(formatLocalDateISO({ year: 2026, month: 7, day: 5 })).toBe('2026-07-05');
   });
 
   it('parseLocalDate aceita ISO YYYY-MM-DD', () => {

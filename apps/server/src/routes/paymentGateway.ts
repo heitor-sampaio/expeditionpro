@@ -13,8 +13,9 @@ import {
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import type { BookingChargeView } from '@expedition/application';
+import type { BookingChargeView, RequestContext } from '@expedition/application';
 import type { ServerDeps } from '../buildServer.js';
+import { fireBookingAutomations } from './fireAutomation.js';
 
 /**
  * PG-01/PG-02/PG-03 — rotas do gateway de pagamento.
@@ -270,6 +271,8 @@ export function registerPaymentGatewayRoutes(app: FastifyInstance, deps: ServerD
       if (!tenantId) return reply.status(401).send({ error: 'unauthorized' });
 
       const token = (request.headers['asaas-access-token'] as string | undefined) ?? '';
+      // PG-03: quem age aqui é o sistema — não há usuário por trás de um pagamento no ASAAS.
+      const ctxDoWebhook: RequestContext = { tenantId, actor: { kind: 'system' } };
       const outcome = await settleChargeFromWebhook(
         {
           integrations: deps.paymentIntegrations,
@@ -279,9 +282,31 @@ export function registerPaymentGatewayRoutes(app: FastifyInstance, deps: ServerD
           audit: deps.audit,
           clock: deps.clock ?? (() => new Date()),
         },
-        { tenantId, actor: { kind: 'system' } },
+        ctxDoWebhook,
         { token, body: request.body },
       );
+      /*
+       * AU-04 — pagar pelo link do ASAAS é o caminho em que o cliente paga **sozinho**, e era
+       * o único que não acordava automação nenhuma. `trigger` só vem quando dinheiro entrou de
+       * verdade: reenvio do provedor não dispara, senão cada reenvio viraria uma mensagem.
+       *
+       * O dinheiro entrou e **por isso** confirmou — os dois gatilhos saem nessa ordem.
+       */
+      if (outcome.trigger) {
+        const { trigger } = outcome;
+        fireBookingAutomations(app, deps, ctxDoWebhook, trigger.bookingId, [
+          {
+            tipo: 'payment_registered',
+            pagamento: {
+              valorCents: trigger.amountCents,
+              metodo: trigger.method,
+              data: trigger.paidAt,
+              confirmou: trigger.confirmedNow,
+            },
+          },
+          ...(trigger.confirmedNow ? [{ tipo: 'booking_confirmed' } as const] : []),
+        ]);
+      }
       return reply.send({ handled: outcome.handled });
     },
   );

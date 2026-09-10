@@ -82,3 +82,95 @@ describe('AU-17: gatilhos novos', () => {
     );
   });
 });
+
+/**
+ * AU-16 — o que a inscrição põe no contexto.
+ *
+ * Os quatro gatilhos de inscrição prometiam **um id**, e um id não escreve "seu pagamento
+ * entrou, Ana". Enquanto foi assim, automação nenhuma tinha como falar com cliente: o texto
+ * saía sem nome, sem valor e sem saída, porque não havia de onde tirá-los.
+ *
+ * Dinheiro entra em **centavos**, como no sistema inteiro; quem formata é `dinheiro()` no
+ * texto (AU-22). Guardar aqui um "R$ 2.580,00" seria decidir a formatação no lugar errado.
+ */
+describe('AU-16: os gatilhos de inscrição trazem contato, saída e dinheiro', () => {
+  const DE_INSCRICAO = [
+    'booking_created',
+    'booking_confirmed',
+    'booking_cancelled',
+    'payment_registered',
+  ] as const;
+
+  const caminhosDe = (gatilho: (typeof DE_INSCRICAO)[number]): string[] =>
+    CAMPOS_DO_GATILHO[gatilho].map((campo) => campo.path);
+
+  it.each(DE_INSCRICAO)('%s traz quem é o contato', (gatilho) => {
+    expect(caminhosDe(gatilho)).toEqual(
+      expect.arrayContaining(['contato.nome', 'contato.telefone', 'contato.email']),
+    );
+  });
+
+  it.each(DE_INSCRICAO)('%s traz a inscrição, com os valores em centavos', (gatilho) => {
+    expect(caminhosDe(gatilho)).toEqual(
+      expect.arrayContaining([
+        'inscricao.id',
+        'inscricao.status',
+        'inscricao.pessoas',
+        'inscricao.origem',
+        'inscricao.totalCents',
+        'inscricao.recebidoCents',
+        'inscricao.saldoCents',
+      ]),
+    );
+  });
+
+  it.each(DE_INSCRICAO)('%s traz a saída e o roteiro', (gatilho) => {
+    expect(caminhosDe(gatilho)).toEqual(
+      expect.arrayContaining(['saida.nome', 'saida.roteiro', 'saida.inicio', 'saida.fim']),
+    );
+  });
+
+  /** O motivo só existe em quem cancelou. Prometê-lo nos outros seria prometer vazio. */
+  it('o motivo é só do cancelamento', () => {
+    expect(caminhosDe('booking_cancelled')).toContain('inscricao.motivo');
+    for (const gatilho of ['booking_created', 'booking_confirmed', 'payment_registered'] as const) {
+      expect({ [gatilho]: caminhosDe(gatilho).includes('inscricao.motivo') }).toEqual({
+        [gatilho]: false,
+      });
+    }
+  });
+
+  /** O recebimento só existe em quem recebeu — nos outros não há pagamento nenhum na mão. */
+  it('o pagamento é só do recebimento registrado', () => {
+    expect(caminhosDe('payment_registered')).toEqual(
+      expect.arrayContaining([
+        'pagamento.valorCents',
+        'pagamento.metodo',
+        'pagamento.data',
+        'pagamento.confirmou',
+      ]),
+    );
+    for (const gatilho of ['booking_created', 'booking_confirmed', 'booking_cancelled'] as const) {
+      expect({
+        [gatilho]: caminhosDe(gatilho).some((caminho) => caminho.startsWith('pagamento.')),
+      }).toEqual({ [gatilho]: false });
+    }
+  });
+
+  /**
+   * **CPF não entra em contexto de automação, em gatilho nenhum.** É a mesma decisão do
+   * catálogo de busca (AU-20): o contexto vira texto de mensagem e filtro salvo no desenho, e
+   * documento de identidade não tem por que passear por aí. Quem precisa de CPF abre a ficha.
+   *
+   * Aqui como teste, e não como cuidado: cuidado se esquece na próxima linha que alguém
+   * acrescentar.
+   */
+  it('nenhum gatilho promete CPF', () => {
+    for (const gatilho of TRIGGER_TYPES) {
+      const comCpf = CAMPOS_DO_GATILHO[gatilho].filter((campo) =>
+        campo.path.toLowerCase().includes('cpf'),
+      );
+      expect({ [gatilho]: comCpf }).toEqual({ [gatilho]: [] });
+    }
+  });
+});

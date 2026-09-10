@@ -42,6 +42,18 @@ export function formatLocalDateBR(date: LocalDate): string {
 }
 
 /**
+ * O caminho de volta do `parseLocalDate`: `{2026, 8, 27}` → `2026-08-27`.
+ *
+ * É o formato em que a data sai para DTO, documento e contexto de automação. Vivia copiado
+ * dentro de cada arquivo que precisava dele, e cópia é como duas telas passam a mostrar a
+ * mesma data de jeitos diferentes.
+ */
+export function formatLocalDateISO(date: LocalDate): string {
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${date.year}-${pad(date.month)}-${pad(date.day)}`;
+}
+
+/**
  * Anos completos entre `start` e `reference`. É a idade na data de referência.
  * Quem faz aniversário em 29/02 completa idade em 01/03 nos anos não-bissextos —
  * convenção estável e testada.

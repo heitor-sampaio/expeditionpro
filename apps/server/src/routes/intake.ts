@@ -25,6 +25,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { ServerDeps } from '../buildServer.js';
 import { fireBookingNotification } from './notify.js';
+import { fireBookingAutomations } from './fireAutomation.js';
 
 /**
  * Webhook de inscrições (§5.7). `POST /v1/intake/:tenantSlug` autentica pela API key
@@ -184,6 +185,16 @@ export function registerIntakeRoutes(app: FastifyInstance, deps: ServerDeps): vo
         { intakeId: request.params.intakeId, groupId: request.body.groupId },
       );
       await fireBookingNotification(deps, request.log, ctx, result.bookingId, 'received');
+      /*
+       * IN-18 · AU-04 — a inscrição que vem do portal e do site nasce aqui, e este era o
+       * caminho **mudo**: só as duas alocações pela tela disparavam. Quem ligasse "entrou
+       * inscrição nova → mande as boas-vindas" via a automação nunca acordar justamente para
+       * quem se inscreveu sozinho, que é a maioria.
+       *
+       * O contexto se monta depois da resposta, e é o que garante ler fora da transação que
+       * o `uow` acabou de fechar.
+       */
+      fireBookingAutomations(app, deps, ctx, result.bookingId, [{ tipo: 'booking_created' }]);
       return reply.status(201).send(result);
     },
   );

@@ -67,8 +67,53 @@ const OPORTUNIDADE: readonly ContextField[] = [
   { path: 'oportunidade.etapa', label: 'Etapa do funil' },
 ];
 
-/** O que a borda de inscrição manda hoje. Um id só — e o seletor não finge que há mais. */
-const INSCRICAO: readonly ContextField[] = [{ path: 'inscricao.id', label: 'Id da inscrição' }];
+/**
+ * A inscrição prometia **um id**, e um id não escreve "seu pagamento entrou, Ana".
+ *
+ * O e-mail entra aqui e não em `CONTATO`: quem escreve pela caixa (§5.17) chega por telefone e
+ * não tem e-mail nenhum para dar, e prometer nos gatilhos de conversa um campo que a borda não
+ * manda é o defeito que este arquivo existe para impedir.
+ */
+const CONTATO_DA_INSCRICAO: readonly ContextField[] = [
+  ...CONTATO,
+  { path: 'contato.email', label: 'E-mail do contato' },
+];
+
+/**
+ * A saída, do jeito que a mensagem precisa dela: nome para dizer qual é, roteiro para dizer o
+ * que é, e as duas datas — `diasAte(saida.inicio)` é o que faz "faltam 3 dias" existir.
+ */
+const SAIDA_DA_INSCRICAO: readonly ContextField[] = [
+  { path: 'saida.nome', label: 'Nome do grupo' },
+  { path: 'saida.roteiro', label: 'Nome do roteiro' },
+  { path: 'saida.inicio', label: 'Data de início (aaaa-mm-dd)' },
+  { path: 'saida.fim', label: 'Data de fim (aaaa-mm-dd)' },
+];
+
+/**
+ * O que toda inscrição põe à disposição.
+ *
+ * **Dinheiro em centavos**, como no sistema inteiro — quem formata é `dinheiro()` dentro do
+ * texto (AU-22). Guardar "R$ 2.580,00" aqui seria decidir formatação no lugar errado, e o campo
+ * deixaria de servir para comparar em condição.
+ *
+ * **Sem CPF**, pela mesma razão do catálogo de busca (AU-20): o contexto vira texto de mensagem
+ * e filtro salvo no desenho, e documento de identidade não passeia por aí.
+ *
+ * `status` e `origem` saem crus (`pending`, `confirmed`, `portal`) porque é assim que a condição
+ * os compara; o rótulo diz quais são os valores, como `ehCliente` já diz o dele.
+ */
+const INSCRICAO: readonly ContextField[] = [
+  ...CONTATO_DA_INSCRICAO,
+  { path: 'inscricao.id', label: 'Id da inscrição' },
+  { path: 'inscricao.status', label: 'Situação (pending, confirmed, cancelled)' },
+  { path: 'inscricao.pessoas', label: 'Quantas pessoas na inscrição' },
+  { path: 'inscricao.origem', label: 'Origem (manual, portal, webhook)' },
+  { path: 'inscricao.totalCents', label: 'Total contratado, em centavos' },
+  { path: 'inscricao.recebidoCents', label: 'Recebido até agora, em centavos' },
+  { path: 'inscricao.saldoCents', label: 'A receber, em centavos' },
+  ...SAIDA_DA_INSCRICAO,
+];
 
 export const CAMPOS_DO_GATILHO: Record<TriggerType, readonly ContextField[]> = {
   message_received: CONVERSA,
@@ -79,7 +124,21 @@ export const CAMPOS_DO_GATILHO: Record<TriggerType, readonly ContextField[]> = {
   booking_created: INSCRICAO,
   booking_confirmed: INSCRICAO,
   booking_cancelled: [...INSCRICAO, { path: 'inscricao.motivo', label: 'Motivo do cancelamento' }],
-  payment_registered: INSCRICAO,
+  /*
+   * O recebimento que acabou de entrar, além do estado da inscrição já com ele somado. Os dois
+   * juntos são o que faz "recebemos {{dinheiro(pagamento.valorCents)}}, faltam
+   * {{dinheiro(inscricao.saldoCents)}}" fechar a conta.
+   */
+  payment_registered: [
+    ...INSCRICAO,
+    { path: 'pagamento.valorCents', label: 'Valor deste recebimento, em centavos' },
+    { path: 'pagamento.metodo', label: 'Forma de pagamento (pix, boleto, card, cash)' },
+    { path: 'pagamento.data', label: 'Data do recebimento (aaaa-mm-dd)' },
+    {
+      path: 'pagamento.confirmou',
+      label: 'Este recebimento confirmou a inscrição (true ou false)',
+    },
+  ],
   scheduled: [
     { path: 'saida.nome', label: 'Nome do grupo' },
     { path: 'saida.inicio', label: 'Data de início (aaaa-mm-dd)' },

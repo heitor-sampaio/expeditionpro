@@ -26,6 +26,7 @@ export {
   type LocalDate,
   parseLocalDate,
   formatLocalDateBR,
+  formatLocalDateISO,
   fullYearsBetween,
   InvalidLocalDateError,
 } from './date/localDate.js';

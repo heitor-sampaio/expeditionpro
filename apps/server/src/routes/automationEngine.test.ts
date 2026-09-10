@@ -6,6 +6,7 @@ import { inMemoryChannelIntegrations, inMemoryConversations } from '../dev/inMem
 import { inMemoryApiKeys } from '../dev/inMemoryIntake.js';
 import type { ServerDeps } from '../buildServer.js';
 import { CAMPOS_DO_GATILHO } from '@expedition/domain';
+import type { TriggerType } from '@expedition/domain';
 import type { RequestContext } from '@expedition/application';
 
 /**
@@ -58,9 +59,32 @@ function corpoDaEvolution(texto: string, id = 'MSG-1') {
   };
 }
 
+/**
+ * O ASAAS de mentira, com o mínimo que a rota exercita: conectar, cotar e emitir. Não é o
+ * fake da camada de aplicação porque ele mora do lado de lá da fronteira — e o que se testa
+ * aqui é a borda, não o provedor.
+ */
+function gatewayDeTeste(): ServerDeps['paymentGateway'] {
+  let seq = 0;
+  return {
+    checkAccount: () => Promise.resolve({ name: 'Drakkar Expedições' }),
+    simulate: () => Promise.resolve({ percentBps: 0, fixedCents: 0 }),
+    fetchSettlement: () => Promise.resolve(null),
+    createCharge: () => {
+      seq += 1;
+      return Promise.resolve({
+        externalId: `pay_${seq}`,
+        installmentExternalId: null,
+        invoiceUrl: null,
+        status: 'PENDING',
+      });
+    },
+  };
+}
+
 const TENANT = 'dev-tenant';
 
-async function comMotor() {
+async function comMotor(paymentGateway?: ServerDeps['paymentGateway']) {
   const automations = inMemoryAutomations();
   const runs = inMemoryAutomationRuns();
   const enviar = vi.fn().mockResolvedValue({ ok: true, externalId: 'OUT-1' });
@@ -90,6 +114,13 @@ async function comMotor() {
     ]),
     apiKeys: inMemoryApiKeys([
       {
+        keyId: 'k-intake',
+        tenantId: TENANT,
+        tenantSlug: 'dev',
+        token: 'CHAVE-DE-INSCRICAO',
+        scopes: ['intake:write'],
+      },
+      {
         keyId: 'k-auto',
         tenantId: TENANT,
         tenantSlug: 'dev',
@@ -105,6 +136,7 @@ async function comMotor() {
   const deps: ServerDeps = {
     ...base,
     messagingGateway: { sendText: enviar, sendMedia: vi.fn() },
+    ...(paymentGateway === undefined ? {} : { paymentGateway }),
   };
   const app = await buildServer({ logger: false, deps, automationEngine: true });
   await app.ready();
@@ -343,16 +375,54 @@ describe('AU-06: o log conta o que aconteceu', () => {
  * em silêncio (AU-09, e é a regra certa) — a mensagem sai sem o nome do cliente e nada acusa.
  * Este teste é o que transforma esse silêncio em suíte vermelha.
  */
-describe('AU-16: o contexto disparado tem os campos que o seletor promete', () => {
-  const temCaminho = (contexto: unknown, caminho: string): boolean => {
-    let atual: unknown = contexto;
-    for (const parte of caminho.split('.')) {
-      if (atual === null || typeof atual !== 'object' || !(parte in atual)) return false;
-      atual = (atual as Record<string, unknown>)[parte];
-    }
-    return true;
-  };
+const temCaminho = (contexto: unknown, caminho: string): boolean => {
+  let atual: unknown = contexto;
+  for (const parte of caminho.split('.')) {
+    if (atual === null || typeof atual !== 'object' || !(parte in atual)) return false;
+    atual = (atual as Record<string, unknown>)[parte];
+  }
+  return true;
+};
 
+/** Todo caminho que o seletor promete para este gatilho existe no contexto disparado. */
+function cobraOCatalogo(variables: unknown, gatilho: TriggerType): void {
+  for (const campo of CAMPOS_DO_GATILHO[gatilho]) {
+    expect({ [campo.path]: temCaminho(variables, campo.path) }).toEqual({ [campo.path]: true });
+  }
+}
+
+/** Uma automação ligada só no gatilho pedido: gatilho → fim, que é o mínimo que enfileira. */
+async function ligarGatilho(
+  app: Awaited<ReturnType<typeof comMotor>>['app'],
+  trigger: TriggerType,
+) {
+  const criada = (
+    await app.inject({ method: 'POST', url: '/v1/automations', payload: { name: trigger } })
+  ).json() as { id: string };
+
+  await app.inject({
+    method: 'PUT',
+    url: `/v1/automations/${criada.id}/graph`,
+    payload: {
+      graph: {
+        nodes: [
+          { id: 'g1', kind: 'trigger', type: trigger, config: {}, position: { x: 0, y: 0 } },
+          { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 90 } },
+        ],
+        edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'f1' }],
+      },
+    },
+  });
+  const ligou = await app.inject({
+    method: 'PUT',
+    url: `/v1/automations/${criada.id}/enabled`,
+    payload: { enabled: true },
+  });
+  expect(ligou.statusCode).toBe(200);
+  return criada;
+}
+
+describe('AU-16: o contexto disparado tem os campos que o seletor promete', () => {
   it('mensagem recebida entrega todos os campos do catálogo', async () => {
     const { app, runs, automations } = await comMotor();
     await ligarAutomacao(app);
@@ -365,11 +435,7 @@ describe('AU-16: o contexto disparado tem os campos que o seletor promete', () =
     });
 
     const [aberta] = await runs.automationRuns.listByAutomation(TENANT, automations.rows[0]!.id, 1);
-    for (const campo of CAMPOS_DO_GATILHO.message_received) {
-      expect({ [campo.path]: temCaminho(aberta?.variables, campo.path) }).toEqual({
-        [campo.path]: true,
-      });
-    }
+    cobraOCatalogo(aberta?.variables, 'message_received');
     await app.close();
   });
 });
@@ -623,6 +689,425 @@ describe('AU-21: gatilho de webhook', () => {
     });
 
     expect(await runs.automationRuns.listByAutomation(TENANT, parceiro.id, 5)).toHaveLength(0);
+    await app.close();
+  });
+});
+
+/**
+ * AU-16 · AU-04 — os gatilhos de inscrição, que prometiam um id e agora prometem a inscrição.
+ *
+ * Enquanto o contexto era `{ inscricao: { id } }`, nenhuma automação conseguia escrever "seu
+ * pagamento entrou, Ana": não havia nome, valor nem saída de onde tirar. Aqui a promessa do
+ * seletor é cobrada contra a rota de verdade, um gatilho de cada vez.
+ *
+ * **Três dos caminhos abaixo não disparavam nada** — a inscrição vinda do portal, a confirmação
+ * manual e o pagamento pelo gateway. Automação ligada neles simplesmente não acordava, sem erro
+ * e sem log: o defeito mais caro que este módulo pode ter.
+ */
+describe('AU-16: os gatilhos de inscrição entregam o que o seletor promete', () => {
+  const PRECOS = {
+    validFrom: '2025-01-01',
+    coupleCents: 200000,
+    soloCents: 120000,
+    extraAdultCents: 80000,
+    childMidCents: 60000,
+    childYoungCents: 40000,
+  };
+
+  /** Roteiro, saída e uma família — o cenário mínimo em que uma inscrição existe. */
+  async function comSaida(app: Awaited<ReturnType<typeof comMotor>>['app']) {
+    const itinerario = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/itineraries',
+        payload: { name: 'Coxilha Rica', prices: PRECOS },
+      })
+    ).json() as { id: string };
+
+    const evento = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/schedule-events',
+        payload: {
+          itineraryId: itinerario.id,
+          startDate: '2026-11-10',
+          endDate: '2026-11-14',
+        },
+      })
+    ).json() as { group: { id: string } };
+
+    const cliente = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/customers',
+        payload: {
+          fullName: 'Vanessa Santos',
+          cpf: '90000010057',
+          birthDate: '1989-01-14',
+          email: 'vanessa@exemplo.com',
+          phone: '48999998877',
+        },
+      })
+    ).json() as { id: string };
+
+    return { groupId: evento.group.id, customerId: cliente.id };
+  }
+
+  async function inscrever(
+    app: Awaited<ReturnType<typeof comMotor>>['app'],
+    groupId: string,
+    customerId: string,
+  ) {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/groups/${groupId}/bookings`,
+      payload: { responsibleCustomerId: customerId, participantCustomerIds: [customerId] },
+    });
+    expect(res.statusCode).toBe(201);
+    return (res.json() as { id: string }).id;
+  }
+
+  /**
+   * A montagem do contexto roda **depois** da resposta HTTP — três leituras que não podem
+   * segurar a borda (AU-04). Ler a execução direto passaria a depender de sorte de microtask.
+   */
+  async function execucaoDe(
+    runs: Awaited<ReturnType<typeof comMotor>>['runs'],
+    automationId: string,
+  ) {
+    return vi.waitFor(async () => {
+      const abertas = await runs.automationRuns.listByAutomation(TENANT, automationId, 1);
+      expect(abertas).toHaveLength(1);
+      return abertas[0]!;
+    });
+  }
+
+  it('inscrição criada entrega contato, saída e valores', async () => {
+    const { app, runs } = await comMotor();
+    const automacao = await ligarGatilho(app, 'booking_created');
+    const { groupId, customerId } = await comSaida(app);
+
+    await inscrever(app, groupId, customerId);
+
+    const aberta = await execucaoDe(runs, automacao.id);
+    cobraOCatalogo(aberta.variables, 'booking_created');
+    expect(aberta.variables).toMatchObject({
+      contato: { nome: 'Vanessa Santos', email: 'vanessa@exemplo.com' },
+      inscricao: { status: 'pending', pessoas: 1, origem: 'manual', totalCents: 120000 },
+      saida: { roteiro: 'Coxilha Rica', inicio: '2026-11-10', fim: '2026-11-14' },
+    });
+    await app.close();
+  });
+
+  it('recebimento entrega o pagamento e o saldo já descontado', async () => {
+    const { app, runs } = await comMotor();
+    const automacao = await ligarGatilho(app, 'payment_registered');
+    const { groupId, customerId } = await comSaida(app);
+    const bookingId = await inscrever(app, groupId, customerId);
+
+    await app.inject({
+      method: 'POST',
+      url: `/v1/bookings/${bookingId}/payments`,
+      payload: { amountCents: 50000, method: 'pix', paidAt: '2026-09-10' },
+    });
+
+    const aberta = await execucaoDe(runs, automacao.id);
+    cobraOCatalogo(aberta.variables, 'payment_registered');
+    expect(aberta.variables).toMatchObject({
+      // O recebimento já entrou: é ler depois que faz "faltam {{dinheiro(saldoCents)}}" fechar.
+      inscricao: { status: 'confirmed', recebidoCents: 50000, saldoCents: 70000 },
+      pagamento: { valorCents: 50000, metodo: 'pix', data: '2026-09-10', confirmou: true },
+    });
+    await app.close();
+  });
+
+  it('o primeiro recebimento também confirma, e o gatilho de confirmação leva tudo', async () => {
+    const { app, runs } = await comMotor();
+    const automacao = await ligarGatilho(app, 'booking_confirmed');
+    const { groupId, customerId } = await comSaida(app);
+    const bookingId = await inscrever(app, groupId, customerId);
+
+    await app.inject({
+      method: 'POST',
+      url: `/v1/bookings/${bookingId}/payments`,
+      payload: { amountCents: 120000, method: 'pix', paidAt: '2026-09-10' },
+    });
+
+    const aberta = await execucaoDe(runs, automacao.id);
+    cobraOCatalogo(aberta.variables, 'booking_confirmed');
+    await app.close();
+  });
+
+  it('cancelamento leva o motivo junto do resto', async () => {
+    const { app, runs } = await comMotor();
+    const automacao = await ligarGatilho(app, 'booking_cancelled');
+    const { groupId, customerId } = await comSaida(app);
+    const bookingId = await inscrever(app, groupId, customerId);
+
+    await app.inject({
+      method: 'POST',
+      url: `/v1/bookings/${bookingId}/cancel`,
+      payload: { reason: 'desistiu da viagem' },
+    });
+
+    const aberta = await execucaoDe(runs, automacao.id);
+    cobraOCatalogo(aberta.variables, 'booking_cancelled');
+    expect(aberta.variables).toMatchObject({
+      inscricao: { status: 'cancelled', motivo: 'desistiu da viagem' },
+    });
+    await app.close();
+  });
+
+  /**
+   * **A confirmação manual não disparava nada.** Só o caminho do primeiro recebimento
+   * disparava, então quem confirma pela mesa — o cliente que pagou por fora, o caso combinado —
+   * deixava a automação de boas-vindas muda, sem nada que explicasse.
+   */
+  it('confirmar pela mesa dispara a confirmação', async () => {
+    const { app, runs } = await comMotor();
+    const automacao = await ligarGatilho(app, 'booking_confirmed');
+    const { groupId, customerId } = await comSaida(app);
+    const bookingId = await inscrever(app, groupId, customerId);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/bookings/${bookingId}/confirm`,
+      payload: { note: 'pagou em dinheiro na saída anterior' },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const aberta = await execucaoDe(runs, automacao.id);
+    cobraOCatalogo(aberta.variables, 'booking_confirmed');
+    expect(aberta.variables).toMatchObject({ inscricao: { status: 'confirmed' } });
+    await app.close();
+  });
+});
+
+/**
+ * AU-04 — a inscrição do portal também dispara.
+ *
+ * Era o caminho **mudo** que mais doía: só as duas alocações pela tela disparavam
+ * `booking_created`, e quem se inscreve sozinho entra pela fila (§5.7.2). Uma automação de
+ * boas-vindas ligada ficava calada justamente para a maioria — sem erro, sem log, sem nada
+ * para investigar, que é o defeito mais caro que este módulo pode ter.
+ */
+describe('AU-04: inscrição vinda da fila dispara como as outras', () => {
+  const PRECOS = {
+    validFrom: '2025-01-01',
+    coupleCents: 200000,
+    soloCents: 120000,
+    extraAdultCents: 80000,
+    childMidCents: 60000,
+    childYoungCents: 40000,
+  };
+
+  const doFormulario = () => ({
+    entry_id: 9,
+    form_id: 4641,
+    submitted: '2026-08-11T18:57:17-03:00',
+    fields: {
+      resp_nome: { value: 'Vanessa Santos' },
+      resp_cpf: { value: '900.000.100-57' },
+      resp_email: { value: 'vanessa@exemplo.com' },
+      resp_telefone: { value: '(48) 99999-8877' },
+      resp_nascimento: { value: '1989-01-14' },
+    },
+  });
+
+  it('alocar da fila entrega o contexto cheio', async () => {
+    const { app, runs } = await comMotor();
+
+    const automacao = (
+      await app.inject({ method: 'POST', url: '/v1/automations', payload: { name: 'boas-vindas' } })
+    ).json() as { id: string };
+    await app.inject({
+      method: 'PUT',
+      url: `/v1/automations/${automacao.id}/graph`,
+      payload: {
+        graph: {
+          nodes: [
+            {
+              id: 'g1',
+              kind: 'trigger',
+              type: 'booking_created',
+              config: {},
+              position: { x: 0, y: 0 },
+            },
+            { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 90 } },
+          ],
+          edges: [{ id: 'e1', from: 'g1', port: 'next', to: 'f1' }],
+        },
+      },
+    });
+    await app.inject({
+      method: 'PUT',
+      url: `/v1/automations/${automacao.id}/enabled`,
+      payload: { enabled: true },
+    });
+
+    const itinerario = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/itineraries',
+        payload: { name: 'Coxilha Rica', prices: PRECOS },
+      })
+    ).json() as { id: string };
+    const evento = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/schedule-events',
+        payload: { itineraryId: itinerario.id, startDate: '2026-11-10', endDate: '2026-11-14' },
+      })
+    ).json() as { group: { id: string } };
+
+    const recebido = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/intake/dev',
+        headers: { api_token: 'CHAVE-DE-INSCRICAO' },
+        payload: doFormulario(),
+      })
+    ).json() as { intake_id: string };
+
+    const alocou = await app.inject({
+      method: 'POST',
+      url: `/v1/intake/${recebido.intake_id}/allocate`,
+      payload: { groupId: evento.group.id },
+    });
+    expect(alocou.statusCode).toBe(201);
+
+    const [aberta] = await vi.waitFor(async () => {
+      const abertas = await runs.automationRuns.listByAutomation(TENANT, automacao.id, 1);
+      expect(abertas).toHaveLength(1);
+      return abertas;
+    });
+    cobraOCatalogo(aberta?.variables, 'booking_created');
+    expect(aberta?.variables).toMatchObject({
+      contato: { nome: 'Vanessa Santos' },
+      // A origem é o que separa quem se inscreveu sozinho de quem a equipe alocou.
+      inscricao: { status: 'pending', origem: 'webhook' },
+      saida: { roteiro: 'Coxilha Rica' },
+    });
+    await app.close();
+  });
+});
+
+/**
+ * AU-04 — pagar pelo link do ASAAS acorda a automação.
+ *
+ * Era o caminho em que o cliente paga **sozinho**, e o único que não disparava nada: o
+ * recebimento entrava no ledger, a inscrição confirmava, e a automação de "recebemos seu
+ * pagamento" ficava calada justamente onde ela mais serve.
+ */
+describe('AU-04: o webhook do gateway dispara pagamento e confirmação', () => {
+  const PRECOS = {
+    validFrom: '2025-01-01',
+    coupleCents: 200000,
+    soloCents: 120000,
+    extraAdultCents: 80000,
+    childMidCents: 60000,
+    childYoungCents: 40000,
+  };
+
+  it('recebimento pelo ASAAS abre as duas execuções, com o contexto cheio', async () => {
+    const { app, runs } = await comMotor(gatewayDeTeste());
+
+    const pagamento = await ligarGatilho(app, 'payment_registered');
+    const confirmacao = await ligarGatilho(app, 'booking_confirmed');
+
+    const itinerario = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/itineraries',
+        payload: { name: 'Coxilha Rica', prices: PRECOS },
+      })
+    ).json() as { id: string };
+    const evento = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/schedule-events',
+        payload: { itineraryId: itinerario.id, startDate: '2026-11-10', endDate: '2026-11-14' },
+      })
+    ).json() as { group: { id: string } };
+    const cliente = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/customers',
+        payload: {
+          fullName: 'Vanessa Santos',
+          cpf: '90000010057',
+          birthDate: '1989-01-14',
+          email: 'vanessa@exemplo.com',
+          phone: '48999998877',
+        },
+      })
+    ).json() as { id: string };
+    const inscricao = (
+      await app.inject({
+        method: 'POST',
+        url: `/v1/groups/${evento.group.id}/bookings`,
+        payload: { responsibleCustomerId: cliente.id, participantCustomerIds: [cliente.id] },
+      })
+    ).json() as { id: string };
+
+    const conexao = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/payment-integrations',
+        payload: { environment: 'sandbox', accessToken: 'aact_teste' },
+      })
+    ).json() as { webhookToken: string };
+
+    const cobranca = (
+      await app.inject({
+        method: 'POST',
+        url: `/v1/bookings/${inscricao.id}/charges`,
+        payload: {
+          environment: 'sandbox',
+          billingType: 'PIX',
+          dueDate: '2026-09-30',
+        },
+      })
+    ).json() as { externalId: string; amountCents: number };
+
+    const recebeu = await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/asaas/dev',
+      headers: { 'asaas-access-token': conexao.webhookToken },
+      payload: {
+        event: 'PAYMENT_RECEIVED',
+        payment: {
+          id: cobranca.externalId,
+          value: cobranca.amountCents / 100,
+          billingType: 'PIX',
+          status: 'RECEIVED',
+          dueDate: '2026-09-30',
+          paymentDate: '2026-09-12',
+        },
+      },
+    });
+    expect(recebeu.statusCode).toBe(200);
+
+    const doPagamento = await vi.waitFor(async () => {
+      const abertas = await runs.automationRuns.listByAutomation(TENANT, pagamento.id, 1);
+      expect(abertas).toHaveLength(1);
+      return abertas[0]!;
+    });
+    cobraOCatalogo(doPagamento.variables, 'payment_registered');
+    expect(doPagamento.variables).toMatchObject({
+      contato: { nome: 'Vanessa Santos' },
+      // PG-08: o que quita é o líquido, e o saldo fecha com ele. O cliente pagou o bruto.
+      inscricao: { status: 'confirmed', recebidoCents: 120000, saldoCents: 0 },
+      pagamento: { metodo: 'pix', data: '2026-09-12', confirmou: true },
+    });
+
+    // IN-08: o mesmo dinheiro que entrou é o que confirmou — os dois gatilhos, uma leitura só.
+    const daConfirmacao = await vi.waitFor(async () => {
+      const abertas = await runs.automationRuns.listByAutomation(TENANT, confirmacao.id, 1);
+      expect(abertas).toHaveLength(1);
+      return abertas[0]!;
+    });
+    cobraOCatalogo(daConfirmacao.variables, 'booking_confirmed');
     await app.close();
   });
 });

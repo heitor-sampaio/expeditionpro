@@ -1,4 +1,4 @@
-import { cents, mapAsaasEvent } from '@expedition/domain';
+import { cents, formatLocalDateISO, mapAsaasEvent } from '@expedition/domain';
 import { UnauthorizedError } from '../errors.js';
 import { ASAAS } from './connectPaymentProvider.js';
 import type { RequestContext } from '../context.js';
@@ -57,6 +57,27 @@ export interface SettleChargeFromWebhookCommand {
 export interface WebhookOutcome {
   /** true = mudou alguma coisa aqui dentro (lançou recebimento ou mudou a cobrança). */
   readonly handled: boolean;
+  /**
+   * AU-04 — o que a borda precisa para disparar o gatilho, presente **só** quando dinheiro
+   * entrou de verdade.
+   *
+   * Ausente no reenvio, na cobrança de outro sistema e na mudança de estado: o ASAAS reenvia
+   * até receber 200, e gatilho por reenvio é uma mensagem de WhatsApp por reenvio. É a mesma
+   * razão pela qual o eco do provedor não dispara na caixa (AU-05).
+   *
+   * Quem dispara é a borda, e não este caso de uso: gatilho nascendo dentro de caso de uso
+   * abriria a porta para automação chamando automação.
+   */
+  readonly trigger?: {
+    readonly bookingId: string;
+    /** PG-08: o que **quita** a inscrição, que é o que casa com o saldo do ledger. */
+    readonly amountCents: number;
+    readonly method: string;
+    /** `aaaa-mm-dd`. */
+    readonly paidAt: string;
+    /** IN-08: este recebimento tirou a inscrição de pendente. */
+    readonly confirmedNow: boolean;
+  };
 }
 
 const IGNORED: WebhookOutcome = { handled: false };
@@ -113,6 +134,7 @@ export async function settleChargeFromWebhook(
   }
 
   const now = deps.clock();
+  const confirmsNow = booking.status === 'pending';
   const settledCents = quitationOf(charge, event.amountCents, existing);
   // Cartão já quitado pela primeira parcela: as seguintes são o mesmo dinheiro chegando
   // em pedaços, e só interessam à conciliação.
@@ -137,7 +159,7 @@ export async function settleChargeFromWebhook(
     },
     // IN-08: o primeiro recebimento confirma. Sem `confirmedBy`: quem confirmou foi o
     // dinheiro, e o "quem" fica na trilha, com o id da cobrança.
-    booking.status === 'pending' ? { confirmedBy: null, confirmedAt: now } : null,
+    confirmsNow ? { confirmedBy: null, confirmedAt: now } : null,
   );
 
   // A cobrança fica marcada pela **primeira** parcela liquidada: é o que responde
@@ -161,7 +183,17 @@ export async function settleChargeFromWebhook(
     },
   });
 
-  return { handled: true };
+  return {
+    handled: true,
+    // AU-04: dinheiro entrou de verdade — só aqui, e não em nenhum dos caminhos ignorados.
+    trigger: {
+      bookingId: charge.bookingId,
+      amountCents: settledCents,
+      method: event.method,
+      paidAt: formatLocalDateISO(event.paidAt),
+      confirmedNow: confirmsNow,
+    },
+  };
 }
 
 /**

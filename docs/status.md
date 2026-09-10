@@ -553,6 +553,79 @@ Do lado do motor, `SimulatedStep` ganhou `input` e `output`. A saída de cada es
 **acrescentou** ao contexto, não o contexto inteiro: senão toda busca pareceria ter trazido tudo
 o que já estava lá.
 
+### Fatia 14 — a inscrição passou a caber na mensagem ✅ (2026-09-10)
+
+**AU-16.** Os quatro gatilhos de inscrição entregavam **um id**, e um id não escreve "seu
+pagamento entrou, Ana". Agora entregam contato (nome, telefone, e-mail), a saída (grupo,
+roteiro, as duas datas) e o dinheiro (contratado, recebido, a receber), mais
+`pagamento.valorCents/metodo/data/confirmou` no recebimento e `inscricao.motivo` no
+cancelamento.
+
+**Dinheiro em centavos crus**, como no sistema inteiro — quem formata é `dinheiro()` dentro do
+texto (AU-22). Guardar "R$ 2.580,00" no contexto seria decidir a formatação no lugar errado, e
+o campo deixaria de servir para comparar em condição. **Sem CPF**, pela mesma razão já escrita
+no catálogo de busca: o contexto vira texto de mensagem e pode sair numa chamada de URL
+(AU-21), e documento de identidade não passeia por aí. Agora isso é **teste**, e em dois
+níveis: nenhum caminho do catálogo contém "cpf", e o contexto montado não contém o CPF da
+fixture — cuidado se esquece no campo seguinte; teste não.
+
+> **Três caminhos não disparavam gatilho nenhum**, e eram justamente aqueles por onde o cliente
+> de verdade entra e paga:
+>
+> | Caminho | O que ficava mudo |
+> |---|---|
+> | `POST /v1/intake/:id/allocate` — a inscrição que vem do portal e do site | `booking_created` |
+> | `POST /v1/bookings/:id/confirm` — confirmar pela mesa | `booking_confirmed` |
+> | `POST /v1/webhooks/asaas/:slug` — **o cliente pagando sozinho** | `payment_registered` e `booking_confirmed` |
+>
+> Automação ligada em qualquer um deles não acordava: sem erro, sem log, sem nada para
+> investigar. Só as duas alocações pela tela e o lançamento manual de recebimento disparavam —
+> ou seja, o gatilho funcionava para o caminho que a equipe digita e falhava no caminho que o
+> sistema atende sozinho, que é o motivo de a automação existir.
+
+**A montagem do contexto roda depois da resposta**, e são três razões que se somam. A alocação
+pela fila acontece dentro de uma transação (§5.7.2) e ler ali seria ler o que ainda não
+commitou. AU-04 exige que a borda responda em milissegundos. E ler **depois** é o que faz o
+gatilho de pagamento enxergar o recebimento que acabou de entrar — sem isso
+`{{inscricao.saldoCents}}` sairia com o saldo de antes, e a conta não fecharia na cara do
+cliente.
+
+**A leitura nunca lança.** Com três idas ao banco, qualquer soluço viraria `.catch` e a
+automação simplesmente não rodaria — e é o modo de falha mais caro que existe aqui, porque é
+invisível. Leitura secundária que falha vira campo vazio (AU-09, que é a regra certa e aparece
+no log de passos); só a inscrição não encontrada reduz o contexto ao `{ inscricao: { id } }` de
+antes, que é o comportamento de sempre e não uma piora.
+
+**Uma leitura, N gatilhos.** A rota de pagamento dispara dois; um helper por gatilho dobraria as
+consultas e faria a ordem de enfileiramento depender de qual consulta voltou primeiro. E
+corrigiu de passagem a ordem causal, que estava invertida: `booking_confirmed` saía **antes** de
+`payment_registered`, quando o dinheiro entrou e *por isso* confirmou.
+
+**O que o compilador passou a cobrar.** O gatilho de inscrição virou união discriminada
+(`BookingTrigger`), e não um saco de campos opcionais: esquecer o motivo no cancelamento é erro
+de compilação, não campo vazio na mensagem seis meses depois. `WebhookOutcome` do ASAAS ganhou
+`trigger?`, no molde exato do `ReceiveOutcome` da caixa — presente **só** quando dinheiro entrou,
+ausente em todo caminho ignorado. O ASAAS reenvia até receber 200, e gatilho por reenvio seria
+uma mensagem de WhatsApp por reenvio.
+
+**O motor desligado voltou a ser de graça.** `AutomationRunner` expõe `enabled`, e o disparo sai
+na primeira linha quando o motor está fora — sem isso, toda alocação e todo pagamento pagariam
+três consultas para alimentar um motor que não vai enfileirar nada, inclusive na suíte de rota,
+que roda com ele desligado de propósito.
+
+**O teste de contrato borda × catálogo cobria um gatilho de doze** (`message_received`). Agora
+cobre os quatro de inscrição, cada um pela rota de verdade, mais os três caminhos que eram
+mudos. É o teste que teria pego a classe inteira do defeito.
+
+De passagem: `formatLocalDateISO` entrou no domínio, ao lado do `formatLocalDateBR` que já
+existia. O formato `aaaa-mm-dd` vivia copiado dentro de meia dúzia de arquivos, cada cópia livre
+para divergir — datas que discordam entre duas telas nascem assim. A cópia irmã dentro do
+próprio módulo (`scanScheduledTriggers`) foi a primeira a sair, e importava que saísse: ela e o
+contexto de inscrição produzem o mesmo `saida.inicio`.
+
+**Suíte em 2.176 testes unitários** (eram 2.140), todos os portões limpos. Sem migration: nenhuma
+tabela, nenhuma coluna, nenhuma policy.
+
 ### O que ainda não foi visto por gente
 
 **O motor rodou.** Em 2026-09-03, no ambiente de desenvolvimento contra o banco de verdade, uma
@@ -572,11 +645,15 @@ suíte — inclusive as tentativas de escapar dele —, mas o primeiro código e
 encontrar o que teste nenhum previu. O ensaio é o lugar certo para descobrir isso, e é o próximo
 gesto a fazer no ambiente de verdade.
 
-**Os gatilhos de inscrição carregam pouco.** `booking_created`, `booking_confirmed` e
-`payment_registered` põem no contexto só `inscricao.id` — o seletor mostra isso com honestidade,
-e é pouco para escrever "seu pagamento entrou, {{contato.nome}}". Enriquecer essas bordas é
-decisão à parte: são variáveis com dado pessoal e valor, e merecem a mesma conversa que o DTO
-teve.
+~~**Os gatilhos de inscrição carregam pouco.**~~ — **feito na fatia 14** (2026-09-10). Passaram
+a carregar contato, saída e dinheiro, e três caminhos que não disparavam nada passaram a
+disparar. O que **falta ver por gente** é o outro lado disso: nenhuma dessas mensagens saiu para
+um celular ainda. O primeiro alvo natural é `payment_registered` — lançar um recebimento de
+verdade e ler no log de passos (AU-06) o texto com nome, valor e saída já trocados.
+
+**O painel do ensaio cresceu de 1 campo para 18** e não foi olhado em tela. O `.form-grid` é
+flex-wrap de 220px e deve absorver, mas quem sabe se preencher dezoito campos para ensaiar é
+razoável — ou se ali cabe um "preencher com uma inscrição de verdade" — é quem usa.
 
 ---
 
