@@ -27,6 +27,8 @@ export interface AutomationRun {
   stepsTaken: number;
   attempts: number;
   lastError: string | null;
+  /** AU-25 — dá para ensaiar em cima desta execução? Execução antiga não guardou o contexto. */
+  temContextoDoGatilho: boolean;
   wakeAt: string;
   createdAt: string;
   updatedAt: string;

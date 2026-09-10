@@ -1215,6 +1215,10 @@ model AutomationRun {
   status         String    @default("pending")
   currentNodeId  String?   @map("current_node_id")
   variables      Json      @default("{}")
+  /// AU-25: o contexto como o gatilho o entregou. `variables` é sobrescrito a cada passo;
+  /// este não muda mais, e é o que deixa ensaiar em cima do que já aconteceu. NULL = execução
+  /// anterior a este campo, que é diferente de `{}` — um gatilho que não trouxe nada.
+  triggerVariables Json?   @map("trigger_variables")
   /// Quando esta execução deve ser olhada: agora, ou quando a espera vencer.
   wakeAt         DateTime  @default(now()) @map("wake_at")
   stepsTaken     Int       @default(0) @map("steps_taken")

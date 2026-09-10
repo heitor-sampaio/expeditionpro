@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { api } from '../auth/api.js';
 import { blockLabel } from './blocks.js';
 import { camposDoGatilho, gatilhoDoQuadro, variaveisDeCampos } from './fields.js';
-import { fonteDoGatilho } from './fonteDoContexto.js';
+import { fonteDoGatilho, rotuloDaExecucao } from './fonteDoContexto.js';
+import { useAutomationRuns } from './useAutomationRuns.js';
 import { useRecentBookings } from '../queue/useRecentBookings.js';
 import type { AutomationGraph } from '@expedition/domain';
 import type { PassoEnsaiado } from './simulacao.js';
@@ -51,10 +52,14 @@ export function Ensaio({
   const campos = gatilho === null || fonte !== 'manual' ? [] : camposDoGatilho(gatilho);
   const [valores, setValores] = useState<Record<string, string>>({});
   const [inscricao, setInscricao] = useState<string>('');
+  const [execucao, setExecucao] = useState<string>('');
   const [estado, setEstado] = useState<Estado>({ status: 'form' });
 
   /** O que vai no corpo: a fonte, quando há uma; o que foi digitado, quando não há. */
   const amostra = (): Record<string, unknown> => {
+    // A execução vem primeiro: quem a escolheu quer reproduzir o que já aconteceu, e isso
+    // ganha de qualquer inscrição escolhida antes na mesma janela.
+    if (execucao !== '') return { source: { kind: 'execucao', runId: execucao } };
     if (fonte === 'agora') return { source: { kind: 'agora' } };
     if (fonte === 'inscricao' && inscricao !== '') {
       return { source: { kind: 'inscricao', bookingId: inscricao } };
@@ -119,6 +124,13 @@ export function Ensaio({
          * real teria — e não por dezoito valores inventados na hora.
          */}
         {fonte === 'inscricao' && <EscolherInscricao valor={inscricao} onEscolher={setInscricao} />}
+
+        {/*
+         * AU-25 — ensaiar em cima do que já aconteceu. Responde outra pergunta que a
+         * inscrição: "por que a automação fez o que fez naquele dia?" — a de quem está
+         * investigando uma mensagem que saiu errada.
+         */}
+        <EscolherExecucao automationId={automationId} valor={execucao} onEscolher={setExecucao} />
 
         {fonte === 'agora' && (
           <p className="field-help">
@@ -266,6 +278,60 @@ function EscolherInscricao({
       </select>
       <span className="field-help">
         Os campos do gatilho saem dela, do mesmo jeito que sairiam numa execução de verdade.
+      </span>
+    </label>
+  );
+}
+
+/**
+ * AU-25 — a execução que já aconteceu, para ensaiar em cima dela.
+ *
+ * Responde outra pergunta que a inscrição: escolher uma inscrição é "o que este fluxo faria com
+ * esta família?"; escolher uma execução é **"por que ele fez o que fez naquele dia?"** — que é
+ * a pergunta de quem está investigando uma mensagem que saiu errada.
+ *
+ * Execução anterior ao registro do contexto aparece **desabilitada com o motivo**, e não some:
+ * esconder a linha faria a lista parecer incompleta sem dizer por quê.
+ */
+function EscolherExecucao({
+  automationId,
+  valor,
+  onEscolher,
+}: {
+  automationId: string;
+  valor: string;
+  onEscolher: (runId: string) => void;
+}): React.JSX.Element {
+  const { state } = useAutomationRuns(automationId);
+
+  if (state.status === 'loading') return <p className="field-help">Carregando as execuções…</p>;
+  if (state.status === 'forbidden') {
+    return <p className="field-help">O log de execuções é da equipe.</p>;
+  }
+  if (state.status === 'error') {
+    return <p className="field-help">Não deu para carregar as execuções.</p>;
+  }
+  if (state.runs.length === 0) {
+    return (
+      <p className="field-help">
+        Esta automação ainda não rodou. Quando rodar, dá para ensaiar em cima do que aconteceu.
+      </p>
+    );
+  }
+
+  return (
+    <label className="field field-full">
+      <span className="field-label">Ensaiar com uma execução que já aconteceu</span>
+      <select className="field-input" value={valor} onChange={(e) => onEscolher(e.target.value)}>
+        <option value="">Escolha uma execução</option>
+        {state.runs.map((run) => (
+          <option key={run.id} value={run.id} disabled={!run.temContextoDoGatilho}>
+            {rotuloDaExecucao(run)}
+          </option>
+        ))}
+      </select>
+      <span className="field-help">
+        O contexto é o que o gatilho entregou naquele dia — não o estado em que a execução parou.
       </span>
     </label>
   );

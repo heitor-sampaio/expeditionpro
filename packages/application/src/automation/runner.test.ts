@@ -442,6 +442,7 @@ describe('AU-04: o relógio retoma o que está vencido', () => {
       triggerRef: {},
       idempotencyKey: null,
       variables: {},
+      triggerVariables: {},
       wakeAt: new Date('2026-09-10T00:00:00.000Z'),
     });
 

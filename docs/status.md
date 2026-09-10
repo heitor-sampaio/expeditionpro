@@ -681,7 +681,7 @@ busca varre a entidade inteira do tenant — era o caminho mais caro que uma tec
 servidor, e o único sem limite.
 
 `BlockNode` caiu de 381 para 186 linhas: o que saiu dele **mudou de casa**, não foi copiado.
-Suíte em **2.222 testes** (eram 2.176). Sem migration.
+Suíte em **2.229 testes** (eram 2.176).
 
 **O quinto estado do painel, que faltava.** Um bloco fora do caminho dizia "o ensaio não chegou
 aqui: este ramo não foi tomado" e parava. É verdade e não serve: quem abriu o bloco quer saber
@@ -696,6 +696,36 @@ buscas de todos os que vêm depois, e cada busca varre a entidade inteira do ten
 `untilNodeId` existe por **efeito colateral**, não por explicação — quem explica é a tela, com
 os passos que já tem. Confundir as duas coisas faria escrever código de servidor para uma
 resposta que já está no navegador.
+
+**Ensaiar em cima de uma execução que já aconteceu.** É a outra metade da amostra, e responde
+outra pergunta: escolher uma inscrição é "o que este fluxo faria com esta família?"; escolher
+uma execução é **"por que ele fez o que fez naquele dia?"** — a pergunta de quem está
+investigando uma mensagem que saiu errada.
+
+> **Por que uma coluna nova, e não um jeito esperto de evitar a migration.** Duas saídas foram
+> consideradas e as duas estão erradas. Remontar o contexto a partir do `trigger_ref` perde dado
+> em cinco dos doze gatilhos — o texto da mensagem, o valor do recebimento, o motivo do
+> cancelamento, o corpo do webhook, a hora do recorrente — e ainda leria o estado de **hoje**: a
+> inscrição que estava pendente no disparo já está confirmada, e o "Se" sai pelo outro lado.
+> Seria uma resposta diferente da execução real, vestida com a roupa dela. E filtrar `variables`
+> pelas raízes do catálogo não funciona porque os finders sobrescrevem `contato` — um fluxo com
+> busca de cliente devolveria o contato achado, não o do gatilho.
+
+`trigger_variables` é **nullable, sem default e sem backfill**: NULL quer dizer "execução
+anterior ao campo" e `{}` quer dizer "o gatilho não trouxe nada", que é legítimo. Colapsar os
+dois faria a lista mentir sobre o motivo de uma execução não servir. O campo entra em
+`NewAutomationRun` e **fica fora de `AutomationRunPatch`** — assim "nunca sobrescrita" é o
+compilador dizendo, e não uma promessa em prosa. O DTO ganhou só `temContextoDoGatilho`, um
+booleano: a barreira que impede as variáveis de atravessarem a rede continua de pé, e a lista
+sabe quem desabilitar, com o motivo à vista.
+
+Migration aplicada no Supabase e o ledger do Prisma **realinhado**: as três migrations de
+automação de 2026-09-03/04 tinham sido aplicadas via MCP sem carimbo, e o `db:status` acusava
+quatro pendências que já estavam no banco. Conferido antes de carimbar — o CHECK de
+`trigger_type` já listava `webhook_received` —, e agora o `db:status` diz "up to date".
+
+**Dívida a nomear:** `automation_runs` não tem política de expurgo, e este campo duplica dado
+pessoal numa tabela que cresce para sempre.
 
 **O que ainda não foi visto por gente:** o painel em si — largura, rolagem das três colunas e o
 colapso para uma coluna abaixo de 900px foram feitos olhando o CSS, não o navegador.

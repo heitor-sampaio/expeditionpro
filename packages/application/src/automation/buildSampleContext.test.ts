@@ -7,7 +7,8 @@ import { fakePaymentRepository } from '../payments/paymentRepository.fake.js';
 import { fakeItineraryRepository } from '../itineraries/itineraryRepository.fake.js';
 import { EMPTY_ADDRESS } from '../customers/customerRepository.js';
 import { buildSampleContext } from './buildSampleContext.js';
-import { ForbiddenError, NotFoundError } from '../errors.js';
+import { fakeAutomationRunRepository } from './automationRunRepository.fake.js';
+import { BusinessRuleError, ForbiddenError, NotFoundError } from '../errors.js';
 import type { BookingRecord } from '../bookings/bookingRepository.js';
 import type { RequestContext } from '../context.js';
 
@@ -110,7 +111,18 @@ async function seed() {
   };
   bookings.rows.push(inscricao);
 
-  return { deps: { bookings, schedule, customers, payments, itineraries } };
+  // O repositório de execuções entra em toda montagem; os testes que precisam dele por dentro
+  // passam o seu, com as execuções que semearam.
+  return {
+    deps: {
+      bookings,
+      schedule,
+      customers,
+      payments,
+      itineraries,
+      runs: fakeAutomationRunRepository(),
+    },
+  };
 }
 
 const AGORA = new Date('2026-09-10T23:30:00.000Z');
@@ -194,5 +206,119 @@ describe('AU-25: o contexto de amostra do gatilho de tempo', () => {
     // 23:30 em UTC ainda é dia 10 às 20:30 em Brasília — sem o deslocamento, o ensaio
     // anunciaria a data de amanhã para quem está lendo hoje.
     expect(contexto).toEqual({ agora: { data: '2026-09-10', hora: '20:30' } });
+  });
+});
+
+/**
+ * AU-25 — ensaiar em cima de uma execução que já aconteceu.
+ *
+ * É o outro lado da amostra, e resolve outra pergunta: escolher uma inscrição responde "o que
+ * este fluxo faria com esta família?"; escolher uma execução responde **"por que ele fez o que
+ * fez naquele dia?"**. A segunda é a que se faz quando alguém recebeu a mensagem errada.
+ *
+ * O contexto vem de `triggerVariables`, e não de `variables`: o motor sobrescreve `variables` a
+ * cada passo, então ela guarda o estado do meio do caminho. Ensaiar em cima dela mostraria uma
+ * coisa com a cara de ser fiel à execução, e não sendo.
+ */
+describe('AU-25: o contexto de amostra vem de uma execução real', () => {
+  const AUTOMACAO = 'auto-1';
+
+  async function comExecucao(
+    runs: ReturnType<typeof fakeAutomationRunRepository>,
+    variaveis: Record<string, unknown>,
+    automationId = AUTOMACAO,
+  ) {
+    const run = await runs.enqueue({
+      tenantId: 'tenant-a',
+      automationId,
+      triggerRef: { bookingId: 'bk-1' },
+      idempotencyKey: null,
+      variables: variaveis,
+      triggerVariables: variaveis,
+      wakeAt: AGORA,
+    });
+    return run!;
+  }
+
+  it('o contexto é o que o gatilho entregou naquela execução', async () => {
+    const { deps } = await seed();
+    const runs = fakeAutomationRunRepository();
+    const run = await comExecucao(runs, { contato: { nome: 'Ana Prado' } });
+
+    const contexto = await buildSampleContext({ ...deps, runs }, team, {
+      source: { kind: 'execucao', runId: run.id, automationId: AUTOMACAO },
+      now: AGORA,
+    });
+
+    expect(contexto).toEqual({ contato: { nome: 'Ana Prado' } });
+  });
+
+  /**
+   * O motor sobrescreve `variables` a cada passo. Se o ensaio lesse dali, mostraria as
+   * variáveis que o fluxo definiu no meio do caminho como se fossem do gatilho — e quem está
+   * investigando uma mensagem errada concluiria a coisa errada sobre o começo.
+   */
+  it('o que o fluxo definiu depois não entra: o retrato é do começo', async () => {
+    const { deps } = await seed();
+    const runs = fakeAutomationRunRepository();
+    const run = await comExecucao(runs, { contato: { nome: 'Ana Prado' } });
+    await runs.update('tenant-a', run.id, {
+      variables: { contato: { nome: 'Ana Prado' }, saudacao: 'Bom dia' },
+    });
+
+    const contexto = await buildSampleContext({ ...deps, runs }, team, {
+      source: { kind: 'execucao', runId: run.id, automationId: AUTOMACAO },
+      now: AGORA,
+    });
+
+    expect(contexto).toEqual({ contato: { nome: 'Ana Prado' } });
+  });
+
+  /**
+   * Ensaiar o grafo de uma automação com o contexto de outra daria uma resposta que parece
+   * legítima e não é — o desenho de um, os dados de outro.
+   */
+  it('execução de outra automação não serve', async () => {
+    const { deps } = await seed();
+    const runs = fakeAutomationRunRepository();
+    const run = await comExecucao(runs, { contato: { nome: 'Ana' } }, 'outra-automacao');
+
+    await expect(
+      buildSampleContext({ ...deps, runs }, team, {
+        source: { kind: 'execucao', runId: run.id, automationId: AUTOMACAO },
+        now: AGORA,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('execução que não existe é erro', async () => {
+    const { deps } = await seed();
+
+    await expect(
+      buildSampleContext({ ...deps, runs: fakeAutomationRunRepository() }, team, {
+        source: { kind: 'execucao', runId: 'run-sumiu', automationId: AUTOMACAO },
+        now: AGORA,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  /**
+   * Execução anterior a este campo não tem contexto guardado, e inventar um a partir de
+   * `variables` seria oferecer o estado final vestido de inicial. Recusar é o honesto — a lista
+   * já mostra essas execuções desabilitadas, com o motivo.
+   */
+  it('execução sem contexto guardado é recusada, e não remendada', async () => {
+    const { deps } = await seed();
+    const runs = fakeAutomationRunRepository();
+    const run = await comExecucao(runs, { contato: { nome: 'Ana' } });
+    // Como nasciam antes da coluna existir.
+    runs.rows[0] = { ...runs.rows[0]!, triggerVariables: null };
+
+    await expect(
+      buildSampleContext({ ...deps, runs }, team, {
+        source: { kind: 'execucao', runId: run.id, automationId: AUTOMACAO },
+        now: AGORA,
+      }),
+    ).rejects.toBeInstanceOf(BusinessRuleError);
   });
 });

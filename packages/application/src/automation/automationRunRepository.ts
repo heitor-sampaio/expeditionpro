@@ -20,6 +20,14 @@ export interface AutomationRunRecord {
   /** O nó que a execução vai executar a seguir. `null` quer dizer "ainda no começo". */
   readonly currentNodeId: string | null;
   readonly variables: Record<string, unknown>;
+  /**
+   * AU-25 — o contexto do gatilho, para ensaiar em cima do que já aconteceu.
+   *
+   * `null` quer dizer "execução anterior a este campo": não é o mesmo que `{}`, que é um
+   * gatilho que legitimamente não trouxe nada. Colapsar os dois faria a lista de execuções
+   * mentir sobre o motivo de uma delas não servir.
+   */
+  readonly triggerVariables: Record<string, unknown> | null;
   readonly wakeAt: Date;
   readonly stepsTaken: number;
   readonly attempts: number;
@@ -35,6 +43,16 @@ export interface NewAutomationRun {
   /** AU-12: presente só no gatilho temporal, que é varrido e passaria de novo pela mesma saída. */
   readonly idempotencyKey: string | null;
   readonly variables: Record<string, unknown>;
+  /**
+   * AU-25 — o contexto **como o gatilho o entregou**, guardado uma vez e nunca mais tocado.
+   *
+   * `variables` é sobrescrito a cada passo pelo motor: guarda o estado de agora, não o do
+   * começo. Ensaiar a partir dele mostraria o contexto do meio do caminho como se fosse o do
+   * gatilho — e pior, com a cara de ser fiel à execução. Por isso este campo existe **só** em
+   * `NewAutomationRun` e não em `AutomationRunPatch`: "nunca sobrescrita" é o compilador
+   * dizendo, não uma promessa em prosa.
+   */
+  readonly triggerVariables: Record<string, unknown>;
   readonly wakeAt: Date;
   /**
    * AU-18 — onde a execução começa. Nulo é o normal: começa pelo gatilho. A busca semeia

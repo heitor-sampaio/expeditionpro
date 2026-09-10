@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fonteDoGatilho } from './fonteDoContexto.js';
+import { fonteDoGatilho, rotuloDaExecucao } from './fonteDoContexto.js';
 
 /**
  * AU-25 — o que a tela oferece para ensaiar cada gatilho.
@@ -36,5 +36,28 @@ describe('AU-25: de onde sai a amostra de cada gatilho', () => {
 
   it('sem gatilho no quadro não há o que ensaiar', () => {
     expect(fonteDoGatilho(null)).toBe('manual');
+  });
+});
+
+/**
+ * AU-25 — como uma execução se apresenta na lista.
+ *
+ * Uma lista de uuids não é escolha, é sorteio. O rótulo diz quando rodou e como terminou, que é
+ * o que faz alguém reconhecer a execução em que a mensagem saiu errada.
+ */
+describe('AU-25: o rótulo de uma execução', () => {
+  const run = {
+    createdAt: '2026-09-10T14:32:00.000Z',
+    status: 'done' as const,
+    temContextoDoGatilho: true,
+  };
+
+  it('diz quando rodou e como terminou', () => {
+    expect(rotuloDaExecucao(run)).toContain('concluída');
+  });
+
+  /** Execução antiga fica na lista, desabilitada: sumir faria a lista parecer incompleta. */
+  it('a que não guardou contexto diz por que não serve', () => {
+    expect(rotuloDaExecucao({ ...run, temContextoDoGatilho: false })).toContain('sem contexto');
   });
 });

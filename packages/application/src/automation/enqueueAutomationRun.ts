@@ -54,6 +54,9 @@ export async function enqueueAutomationRun(
       triggerRef: command.triggerRef,
       idempotencyKey: command.idempotencyKey ?? null,
       variables: command.variables,
+      // AU-25: o retrato do que o gatilho trouxe, para ensaiar em cima do que já aconteceu.
+      // Guardado aqui, uma vez; o motor sobrescreve `variables` e nunca toca neste.
+      triggerVariables: command.variables,
       // Agora: o gatilho de evento não espera. Quem decide o tempo é o bloco de espera que a
       // equipe desenhou, e ele aparece adiante, dentro do fluxo.
       wakeAt: command.now,

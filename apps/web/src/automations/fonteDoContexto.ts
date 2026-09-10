@@ -38,3 +38,38 @@ export function fonteDoGatilho(trigger: TriggerType | string | null): FonteDeAmo
   if (trigger === null) return 'manual';
   return POR_GATILHO[trigger as TriggerType] ?? 'manual';
 }
+
+/** Como cada situação de execução se lê na lista. Espelha o rótulo do log (AU-06). */
+const ESTADO: Record<string, string> = {
+  pending: 'na fila',
+  waiting: 'esperando',
+  done: 'concluída',
+  failed: 'falhou',
+  cancelled: 'cancelada',
+};
+
+/**
+ * AU-25 — como uma execução se apresenta na lista de amostras.
+ *
+ * Uma lista de uuids não é escolha, é sorteio: o rótulo diz quando rodou e como terminou, que é
+ * o que faz alguém reconhecer a execução em que a mensagem saiu errada.
+ *
+ * A que não guardou o contexto do gatilho **fica na lista**, dizendo por que não serve —
+ * sumir faria a lista parecer incompleta sem explicar nada.
+ */
+export function rotuloDaExecucao(run: {
+  createdAt: string;
+  status: string;
+  temContextoDoGatilho: boolean;
+}): string {
+  const quando = new Date(run.createdAt).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const situacao = ESTADO[run.status] ?? run.status;
+  return run.temContextoDoGatilho
+    ? `${quando} · ${situacao}`
+    : `${quando} · ${situacao} · sem contexto guardado`;
+}

@@ -296,6 +296,7 @@ export function registerAutomationRoutes(
           source: z
             .discriminatedUnion('kind', [
               z.object({ kind: z.literal('inscricao'), bookingId: z.string().min(1) }),
+              z.object({ kind: z.literal('execucao'), runId: z.string().min(1) }),
               z.object({ kind: z.literal('agora') }),
             ])
             .optional(),
@@ -322,7 +323,12 @@ export function registerAutomationRoutes(
         request.body.source === undefined
           ? request.body.variables
           : await buildSampleContext(contextoDeps(deps), ctx, {
-              source: request.body.source,
+              // O id da automação vem do caminho, e não do corpo: é o que impede ensaiar o
+              // desenho de uma com o contexto de uma execução de outra.
+              source:
+                request.body.source.kind === 'execucao'
+                  ? { ...request.body.source, automationId: request.params.automationId }
+                  : request.body.source,
               now,
             });
       const passos = await runner.simulate(ctx, {
@@ -391,6 +397,14 @@ function toRunDto(run: AutomationRunRecord) {
     stepsTaken: run.stepsTaken,
     attempts: run.attempts,
     lastError: run.lastError,
+    /*
+     * AU-25 — dá para ensaiar em cima desta execução?
+     *
+     * Só o **fato**, nunca o conteúdo: as variáveis continuam sem atravessar a rede. É o que
+     * permite à lista mostrar as execuções antigas desabilitadas, com o motivo à vista, em vez
+     * de deixar escolher uma e falhar depois.
+     */
+    temContextoDoGatilho: run.triggerVariables !== null,
     wakeAt: run.wakeAt.toISOString(),
     createdAt: run.createdAt.toISOString(),
     updatedAt: run.updatedAt.toISOString(),
@@ -420,5 +434,6 @@ function contextoDeps(deps: ServerDeps) {
     customers: deps.customers,
     payments: deps.payments,
     itineraries: deps.itineraries,
+    runs: deps.automationRuns,
   };
 }

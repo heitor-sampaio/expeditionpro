@@ -32,6 +32,7 @@ export function prismaAutomationRunRepository(base: PrismaClient): AutomationRun
             triggerRef: run.triggerRef as Prisma.InputJsonValue,
             idempotencyKey: run.idempotencyKey,
             variables: run.variables as Prisma.InputJsonValue,
+            triggerVariables: run.triggerVariables as Prisma.InputJsonValue,
             wakeAt: run.wakeAt,
             // AU-18: a execução semeada por uma busca começa no bloco seguinte a ela, e não
             // no gatilho. Nulo é o normal — quem nasce de um evento começa do começo.
@@ -191,6 +192,8 @@ function toRecord(row: PrismaRun): AutomationRunRecord {
     status: row.status as RunStatus,
     currentNodeId: row.currentNodeId,
     variables: (row.variables ?? {}) as Record<string, unknown>,
+    // NULL fica NULL: é execução anterior ao campo, e não gatilho que não trouxe nada.
+    triggerVariables: (row.triggerVariables ?? null) as Record<string, unknown> | null,
     wakeAt: row.wakeAt,
     stepsTaken: row.stepsTaken,
     attempts: row.attempts,

@@ -1,8 +1,9 @@
 import { requireTeam } from '../audience.js';
-import { NotFoundError } from '../errors.js';
+import { BusinessRuleError, NotFoundError } from '../errors.js';
 import { buildBookingContext, type BuildBookingContextDeps } from './buildBookingContext.js';
 import type { RunContext } from '@expedition/domain';
 import type { RequestContext } from '../context.js';
+import type { AutomationRunRepository } from './automationRunRepository.js';
 
 /**
  * AU-25 — de onde sai o contexto de um ensaio.
@@ -24,8 +25,20 @@ import type { RequestContext } from '../context.js';
 
 export type SampleSource =
   | { readonly kind: 'inscricao'; readonly bookingId: string }
+  /**
+   * AU-25 — uma execução que já aconteceu.
+   *
+   * Resolve outra pergunta que a inscrição: escolher uma inscrição responde "o que este fluxo
+   * faria com esta família?"; escolher uma execução responde **"por que ele fez o que fez
+   * naquele dia?"** — a pergunta de quem está investigando uma mensagem errada.
+   */
+  | { readonly kind: 'execucao'; readonly runId: string; readonly automationId: string }
   /** AU-17: o gatilho de tempo não pende de entidade nenhuma — o contexto dele é o relógio. */
   | { readonly kind: 'agora' };
+
+export interface BuildSampleContextDeps extends BuildBookingContextDeps {
+  readonly runs: AutomationRunRepository;
+}
 
 export interface BuildSampleContextCommand {
   readonly source: SampleSource;
@@ -33,7 +46,7 @@ export interface BuildSampleContextCommand {
 }
 
 export async function buildSampleContext(
-  deps: BuildBookingContextDeps,
+  deps: BuildSampleContextDeps,
   ctx: RequestContext,
   command: BuildSampleContextCommand,
 ): Promise<RunContext> {
@@ -42,6 +55,7 @@ export async function buildSampleContext(
   requireTeam(ctx);
 
   if (command.source.kind === 'agora') return { agora: relogio(command.now) };
+  if (command.source.kind === 'execucao') return contextoDaExecucao(deps, ctx, command.source);
 
   const { bookingId } = command.source;
   /*
@@ -56,6 +70,41 @@ export async function buildSampleContext(
   if (inscricao === null) throw new NotFoundError('inscrição');
 
   return buildBookingContext(deps, ctx, { bookingId });
+}
+
+/**
+ * AU-25 — o contexto que o gatilho entregou numa execução que já aconteceu.
+ *
+ * Sai de `triggerVariables`, e **nunca** de `variables`: o motor sobrescreve `variables` a cada
+ * passo, então ela guarda o estado do meio do caminho. Ensaiar em cima dela mostraria as
+ * variáveis que o próprio fluxo definiu como se tivessem vindo do gatilho — com a cara de ser
+ * fiel à execução, e não sendo.
+ */
+async function contextoDaExecucao(
+  deps: BuildSampleContextDeps,
+  ctx: RequestContext,
+  source: { readonly runId: string; readonly automationId: string },
+): Promise<RunContext> {
+  const execucao = await deps.runs.findById(ctx.tenantId, source.runId);
+  /*
+   * A execução tem que ser **desta** automação. Sem esta checagem dá para ensaiar o desenho de
+   * uma com os dados de outra: a resposta parece legítima e é sobre uma coisa que nunca houve.
+   */
+  if (execucao === null || execucao.automationId !== source.automationId) {
+    throw new NotFoundError('execução');
+  }
+  /*
+   * Execução anterior à coluna não tem o retrato do começo, e remendar com `variables` seria
+   * oferecer o estado final vestido de inicial. Recusar é o honesto — e a lista de execuções já
+   * mostra essas desabilitadas, com o motivo à vista.
+   */
+  if (execucao.triggerVariables === null) {
+    throw new BusinessRuleError(
+      'run_sem_contexto',
+      'Esta execução é anterior ao registro do contexto do gatilho — escolha uma mais recente.',
+    );
+  }
+  return execucao.triggerVariables;
 }
 
 /**

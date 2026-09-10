@@ -47,6 +47,7 @@ export function fakeAutomationRunRepository(): AutomationRunRepository & { rows:
         status: 'pending',
         currentNodeId: run.startNodeId ?? null,
         variables: run.variables,
+        triggerVariables: run.triggerVariables,
         wakeAt: run.wakeAt,
         stepsTaken: 0,
         attempts: 0,

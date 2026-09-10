@@ -51,6 +51,9 @@ export async function seedRunsFromList(
       idempotencyKey: `${no.id}:${item.chave}:${ref.id}`,
       // O contexto de quem percorreu desce junto: o que o gatilho trouxe continua valendo.
       variables: { ...variaveis, ...item.dados },
+      // AU-25: para a filha, **este** é o contexto do começo — ela nasce daqui, e é o que
+      // responde "por que este cliente?" quando alguém for ensaiar em cima dela depois.
+      triggerVariables: { ...variaveis, ...item.dados },
       wakeAt: now,
       // Começar no bloco seguinte é o que faz a filha ser "o resto do fluxo", e não o fluxo
       // inteiro de novo — buscar outra vez, dentro de cada filha, seria fan-out ao quadrado.
