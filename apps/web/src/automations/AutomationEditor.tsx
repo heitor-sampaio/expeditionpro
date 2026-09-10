@@ -19,8 +19,16 @@ import '@xyflow/react/dist/style.css';
 import { ACOES_DE_DINHEIRO, BLOCOS, GATILHOS, blockLabel, type BlockType } from './blocks.js';
 import { RunLog } from './RunLog.js';
 import { Ensaio } from './Ensaio.js';
-import { porBloco, type PassoEnsaiado } from './simulacao.js';
+import {
+  assinaturaDoGrafo,
+  ensaioAtual,
+  podeEnsaiar,
+  porBloco,
+  type EnsaioGuardado,
+} from './simulacao.js';
+import { useAuth } from '../auth/useAuth.js';
 import { NODE_TYPES, QuadroContext, type BlockNodeType } from './BlockNode.js';
+import { NodePanel } from './NodePanel.js';
 import { fromFlow, toFlow } from './flowMapping.js';
 import type { Automation } from './useAutomations.js';
 import type { AutomationGraph } from '@expedition/domain';
@@ -93,15 +101,34 @@ function Editor({
   const [ensaiando, setEnsaiando] = useState(false);
   /*
    * AU-27 — o último ensaio fica com o editor, e não com o painel que o pediu: quem o consome
-   * é cada bloco do quadro, e o painel é só onde se digita o contexto do gatilho.
+   * é cada bloco do quadro, e o painel é só onde se escolhe o contexto do gatilho.
+   *
+   * Guardado **junto do desenho que o produziu**. Enquanto não era, mexer num campo e olhar o
+   * bloco entregava o resultado do desenho anterior sem nada dizendo que era velho — resposta
+   * errada com cara de certa, que é o pior defeito de uma tela feita para explicar.
    */
-  const [ensaio, setEnsaio] = useState<Map<string, PassoEnsaiado> | null>(null);
+  const [ensaio, setEnsaio] = useState<EnsaioGuardado | null>(null);
+  /**
+   * AU-27 — qual bloco está **aberto** no painel, que é outra coisa de estar selecionado.
+   *
+   * Selecionado quer dizer "está destacado e o Delete alcança"; aberto quer dizer "estou
+   * mexendo neste". Enquanto foram a mesma coisa, clicar num bloco para movê-lo escancarava um
+   * formulário, e apagar um caractere apagava o bloco.
+   */
+  const [aberto, setAberto] = useState<string | null>(null);
   const [menu, setMenu] = useState<'trigger' | 'action' | null>(null);
   const [confirmarDinheiro, setConfirmarDinheiro] = useState(false);
   const quadro = useRef<HTMLDivElement | null>(null);
   const { screenToFlowPosition } = useReactFlow();
+  const auth = useAuth();
 
   const readOnly = automation.enabled || busy;
+  /*
+   * O ensaio vale para o desenho que o produziu, e para nenhum outro. **Derivado**, e não
+   * apagado por um efeito quando alguém digita: assim mexer num campo e desfazer devolve o
+   * resultado, porque o desenho voltou a ser o mesmo.
+   */
+  const ensaioVigente = ensaioAtual(ensaio, assinaturaDoGrafo(fromFlow(nodes, edges)));
 
   /** Põe o bloco numa posição do **quadro** — a que o grafo guarda. */
   const acrescentarEm = useCallback(
@@ -111,10 +138,11 @@ function Editor({
         type: bloco.kind,
         position: posicao,
         data: { type: bloco.type, config: { ...bloco.config } },
-        // O bloco novo nasce aberto: quem acabou de pôr um bloco no quadro vai configurá-lo.
         selected: true,
       };
       setNodes((atuais) => [...atuais.map((n) => ({ ...n, selected: false })), novo]);
+      // Quem acabou de pôr um bloco no quadro vai configurá-lo: o painel já abre nele.
+      setAberto(novo.id);
       setMenu(null);
       setSujo(true);
     },
@@ -247,7 +275,7 @@ function Editor({
       {verLog ? (
         <RunLog automationId={automation.id} />
       ) : (
-        <QuadroContext value={{ readOnly, ensaio }}>
+        <QuadroContext value={{ readOnly, abrir: setAberto }}>
           <div
             className="auto-canvas"
             ref={quadro}
@@ -281,10 +309,18 @@ function Editor({
                 if (mudancas.some((m) => m.type !== 'select')) setSujo(true);
               }}
               onConnect={conectar}
+              // AU-27: o gesto de quem já usou editor de fluxo. O botão no cartão faz o mesmo,
+              // para quem não o descobre.
+              onNodeDoubleClick={(_, no) => setAberto(no.id)}
               nodesDraggable={!readOnly}
               nodesConnectable={!readOnly}
               elementsSelectable
-              deleteKeyCode={readOnly ? null : ['Backspace', 'Delete']}
+              /*
+               * Cinto e suspensório: o painel vive fora do `<ReactFlow>`, então digitar nele já
+               * não alcança o quadro. Desarmar mesmo assim é barato, e apagar o bloco que se
+               * está configurando é o tipo de perda que ninguém desfaz de cabeça.
+               */
+              deleteKeyCode={readOnly || aberto !== null ? null : ['Backspace', 'Delete']}
               fitView
               /* Um bloco só não pode nascer ampliado ao dobro: o quadro abre em escala real. */
               fitViewOptions={{ maxZoom: 1, padding: 0.25 }}
@@ -344,6 +380,22 @@ function Editor({
                 </Panel>
               )}
             </ReactFlow>
+
+            {/*
+             * AU-27 — o painel do bloco, **fora** do `<ReactFlow>` de propósito: aqui ele não é
+             * desenhado pelo transform do quadro, então continua legível com o zoom em qualquer
+             * escala, e o que se digita nele não chega aos atalhos de teclado do canvas.
+             */}
+            {aberto !== null && (
+              <NodePanel
+                nodeId={aberto}
+                readOnly={readOnly}
+                ensaio={ensaioVigente}
+                podeEnsaiar={podeEnsaiar(auth.status === 'signed-in' ? auth.role : null)}
+                onEnsaiar={() => setEnsaiando(true)}
+                onFechar={() => setAberto(null)}
+              />
+            )}
           </div>
         </QuadroContext>
       )}
@@ -352,7 +404,10 @@ function Editor({
         <Ensaio
           automationId={automation.id}
           graph={fromFlow(nodes, edges)}
-          onResultado={(passos) => setEnsaio(porBloco(passos))}
+          // O desenho vai junto do resultado: é ele que diz até quando o resultado responde.
+          onResultado={(passos, graph) =>
+            setEnsaio({ assinatura: assinaturaDoGrafo(graph), mapa: porBloco(passos) })
+          }
           onClose={() => setEnsaiando(false)}
         />
       )}

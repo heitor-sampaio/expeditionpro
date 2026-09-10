@@ -9,6 +9,8 @@
  * autenticação nenhum. Quem chama a rota é o painel do ensaio.
  */
 
+import type { AutomationGraph } from '@expedition/domain';
+
 export interface PassoEnsaiado {
   nodeId: string;
   kind: string;
@@ -34,4 +36,55 @@ export function porBloco(passos: readonly PassoEnsaiado[]): Map<string, PassoEns
     if (!mapa.has(passo.nodeId)) mapa.set(passo.nodeId, passo);
   }
   return mapa;
+}
+
+/**
+ * AU-25 — quem pode ensaiar.
+ *
+ * O caso de uso pede `requireTeam`, e isso **inclui o viewer**: o ensaio não executa ação
+ * nenhuma e não grava nada, então quem pode ler o quadro pode percorrê-lo. A tela dizia "é de
+ * owner ou admin", que é outra regra — e descobrir a permissão certa por um 403, depois de
+ * preencher um formulário, é o pior jeito de aprender uma.
+ */
+export function podeEnsaiar(role: string | null): boolean {
+  return role !== null && role !== 'customer';
+}
+
+/** O ensaio guardado, junto do desenho que o produziu. */
+export interface EnsaioGuardado {
+  readonly assinatura: string;
+  readonly mapa: Map<string, PassoEnsaiado>;
+}
+
+/**
+ * AU-27 — a identidade do desenho, para saber se um ensaio ainda responde por ele.
+ *
+ * **Sem posição.** Arrastar bloco não muda pergunta nenhuma, e invalidar ali faria o resultado
+ * sumir toda vez que alguém arruma o quadro. O que conta é o que o motor percorreria: quais
+ * blocos existem, o que cada um está configurado para fazer, e por onde se liga a quem.
+ */
+export function assinaturaDoGrafo(graph: AutomationGraph): string {
+  return JSON.stringify({
+    nodes: graph.nodes.map((no) => [no.id, no.kind, no.type, no.config]),
+    edges: graph.edges.map((ligacao) => [ligacao.id, ligacao.from, ligacao.port, ligacao.to]),
+  });
+}
+
+/**
+ * AU-27 — o ensaio que a tela pode mostrar agora.
+ *
+ * Enquanto isto não existiu, mexer num campo e olhar o bloco entregava o resultado do desenho
+ * **anterior**, sem nada dizendo que era velho. Não é ausência de resposta: é resposta errada
+ * com cara de certa, e quem olha conclui sobre a mudança que acabou de fazer olhando o que
+ * havia antes dela.
+ *
+ * Derivado, e não apagado por um efeito quando alguém digita — por isso mudar e desfazer
+ * devolve o ensaio: o desenho voltou a ser o mesmo, então a resposta volta a valer.
+ */
+export function ensaioAtual(
+  guardado: EnsaioGuardado | null,
+  assinatura: string,
+): Map<string, PassoEnsaiado> | null {
+  if (guardado === null || guardado.assinatura !== assinatura) return null;
+  return guardado.mapa;
 }

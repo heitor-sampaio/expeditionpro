@@ -5077,24 +5077,16 @@
   border-radius: var(--r-card);
   box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
 }
-/*
- * Selecionado, o bloco abre a própria configuração: é o que substituiu a coluna do inspetor.
- * Fica mais largo porque campo de pílula abaixo de 260px vira caixa que não cabe o que se
- * digita, e o quadro tem espaço de sobra agora que as colunas saíram.
- */
-
+/* O formulário do bloco vive no painel (AU-27), e a coluna dele é uma só. */
 .auto-node-form {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 8px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
 }
 /*
  * O campo do design system cresce (`flex: 1 1 220px`) porque nasceu em formulário de duas
  * colunas. Aqui a coluna é uma só, e crescer viraria um vão de cem pixels entre um campo e o
- * seguinte: dentro do bloco, cada campo ocupa a altura que tem.
+ * seguinte: cada campo ocupa a altura que tem.
  */
 .auto-node-form > * {
   flex: 0 0 auto;
@@ -5104,15 +5096,6 @@
   flex-direction: column;
   gap: 4px;
 }
-.auto-node-remove {
-  margin-top: 10px;
-  align-self: flex-start;
-}
-/* O formulário dentro do bloco não arrasta o bloco nem o quadro: `nodrag` no controle. */
-.auto-node .field-input {
-  cursor: text;
-}
-.auto-node select.field-input,
 .auto-node button {
   cursor: pointer;
 }
@@ -5469,35 +5452,53 @@
 /*
  * AU-27 — o bloco aberto em três colunas: o que entra, a configuração, o que sai.
  *
- * A largura sai de 300px para 720px só quando aberto, e é o que o quadro tem de sobra desde
- * que as colunas laterais saíram. Fechado, o cartão continua pequeno: um quadro de dez blocos
- * abertos seria ilegível, e é por isso que só o selecionado abre.
+ * **Sobre o quadro, e não dentro dele.** Enquanto morou no nó, o painel era desenhado pelo
+ * mesmo transform que dá zoom ao canvas: a 0,4 de escala o texto ficava em 40% e ninguém lia o
+ * valor de nada — justamente num fluxo grande, que é onde o zoom serve para alguma coisa.
+ *
+ * O tamanho é o do Modal, que já existe, com uma largura a mais. Não é família nova de
+ * componente: é a mesma superfície, a mesma borda, o mesmo raio e a mesma sombra.
  */
-.auto-node.is-selected {
-  width: 720px;
-}
-.auto-node-open {
-  display: grid;
-  grid-template-columns: 200px minmax(0, 1fr) 200px;
-  gap: 14px;
-  align-items: start;
-  margin-top: 8px;
-}
-.auto-node-meio {
+.modal.modal-full {
+  max-width: 1200px;
+  height: min(88vh, 900px);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
+  padding: 20px 22px;
+}
+.auto-panel-head {
+  flex: 0 0 auto;
+}
+.auto-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+.auto-panel-meio {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   min-width: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.auto-panel-remove {
+  align-self: flex-start;
 }
 .auto-io {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px;
+  padding: 12px;
   background: var(--card-2);
   border: 1px solid var(--line);
   border-radius: var(--r-card);
-  max-height: 300px;
+  /* Rola dentro da própria coluna: as três continuam do mesmo tamanho, e o painel não estica. */
+  min-height: 0;
   overflow-y: auto;
 }
 .auto-io-lista {
@@ -5536,6 +5537,29 @@
   border-color: transparent;
 }
 /*
+ * O valor de uma variável é **dado**, e por isso é `--ink` e não `--ink-3`: quem abre este
+ * painel veio ver quanto o cliente deve e como o nome dele está escrito, não uma legenda.
+ *
+ * Usava `.cell-sub`, que é a segunda linha de uma célula de tabela e vem com `nowrap` para não
+ * esticar a altura da linha. Aqui isso cortava justamente o que se veio ler — um texto de
+ * mensagem inteiro sumia atrás de reticências.
+ */
+.auto-io-valor {
+  font-family: var(--f-mono);
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* Vazio é convite com a ação ao lado, e não um aviso do qual não se sai. */
+.auto-io-convite {
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 4px;
+}
+/*
  * AU-27 — o campo que vai receber a variável clicada. Sem esta marca, clicar na lista da
  * esquerda seria um tiro no escuro: o texto apareceria em algum lugar, e não se sabe qual.
  */
@@ -5545,16 +5569,25 @@
 }
 
 /*
- * AU-27 — em tela estreita as três colunas empilham.
+ * AU-27 — em tela estreita as três colunas empilham, **com a configuração primeiro**.
  *
- * Lado a lado em 340px de largura, cada painel ficaria com uns 100px e nenhum caminho de
- * variável caberia. Empilhado, o bloco fica alto — e alto se rola, estreito não se lê.
+ * Lado a lado num celular, cada coluna ficaria com uns 100px e nenhum caminho de variável
+ * caberia. Empilhado fica alto — e alto se rola, estreito não se lê. A configuração vem antes
+ * porque é o que se veio mexer; entrada e saída são consulta, e consulta espera uma rolagem.
  */
 @media (max-width: 900px) {
-  .auto-node.is-selected {
-    width: 340px;
+  .modal.modal-full {
+    height: min(94vh, 900px);
   }
-  .auto-node-open {
+  .auto-panel {
     grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+  .auto-panel-meio {
+    order: -1;
+    overflow-y: visible;
+  }
+  .auto-io {
+    overflow-y: visible;
   }
 }

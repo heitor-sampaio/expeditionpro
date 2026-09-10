@@ -1,5 +1,5 @@
-import { createContext, useContext, useState } from 'react';
-import { Handle, Position, useNodes, useReactFlow, type Node, type NodeProps } from '@xyflow/react';
+import { createContext, useContext } from 'react';
+import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import {
   CATALOGO_DE_BUSCA,
   iteratedList,
@@ -10,17 +10,15 @@ import {
   switchCases,
 } from '@expedition/domain';
 import { blockLabel, saidasDe } from './blocks.js';
-import { caminhosDe, camposDisponiveis } from './fields.js';
-import { BlockFields } from './BlockFields.js';
-import type { ContextField, NodeKind } from '@expedition/domain';
-import type { PassoEnsaiado } from './simulacao.js';
+import type { NodeKind } from '@expedition/domain';
 
 /**
- * AU-01 · AU-16 — o bloco no quadro, com a configuração dentro dele.
+ * AU-01 · AU-16 — o bloco no quadro: o cartão que se lê de relance.
  *
- * O cartão fechado mostra o que o bloco faz, numa linha, para o fluxo inteiro ser legível sem
- * abrir nada. **Selecionado, ele abre os campos ali mesmo** — sem coluna lateral, sem viagem do
- * olho entre o bloco e um formulário longe dele.
+ * Ele mostra o que o bloco faz numa linha, para o fluxo inteiro ser legível sem abrir nada. A
+ * configuração vive no painel (AU-27), e não aqui dentro: enquanto morava no nó, ela era
+ * desenhada pelo transform do quadro e, com zoom, ficava ilegível justamente quando o fluxo
+ * era grande o bastante para precisar de zoom.
  *
  * A cor da borda é de **interface**: `--o` marca o bloco selecionado, nada mais. Verde e
  * vermelho não entram aqui; neste sistema eles significam dinheiro.
@@ -30,21 +28,14 @@ export type BlockData = { type: string; config: Record<string, unknown> };
 export type BlockNodeType = Node<BlockData, NodeKind>;
 
 /**
- * O quadro só de leitura chega aos blocos por contexto, e não por `data`: é estado da tela
- * inteira, e copiá-lo em cada nó faria "automação ligada" virar dezoito verdades que podem
- * discordar entre si.
+ * O que é da tela inteira chega aos blocos por contexto, e não por `data`: copiá-lo em cada nó
+ * faria "automação ligada" virar dezoito verdades que podem discordar entre si.
  */
 export const QuadroContext = createContext<{
   readonly readOnly: boolean;
-  /**
-   * AU-27 — o último ensaio, indexado por bloco. `null` enquanto ninguém ensaiou: aí os
-   * painéis mostram os campos que *existem*, sem valor, que é a informação possível.
-   */
-  readonly ensaio: Map<string, PassoEnsaiado> | null;
-}>({ readOnly: false, ensaio: null });
-
-/** AU-26 — quem tem uma saída só pode ser pulado; quem separa caminho, não. */
-const PODEM_DESLIGAR = new Set<NodeKind>(['action', 'delay', 'setVariable', 'forEach']);
+  /** AU-27 — pede ao editor que abra este bloco no painel. */
+  readonly abrir: (nodeId: string) => void;
+}>({ readOnly: false, abrir: () => undefined });
 
 const ESPECIE: Record<NodeKind, string> = {
   trigger: 'quando',
@@ -66,49 +57,7 @@ export function BlockNode({
 }: NodeProps<BlockNodeType>): React.JSX.Element {
   const kind = (type ?? 'action') as NodeKind;
   const saidas = saidasDe(kind, data.config);
-  const { readOnly } = useContext(QuadroContext);
-  // AU-27: qual campo recebe a variável clicada. Mora no bloco porque é dele o formulário.
-  const [foco, setFoco] = useState<string | null>(null);
-  const { updateNodeData, setNodes, setEdges } = useReactFlow<BlockNodeType>();
-  // AU-16: metade dos campos vem do gatilho e metade do próprio desenho — por isso o bloco
-  // pergunta ao quadro, e não a si mesmo.
-  const campos = camposDisponiveis(useNodes<BlockNodeType>());
-
-  const mudarConfig = (config: Record<string, unknown>) => {
-    updateNodeData(id, { config });
-    /*
-     * AU-15 — apagar um valor da escolha múltipla apaga a saída dele, e a ligação que saía
-     * dali deixa de ter porta. Limpar aqui é o que evita salvar um desenho com ligação
-     * pendurada numa saída que não existe mais: recusado no servidor, e sem nada no quadro
-     * explicando por quê.
-     */
-    const portas = new Set(saidasDe(kind, config).map((saida) => saida.port));
-    setEdges((atuais) =>
-      atuais.filter((e) => e.source !== id || portas.has(e.sourceHandle ?? 'next')),
-    );
-  };
-
-  const remover = () => {
-    setNodes((atuais) => atuais.filter((n) => n.id !== id));
-    setEdges((atuais) => atuais.filter((e) => e.source !== id && e.target !== id));
-  };
-
-  /*
-   * AU-27 — a variável entra no texto por clique, e não por digitação.
-   *
-   * O campo que recebe é o **último que teve o foco**. Sem isso, clicar na lista da esquerda
-   * tiraria o foco do texto e não haveria onde inserir; guardar qual era é o que faz o gesto
-   * ser um clique só, como no editor de fluxo que a equipe conhece.
-   */
-  const inserirNoCampo = (caminho: string) => {
-    if (readOnly || foco === null) return;
-    const atual = data.config[foco];
-    mudarConfig({
-      ...data.config,
-      [foco]: `${typeof atual === 'string' ? atual : ''}{{${caminho}}}`,
-    });
-  };
-
+  const { abrir } = useContext(QuadroContext);
   return (
     <div
       className={`auto-node auto-node-${kind}${selected ? ' is-selected' : ''}${
@@ -122,60 +71,18 @@ export function BlockNode({
 
       <span className="auto-node-kind">{ESPECIE[kind]}</span>
       <span className="auto-node-label">{blockLabel(data.type)}</span>
-      {!selected && resumo(data) !== '' && <span className="auto-node-sub">{resumo(data)}</span>}
+      {resumo(data) !== '' && <span className="auto-node-sub">{resumo(data)}</span>}
 
-      {selected && (
-        <div className="auto-node-open">
-          {/*
-           * AU-27 — o que entra, à esquerda; o que sai, à direita; a configuração no meio.
-           *
-           * É a pergunta que trava quem desenha um fluxo — "o bloco de cima me entrega o quê?"
-           * — respondida no lugar em que ela aparece, em vez de exigir abrir o log de uma
-           * execução passada e conferir de cabeça.
-           */}
-          <PainelDeEntrada nodeId={id} campos={campos} onInserir={inserirNoCampo} />
-
-          <div className="auto-node-meio">
-            <BlockFields
-              type={data.type}
-              config={data.config}
-              campos={campos}
-              readOnly={readOnly}
-              foco={foco}
-              onFoco={setFoco}
-              onChange={mudarConfig}
-            />
-            {/*
-             * AU-26 — desligar sem tirar do quadro. Só aparece em quem tem uma saída só: "pule o
-             * Se" não tem resposta, porque não diz por qual lado o fluxo sai.
-             */}
-            {PODEM_DESLIGAR.has(kind) && (
-              <label className="switch-row nodrag">
-                <span className="switch-label">
-                  <span className="rowpanel-title">Bloco ligado</span>
-                </span>
-                <input
-                  type="checkbox"
-                  className="switch"
-                  checked={data.config['disabled'] !== true}
-                  disabled={readOnly}
-                  onChange={(e) => mudarConfig({ ...data.config, disabled: !e.target.checked })}
-                />
-              </label>
-            )}
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm btn-danger nodrag auto-node-remove"
-              disabled={readOnly}
-              onClick={remover}
-            >
-              Remover bloco
-            </button>
-          </div>
-
-          <PainelDeSaida nodeId={id} />
-        </div>
-      )}
+      {/*
+       * AU-27 — abrir é gesto próprio, e não consequência de selecionar.
+       *
+       * O duplo clique no bloco faz o mesmo e é o gesto de quem já usou editor de fluxo; este
+       * botão existe para quem não o descobre — gesto sem porta visível é gesto que metade das
+       * pessoas nunca encontra.
+       */}
+      <button type="button" className="btn btn-secondary btn-sm nodrag" onClick={() => abrir(id)}>
+        Abrir
+      </button>
 
       {saidas.map((saida, i) => (
         <Handle
@@ -192,103 +99,6 @@ export function BlockNode({
           {saida.label && <span className="auto-node-port">{saida.label}</span>}
         </Handle>
       ))}
-    </div>
-  );
-}
-
-/**
- * AU-27 — o que chega neste bloco.
- *
- * Com um ensaio rodado, são os valores de verdade: `contato.nome` e "Ana" ao lado. Sem ensaio,
- * são os campos que **existem** — o catálogo do gatilho mais as variáveis que o desenho define.
- * A lista serve às duas coisas ao mesmo tempo: saber o que há, e pôr no texto com um clique.
- */
-function PainelDeEntrada({
-  nodeId,
-  campos,
-  onInserir,
-}: {
-  nodeId: string;
-  campos: readonly ContextField[];
-  onInserir: (caminho: string) => void;
-}): React.JSX.Element {
-  const { ensaio } = useContext(QuadroContext);
-  const passo = ensaio?.get(nodeId) ?? null;
-  const linhas =
-    passo === null
-      ? campos.map((campo) => ({ path: campo.path, valor: campo.label }))
-      : caminhosDe(passo.input);
-
-  return (
-    <div className="auto-io nodrag nowheel">
-      <span className="field-label">Entra</span>
-      {ensaio !== null && passo === null && (
-        <span className="field-help">O ensaio não chegou aqui: este ramo não foi tomado.</span>
-      )}
-      {linhas.length === 0 ? (
-        <span className="field-help">
-          {passo === null
-            ? 'Ponha o bloco de gatilho no quadro para ver o que ele traz.'
-            : 'Nada chega aqui.'}
-        </span>
-      ) : (
-        <ul className="auto-io-lista">
-          {linhas.map((linha) => (
-            <li key={linha.path}>
-              {/* Clicar insere `{{caminho}}` no último campo que teve o foco. */}
-              <button
-                type="button"
-                className="auto-io-item"
-                title={`Pôr {{${linha.path}}} no campo`}
-                onClick={() => onInserir(linha.path)}
-              >
-                <span className="auto-field-path">{linha.path}</span>
-                <span className="cell-sub">{linha.valor === '' ? '—' : linha.valor}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-/**
- * AU-27 — o que este bloco entrega ao próximo.
- *
- * Numa ação é o que ela **receberia**: nada é executado no ensaio, e mostrar "mensagem
- * enviada" seria prometer o que não aconteceu. Ainda assim é o que resolve o erro mais comum —
- * ver o `{{contato.nome}}` sair vazio aqui, e não no WhatsApp de alguém.
- */
-function PainelDeSaida({ nodeId }: { nodeId: string }): React.JSX.Element {
-  const { ensaio } = useContext(QuadroContext);
-  const passo = ensaio?.get(nodeId) ?? null;
-  const linhas = passo === null ? [] : caminhosDe(passo.output);
-
-  return (
-    <div className="auto-io nodrag nowheel">
-      <span className="field-label">Sai</span>
-      {passo === null ? (
-        <span className="field-help">Ensaie para ver o que sairia daqui.</span>
-      ) : (
-        <>
-          <span className="pill pill-neutral">{passo.outcome}</span>
-          {linhas.length === 0 ? (
-            <span className="field-help">Este bloco não acrescenta nada ao contexto.</span>
-          ) : (
-            <ul className="auto-io-lista">
-              {linhas.map((linha) => (
-                <li key={linha.path}>
-                  <span className="auto-io-item is-leitura">
-                    <span className="auto-field-path">{linha.path}</span>
-                    <span className="cell-sub">{linha.valor === '' ? '—' : linha.valor}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
-      )}
     </div>
   );
 }

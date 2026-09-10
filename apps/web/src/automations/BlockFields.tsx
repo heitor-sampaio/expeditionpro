@@ -9,15 +9,17 @@ import {
 import { CAMPOS, type BlockField } from './blocks.js';
 import { camposDoGatilho, gatilhoDoQuadro } from './fields.js';
 
+/** O campo em que a variável clicada vai cair: um dos dois que aceitam texto livre. */
+export type CampoDeTexto = HTMLInputElement | HTMLTextAreaElement;
+
 /**
- * AU-01 · AU-16 — a configuração de um bloco, desenhada **dentro do próprio bloco**.
+ * AU-01 · AU-16 — a configuração de um bloco, na coluna do meio do painel.
  *
- * Era uma coluna à direita do quadro, e a coluna custava duas coisas: espaço que o quadro
- * queria, e a viagem do olho entre o bloco selecionado e o formulário longe dele. Configurar
- * onde a coisa está é o que deixa ler o fluxo e mexer nele no mesmo lugar.
+ * Não sabe nada de bloco nenhum: desenha os campos que `CAMPOS` descreve. Bloco novo entra no
+ * catálogo e aparece aqui sem uma linha de código a mais.
  *
- * Continua não sabendo nada de bloco nenhum: desenha os campos que `CAMPOS` descreve. Bloco
- * novo entra no catálogo e aparece aqui sem uma linha de código a mais.
+ * O foco sobe com o **elemento**, e não só com a chave do campo: é dele que sai a posição do
+ * cursor, e sem ela a variável clicada cairia sempre no fim do texto.
  */
 export function BlockFields({
   type,
@@ -34,7 +36,7 @@ export function BlockFields({
   readOnly: boolean;
   /** AU-27 — o campo que recebe a variável clicada no painel de entrada. */
   foco: string | null;
-  onFoco: (key: string | null) => void;
+  onFoco: (key: string | null, campo: CampoDeTexto | null) => void;
   onChange: (config: Record<string, unknown>) => void;
 }): React.JSX.Element {
   const campos = CAMPOS[type] ?? [];
@@ -105,7 +107,7 @@ function Campo({
   disponiveis: readonly ContextField[];
   readOnly: boolean;
   focado: boolean;
-  onFoco: (key: string | null) => void;
+  onFoco: (key: string | null, campo: CampoDeTexto | null) => void;
   onChange: (valor: unknown) => void;
 }): React.JSX.Element {
   const texto = valor === undefined || valor === null ? '' : String(valor);
@@ -139,8 +141,8 @@ function Campo({
    */
   const registrar =
     campo.template === true
-      ? { onFocus: () => onFoco(campo.key) }
-      : { onFocus: () => onFoco(null) };
+      ? { onFocus: (e: React.FocusEvent<CampoDeTexto>) => onFoco(campo.key, e.currentTarget) }
+      : { onFocus: () => onFoco(null, null) };
 
   return (
     <label className={`field${focado ? ' is-alvo' : ''}`}>

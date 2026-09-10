@@ -31,8 +31,11 @@ export function Ensaio({
 }: {
   automationId: string;
   graph: AutomationGraph;
-  /** AU-27 — o resultado sobe para o editor, que o entrega a cada bloco do quadro. */
-  onResultado: (passos: PassoEnsaiado[]) => void;
+  /**
+   * AU-27 — o resultado sobe para o editor, que o entrega a cada bloco do quadro. O desenho
+   * ensaiado vai junto: é ele que diz até quando o resultado ainda responde pelo quadro.
+   */
+  onResultado: (passos: PassoEnsaiado[], graph: AutomationGraph) => void;
   onClose: () => void;
 }): React.JSX.Element {
   const gatilho = gatilhoDoQuadro(
@@ -57,7 +60,9 @@ export function Ensaio({
           status: 'error',
           message:
             res.status === 401 || res.status === 403
-              ? 'Ensaiar é de owner ou admin.'
+              ? // O servidor pede `requireTeam`, que inclui o viewer: ensaiar não manda nada e
+                // não grava nada. A tela dizia "owner ou admin", que é outra regra.
+                'Ensaiar é de quem faz parte da equipe.'
               : 'Não deu para ensaiar. Tente de novo.',
         });
         return;
@@ -65,7 +70,7 @@ export function Ensaio({
       const passos = (await res.json()) as PassoEnsaiado[];
       setEstado({ status: 'ready', passos });
       // AU-27: o quadro inteiro passa a mostrar entrada e saída por bloco a partir daqui.
-      onResultado(passos);
+      onResultado(passos, graph);
     } catch {
       setEstado({ status: 'error', message: 'Falha de conexão.' });
     }
@@ -108,7 +113,19 @@ export function Ensaio({
           </div>
         )}
 
-        {estado.status === 'loading' && <p className="members-empty">Ensaiando…</p>}
+        {/* Esqueleto na forma da trilha que vai aparecer, e não um "aguarde" solto. */}
+        {estado.status === 'loading' && (
+          <div className="skeleton" aria-label="Ensaiando" aria-busy="true">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="skel-card">
+                <span className="skel-bars">
+                  <span className="skel-bar" />
+                  <span className="skel-bar short" />
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {estado.status === 'ready' && estado.passos.length === 0 && (
           <p className="members-empty">
