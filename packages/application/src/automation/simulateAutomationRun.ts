@@ -77,6 +77,17 @@ export interface SimulateCommand {
    * seria a alternativa, e obrigaria a salvar rascunho torto só para poder olhar.
    */
   readonly graph?: AutomationGraph;
+  /**
+   * AU-25 — para depois de percorrer este bloco.
+   *
+   * Existe por **efeito colateral**, não por explicação: as buscas rodam de verdade no ensaio,
+   * e cada uma varre a entidade inteira do tenant. Abrir o bloco 2 de um fluxo cujo bloco 3
+   * busca todas as conversas não deveria disparar essa varredura.
+   *
+   * Quem responde "por que o fluxo não chegou aqui" é a tela, com os passos que já tem — não
+   * isto.
+   */
+  readonly untilNodeId?: string;
   readonly now: Date;
 }
 
@@ -102,9 +113,11 @@ export async function simulateAutomationRun(
   let atual = nextNode(graph, null, 'next');
 
   while (atual !== null && passos.length < TETO_DE_PASSOS) {
-    const porta = await ensaiarNo(deps, ctx, atual, variaveis, command.now, passos);
-    if (porta === null) break;
-    atual = nextNode(graph, atual.id, porta);
+    const daVez = atual;
+    const porta = await ensaiarNo(deps, ctx, daVez, variaveis, command.now, passos);
+    // Chegou no bloco que se está olhando: o que vem depois não foi pedido, e pode ser caro.
+    if (porta === null || daVez.id === command.untilNodeId) break;
+    atual = nextNode(graph, daVez.id, porta);
   }
 
   return passos;

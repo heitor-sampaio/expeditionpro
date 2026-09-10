@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { isNodeDisabled, nextNode, portsOf, validateGraph, type AutomationGraph } from './graph.js';
+import {
+  isNodeDisabled,
+  nextNode,
+  portsOf,
+  validateGraph,
+  type AutomationGraph,
+  alcancaveis,
+} from './graph.js';
 import { TRIGGER_TYPES } from './triggers.js';
 
 /**
@@ -647,5 +654,42 @@ describe('AU-26: bloco desligado', () => {
   it('sem a marca, o bloco roda — que é o caso de tudo o que já está salvo', () => {
     expect(isNodeDisabled(no('action', {}))).toBe(false);
     expect(isNodeDisabled(no('action', { disabled: 'sim' }))).toBe(false);
+  });
+});
+
+/**
+ * AU-27 — quem se alcança a partir daqui.
+ *
+ * Era detalhe interno da validação ("há bloco órfão?"), e passou a responder outra pergunta,
+ * na tela: **por que o ensaio não chegou neste bloco?** Quem sabe dizer que o alvo estava do
+ * outro lado de um "Se" é quem sabe percorrer as ligações a partir de uma porta.
+ */
+describe('AU-27: os blocos alcançáveis a partir de um', () => {
+  const desvio: AutomationGraph = {
+    nodes: [
+      { id: 'g1', kind: 'trigger', type: 'message_received', config: {}, position: { x: 0, y: 0 } },
+      { id: 'c1', kind: 'condition', type: 'field', config: {}, position: { x: 0, y: 60 } },
+      { id: 'sim', kind: 'action', type: 'send_message', config: {}, position: { x: 0, y: 120 } },
+      { id: 'nao', kind: 'action', type: 'send_message', config: {}, position: { x: 200, y: 120 } },
+      { id: 'f1', kind: 'end', type: 'end', config: {}, position: { x: 0, y: 180 } },
+    ],
+    edges: [
+      { id: 'e1', from: 'g1', port: 'next', to: 'c1' },
+      { id: 'e2', from: 'c1', port: 'true', to: 'sim' },
+      { id: 'e3', from: 'c1', port: 'false', to: 'nao' },
+      { id: 'e4', from: 'sim', port: 'next', to: 'f1' },
+    ],
+  };
+
+  it('do gatilho se alcança o quadro inteiro que está ligado', () => {
+    expect([...alcancaveis(desvio, 'g1')].sort()).toEqual(['c1', 'f1', 'g1', 'nao', 'sim']);
+  });
+
+  it('de um lado do desvio não se alcança o outro', () => {
+    expect(alcancaveis(desvio, 'sim').has('nao')).toBe(false);
+  });
+
+  it('o próprio bloco conta: é onde se está', () => {
+    expect(alcancaveis(desvio, 'nao')).toEqual(new Set(['nao']));
   });
 });

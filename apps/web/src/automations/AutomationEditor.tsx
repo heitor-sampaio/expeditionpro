@@ -24,6 +24,7 @@ import {
   ensaioAtual,
   podeEnsaiar,
   porBloco,
+  porqueNaoChegou,
   type EnsaioGuardado,
 } from './simulacao.js';
 import { useAuth } from '../auth/useAuth.js';
@@ -98,7 +99,8 @@ function Editor({
   const [aviso, setAviso] = useState<string | null>(null);
   const [sujo, setSujo] = useState(false);
   const [verLog, setVerLog] = useState(false);
-  const [ensaiando, setEnsaiando] = useState(false);
+  /** AU-25 — `null` = fechado; vazio = o fluxo inteiro; um id = percorre só até aquele bloco. */
+  const [ensaiando, setEnsaiando] = useState<string | null>(null);
   /*
    * AU-27 — o último ensaio fica com o editor, e não com o painel que o pediu: quem o consome
    * é cada bloco do quadro, e o painel é só onde se escolhe o contexto do gatilho.
@@ -243,7 +245,7 @@ function Editor({
               />
             </label>
             {/* AU-25: ensaiar fica ao lado de salvar porque é o gesto de antes de ligar. */}
-            <button type="button" className="btn btn-secondary" onClick={() => setEnsaiando(true)}>
+            <button type="button" className="btn btn-secondary" onClick={() => setEnsaiando('')}>
               Ensaiar
             </button>
             <button
@@ -391,8 +393,13 @@ function Editor({
                 nodeId={aberto}
                 readOnly={readOnly}
                 ensaio={ensaioVigente}
+                desvio={
+                  ensaioVigente === null
+                    ? null
+                    : porqueNaoChegou([...ensaioVigente.values()], fromFlow(nodes, edges), aberto)
+                }
                 podeEnsaiar={podeEnsaiar(auth.status === 'signed-in' ? auth.role : null)}
-                onEnsaiar={() => setEnsaiando(true)}
+                onEnsaiar={(until) => setEnsaiando(until ?? '')}
                 onFechar={() => setAberto(null)}
               />
             )}
@@ -400,7 +407,7 @@ function Editor({
         </QuadroContext>
       )}
 
-      {ensaiando && (
+      {ensaiando !== null && (
         <Ensaio
           automationId={automation.id}
           graph={fromFlow(nodes, edges)}
@@ -408,7 +415,8 @@ function Editor({
           onResultado={(passos, graph) =>
             setEnsaio({ assinatura: assinaturaDoGrafo(graph), mapa: porBloco(passos) })
           }
-          onClose={() => setEnsaiando(false)}
+          untilNodeId={ensaiando === '' ? undefined : ensaiando}
+          onClose={() => setEnsaiando(null)}
         />
       )}
 

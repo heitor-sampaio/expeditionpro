@@ -6,7 +6,7 @@ import { BlockFields, type CampoDeTexto } from './BlockFields.js';
 import { inserirMarcador } from './marcador.js';
 import type { ContextField, NodeKind } from '@expedition/domain';
 import type { BlockNodeType } from './BlockNode.js';
-import type { PassoEnsaiado } from './simulacao.js';
+import type { Desvio, PassoEnsaiado } from './simulacao.js';
 
 /**
  * AU-27 — o bloco aberto: o que entra, o que ele faz, o que sai.
@@ -30,6 +30,7 @@ export function NodePanel({
   nodeId,
   readOnly,
   ensaio,
+  desvio,
   podeEnsaiar,
   onEnsaiar,
   onFechar,
@@ -37,8 +38,11 @@ export function NodePanel({
   nodeId: string;
   readOnly: boolean;
   ensaio: Map<string, PassoEnsaiado> | null;
+  /** AU-27 — a condição que desviou o fluxo, quando o ensaio rodou e não passou por aqui. */
+  desvio: Desvio | null;
   podeEnsaiar: boolean;
-  onEnsaiar: () => void;
+  /** AU-25 — ensaiar; com um bloco, percorre só até ele. */
+  onEnsaiar: (untilNodeId?: string) => void;
   onFechar: () => void;
 }): React.JSX.Element | null {
   const nodes = useNodes<BlockNodeType>();
@@ -122,13 +126,33 @@ export function NodePanel({
             <span className="modal-sub">{ESPECIE[kind]}</span>
           </div>
           <div className="state-grow" />
+          {/*
+           * AU-25 — percorrer o desenho **até aqui**, e parar.
+           *
+           * Ensaiar o fluxo inteiro para olhar o segundo bloco faz o motor rodar as buscas de
+           * todos os que vêm depois — e cada busca varre a entidade inteira do tenant.
+           */}
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={!podeEnsaiar}
+            title={podeEnsaiar ? undefined : 'Ensaiar é de quem faz parte da equipe.'}
+            onClick={() => onEnsaiar(nodeId)}
+          >
+            Rodar até aqui
+          </button>
           <button type="button" className="btn btn-secondary btn-sm" onClick={onFechar}>
             Fechar
           </button>
         </div>
 
         <div className="auto-panel">
-          <PainelDeEntrada campos={campos} passo={passo} onInserir={inserirNoCampo} />
+          <PainelDeEntrada
+            campos={campos}
+            passo={passo}
+            desvio={desvio}
+            onInserir={inserirNoCampo}
+          />
 
           <div className="auto-panel-meio">
             <BlockFields
@@ -200,10 +224,12 @@ const ESPECIE: Record<NodeKind, string> = {
 function PainelDeEntrada({
   campos,
   passo,
+  desvio,
   onInserir,
 }: {
   campos: readonly ContextField[];
   passo: PassoEnsaiado | null;
+  desvio: Desvio | null;
   onInserir: (caminho: string) => void;
 }): React.JSX.Element {
   const linhas =
@@ -214,6 +240,31 @@ function PainelDeEntrada({
   return (
     <div className="auto-io">
       <span className="field-label">Entra</span>
+
+      {/*
+       * AU-27 — o quinto estado: o ensaio rodou e **não passou por aqui**.
+       *
+       * Dizer só "este ramo não foi tomado" é verdade e não serve: quem abriu o bloco quer
+       * saber qual decisão desviou o fluxo, e com que valor. Sem isso, a única saída é ler o
+       * desenho inteiro de cabeça procurando o desvio.
+       */}
+      {desvio !== null && (
+        <div className="feedback feedback-info auto-io-desvio">
+          <span className="feedback-dot" />
+          <span className="auto-io-desvio-texto">
+            O ensaio não chegou aqui: a condição saiu pelo <strong>{desvio.porta}</strong>
+            {desvio.campo !== '' && (
+              <>
+                {' '}
+                porque <span className="auto-field-path">{desvio.campo}</span> era{' '}
+                <span className="auto-io-valor">{desvio.valor === '' ? '—' : desvio.valor}</span>
+              </>
+            )}
+            .
+          </span>
+        </div>
+      )}
+
       {linhas.length === 0 ? (
         <span className="field-help">
           {passo === null

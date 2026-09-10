@@ -5560,6 +5560,20 @@
   margin-top: 4px;
 }
 /*
+ * AU-27 — por que o ensaio não chegou neste bloco.
+ *
+ * Cinza, e não vermelho: o fluxo ter saído pelo outro lado não é erro nenhum, é o desenho
+ * funcionando. Neste sistema vermelho quer dizer cancelado, e caminho de decisão não é dinheiro.
+ */
+.auto-io-desvio {
+  align-items: flex-start;
+}
+.auto-io-desvio-texto {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+/*
  * AU-27 — o campo que vai receber a variável clicada. Sem esta marca, clicar na lista da
  * esquerda seria um tiro no escuro: o texto apareceria em algum lugar, e não se sabe qual.
  */

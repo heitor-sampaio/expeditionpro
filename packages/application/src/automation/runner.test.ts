@@ -1798,3 +1798,59 @@ describe('AU-27: o ensaio corre sobre o desenho que está na tela', () => {
     ).rejects.toThrow();
   });
 });
+
+/**
+ * AU-25 — parar no bloco que se está olhando.
+ *
+ * O ensaio percorre o desenho inteiro, e **as buscas rodam de verdade** — cada uma varre a
+ * entidade inteira do tenant. Abrir o bloco 2 de um fluxo em que o bloco 3 busca todas as
+ * conversas não deveria disparar essa varredura: o que se quer ver é o 2.
+ *
+ * Não é sobre explicar nada. Quem responde "por que o fluxo não chegou aqui" é a tela, com os
+ * passos que já tem na mão. Isto é sobre **não fazer o que ninguém pediu**.
+ */
+describe('AU-25: ensaiar só até um bloco', () => {
+  const COM_BUSCA = grafo(
+    { id: 'g1', kind: 'trigger', type: 'message_received' },
+    { id: 'a1', kind: 'action', type: 'send_message', config: { text: 'Oi' } },
+    { id: 'b1', kind: 'lookup', type: 'find_one', config: { entity: 'conversations' } },
+    { id: 'f1', kind: 'end', type: 'end' },
+  );
+
+  const comBusca = (buscar: ReturnType<typeof vi.fn>) => ({
+    ...deps(),
+    finders: { find_one: buscar } as unknown as AutomationFinders,
+  });
+
+  it('a busca depois do alvo não roda', async () => {
+    const buscar = vi.fn().mockResolvedValue([]);
+    const d = comBusca(buscar);
+    const criada = await ligada(d, COM_BUSCA);
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: {},
+      untilNodeId: 'a1',
+      now: AGORA,
+    });
+
+    expect(passos.map((passo) => passo.nodeId)).toEqual(['g1', 'a1']);
+    expect(buscar).not.toHaveBeenCalled();
+  });
+
+  /** Sem alvo, o ensaio continua percorrendo tudo: é o gesto de conferir o fluxo inteiro. */
+  it('sem alvo, percorre até o fim', async () => {
+    const buscar = vi.fn().mockResolvedValue([]);
+    const d = comBusca(buscar);
+    const criada = await ligada(d, COM_BUSCA);
+
+    const passos = await simulateAutomationRun(d, ctxAdmin(), {
+      automationId: criada.id,
+      variables: {},
+      now: AGORA,
+    });
+
+    expect(passos.map((passo) => passo.nodeId)).toContain('b1');
+    expect(buscar).toHaveBeenCalledOnce();
+  });
+});

@@ -681,7 +681,21 @@ busca varre a entidade inteira do tenant — era o caminho mais caro que uma tec
 servidor, e o único sem limite.
 
 `BlockNode` caiu de 381 para 186 linhas: o que saiu dele **mudou de casa**, não foi copiado.
-Suíte em **2.213 testes** (eram 2.176). Sem migration.
+Suíte em **2.222 testes** (eram 2.176). Sem migration.
+
+**O quinto estado do painel, que faltava.** Um bloco fora do caminho dizia "o ensaio não chegou
+aqui: este ramo não foi tomado" e parava. É verdade e não serve: quem abriu o bloco quer saber
+**qual** decisão desviou o fluxo e com que valor — senão a única saída é ler o desenho inteiro
+de cabeça procurando o desvio. Agora o painel aponta a condição, a porta por onde ela saiu e o
+valor que ela leu. **Sem ida ao servidor**: os passos já registram a porta tomada (AU-26), e
+`alcancaveis` — que era privada da validação de grafo — passou a responder de que lado o alvo
+estava.
+
+**E "rodar até aqui".** Ensaiar o fluxo inteiro para olhar o segundo bloco faz o motor rodar as
+buscas de todos os que vêm depois, e cada busca varre a entidade inteira do tenant. O
+`untilNodeId` existe por **efeito colateral**, não por explicação — quem explica é a tela, com
+os passos que já tem. Confundir as duas coisas faria escrever código de servidor para uma
+resposta que já está no navegador.
 
 **O que ainda não foi visto por gente:** o painel em si — largura, rolagem das três colunas e o
 colapso para uma coluna abaixo de 900px foram feitos olhando o CSS, não o navegador.

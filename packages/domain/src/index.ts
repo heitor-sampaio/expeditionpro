@@ -49,6 +49,7 @@ export {
   type NodeKind,
   type Port,
   isNodeDisabled,
+  alcancaveis,
   type GraphProblem,
 } from './automation/graph.js';
 export {

@@ -301,6 +301,11 @@ export function registerAutomationRoutes(
             .optional(),
           // AU-27: o desenho que está na tela, para ensaiar o que se acabou de mexer.
           graph: graph.optional(),
+          /*
+           * AU-25: para depois deste bloco. É economia de efeito colateral — as buscas rodam
+           * de verdade, e abrir um bloco não deve disparar a varredura do seguinte.
+           */
+          untilNodeId: z.string().min(1).optional(),
         }),
       },
       /*
@@ -324,6 +329,9 @@ export function registerAutomationRoutes(
         automationId: request.params.automationId,
         variables,
         ...(request.body.graph === undefined ? {} : { graph: request.body.graph }),
+        ...(request.body.untilNodeId === undefined
+          ? {}
+          : { untilNodeId: request.body.untilNodeId }),
         now,
       });
       return reply.send(passos);

@@ -234,7 +234,14 @@ export function nextNode(
   return ligacao === undefined ? null : (graph.nodes.find((no) => no.id === ligacao.to) ?? null);
 }
 
-function alcancaveis(graph: AutomationGraph, inicio: string): Set<string> {
+/**
+ * Os blocos que se alcançam a partir de um, seguindo as ligações.
+ *
+ * Nasceu privada, para a validação perguntar "há bloco órfão?". Passou a responder outra
+ * pergunta, na tela: **por que o ensaio não chegou aqui?** Quem sabe dizer que o alvo estava do
+ * outro lado de um "Se" é quem sabe percorrer as ligações a partir de uma porta.
+ */
+export function alcancaveis(graph: AutomationGraph, inicio: string): Set<string> {
   const vistos = new Set<string>([inicio]);
   const fila = [inicio];
   while (fila.length > 0) {

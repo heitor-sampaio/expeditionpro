@@ -9,6 +9,7 @@
  * autenticação nenhum. Quem chama a rota é o painel do ensaio.
  */
 
+import { alcancaveis } from '@expedition/domain';
 import type { AutomationGraph } from '@expedition/domain';
 
 export interface PassoEnsaiado {
@@ -36,6 +37,59 @@ export function porBloco(passos: readonly PassoEnsaiado[]): Map<string, PassoEns
     if (!mapa.has(passo.nodeId)) mapa.set(passo.nodeId, passo);
   }
   return mapa;
+}
+
+/** AU-27 — a decisão que mandou o fluxo para o outro lado, e o valor que ela leu. */
+export interface Desvio {
+  readonly nodeId: string;
+  /** Por onde ela saiu: `true`, `false`, ou o caso da escolha múltipla. */
+  readonly porta: string;
+  readonly campo: string;
+  readonly valor: string;
+}
+
+/**
+ * AU-27 — por que o ensaio não chegou neste bloco.
+ *
+ * O painel dizia "este ramo não foi tomado" e parava aí. É verdade e não serve para nada: quem
+ * abriu o bloco quer saber **qual** decisão desviou o fluxo, e com que valor — senão a única
+ * saída é ler o desenho inteiro de cabeça, procurando o desvio.
+ *
+ * A resposta está toda nos passos que já vieram, e por isso nada disto vai ao servidor: a
+ * condição guarda a porta por onde saiu e o valor que leu (AU-26). Procura-se a **primeira**
+ * decisão percorrida de onde o alvo estaria a caminho por outra porta — a primeira, porque é
+ * ela que mandou o fluxo embora; as seguintes já são consequência.
+ *
+ * `null` quando não há o que explicar: ou o bloco foi percorrido, ou nada o liga ao fluxo — e
+ * aí culpar um "Se" mandaria a pessoa mexer na condição em vez de ligar o bloco.
+ */
+export function porqueNaoChegou(
+  passos: readonly PassoEnsaiado[],
+  graph: AutomationGraph,
+  nodeId: string,
+): Desvio | null {
+  if (passos.some((passo) => passo.nodeId === nodeId)) return null;
+
+  for (const passo of passos) {
+    if (passo.kind !== 'condition' && passo.kind !== 'switch') continue;
+
+    const outras = graph.edges.filter(
+      (ligacao) => ligacao.from === passo.nodeId && ligacao.port !== passo.outcome,
+    );
+    if (!outras.some((ligacao) => alcancaveis(graph, ligacao.to).has(nodeId))) continue;
+
+    return {
+      nodeId: passo.nodeId,
+      porta: passo.outcome,
+      campo: texto(passo.detail['campo']),
+      valor: texto(passo.detail['valor']),
+    };
+  }
+  return null;
+}
+
+function texto(valor: unknown): string {
+  return valor === null || valor === undefined ? '' : String(valor);
 }
 
 /**

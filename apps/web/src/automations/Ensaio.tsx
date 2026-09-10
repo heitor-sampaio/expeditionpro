@@ -29,6 +29,7 @@ export function Ensaio({
   automationId,
   graph,
   onResultado,
+  untilNodeId,
   onClose,
 }: {
   automationId: string;
@@ -38,6 +39,8 @@ export function Ensaio({
    * ensaiado vai junto: é ele que diz até quando o resultado ainda responde pelo quadro.
    */
   onResultado: (passos: PassoEnsaiado[], graph: AutomationGraph) => void;
+  /** AU-25 — quando vem, o ensaio para depois deste bloco: o resto não foi pedido. */
+  untilNodeId?: string | undefined;
   onClose: () => void;
 }): React.JSX.Element {
   const gatilho = gatilhoDoQuadro(
@@ -67,7 +70,11 @@ export function Ensaio({
         headers: { 'content-type': 'application/json' },
         // AU-27: vai o desenho da tela junto — ensaiar o que está salvo, depois de mexer
         // num bloco, faria a pessoa concluir a coisa errada sobre a própria mudança.
-        body: JSON.stringify({ ...amostra(), graph }),
+        body: JSON.stringify({
+          ...amostra(),
+          graph,
+          ...(untilNodeId === undefined ? {} : { untilNodeId }),
+        }),
       });
       if (!res.ok) {
         setEstado({

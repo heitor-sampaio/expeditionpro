@@ -4,6 +4,7 @@ import {
   ensaioAtual,
   podeEnsaiar,
   porBloco,
+  porqueNaoChegou,
   type PassoEnsaiado,
 } from './simulacao.js';
 import type { AutomationGraph } from '@expedition/domain';
@@ -137,5 +138,76 @@ describe('AU-25: ensaiar é de quem é da equipe', () => {
 
   it('sem papel nenhum, não', () => {
     expect(podeEnsaiar(null)).toBe(false);
+  });
+});
+
+/**
+ * AU-27 — por que o ensaio não chegou neste bloco.
+ *
+ * O painel dizia "este ramo não foi tomado" e parava aí. É verdade e não serve para nada: quem
+ * abriu o bloco quer saber **qual** decisão mandou o fluxo para o outro lado, e com que valor —
+ * senão a única saída é ler o desenho inteiro de cabeça, procurando o desvio.
+ *
+ * A resposta está toda nos passos que já vieram: a condição guarda a porta por onde saiu e o
+ * valor que leu. Não precisa de servidor nenhum.
+ */
+describe('AU-27: por que o fluxo não chegou aqui', () => {
+  const grafo: AutomationGraph = {
+    nodes: [
+      { id: 'g1', kind: 'trigger', type: 'message_received', config: {}, position: { x: 0, y: 0 } },
+      { id: 'c1', kind: 'condition', type: 'field', config: {}, position: { x: 0, y: 60 } },
+      { id: 'sim', kind: 'action', type: 'send_message', config: {}, position: { x: 0, y: 120 } },
+      { id: 'nao', kind: 'action', type: 'send_message', config: {}, position: { x: 200, y: 120 } },
+    ],
+    edges: [
+      { id: 'e1', from: 'g1', port: 'next', to: 'c1' },
+      { id: 'e2', from: 'c1', port: 'true', to: 'sim' },
+      { id: 'e3', from: 'c1', port: 'false', to: 'nao' },
+    ],
+  };
+
+  /** O ensaio saiu pelo `false`: passou pelo gatilho, pela condição, e foi para o "não". */
+  const passos = [
+    passo('g1', 'disparou'),
+    {
+      ...passo('c1', 'false'),
+      kind: 'condition',
+      type: 'field',
+      detail: { campo: 'mensagem.texto', valor: 'oi' },
+    },
+    passo('nao', 'faria'),
+  ];
+
+  it('aponta a condição que desviou, a porta e o valor que ela leu', () => {
+    expect(porqueNaoChegou(passos, grafo, 'sim')).toEqual({
+      nodeId: 'c1',
+      porta: 'false',
+      campo: 'mensagem.texto',
+      valor: 'oi',
+    });
+  });
+
+  it('bloco que o ensaio percorreu não tem por que explicar', () => {
+    expect(porqueNaoChegou(passos, grafo, 'nao')).toBeNull();
+  });
+
+  /**
+   * Um bloco solto no quadro não deixou de ser alcançado por causa de decisão nenhuma: nada o
+   * liga ao fluxo. Culpar o "Se" aqui mandaria a pessoa mexer na condição em vez de ligar o
+   * bloco, que é o conserto de verdade.
+   */
+  it('bloco que ninguém liga não tem condição para culpar', () => {
+    const solto: AutomationGraph = {
+      nodes: [
+        ...grafo.nodes,
+        { id: 'x1', kind: 'end', type: 'end', config: {}, position: { x: 400, y: 0 } },
+      ],
+      edges: grafo.edges,
+    };
+    expect(porqueNaoChegou(passos, solto, 'x1')).toBeNull();
+  });
+
+  it('sem ensaio nenhum não há o que explicar', () => {
+    expect(porqueNaoChegou([], grafo, 'sim')).toBeNull();
   });
 });
