@@ -1,3 +1,4 @@
+import { inMemoryCeps } from '../dev/inMemoryCeps.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildServer } from '../buildServer.js';
 import { inMemoryCustomers } from '../dev/inMemoryCustomers.js';
@@ -68,6 +69,7 @@ describe('GR-15: GET /v1/groups/:groupId/roomlist.pdf', () => {
         vehicles: inMemoryVehicles(),
         itineraries: inMemoryItineraries(),
         schedule: inMemorySchedule(),
+        ceps: inMemoryCeps(),
         bookings,
         payments: inMemoryPayments(bookings.rows),
         suppliers: inMemorySuppliers(),

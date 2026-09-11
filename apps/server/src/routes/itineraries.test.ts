@@ -1,3 +1,4 @@
+import { inMemoryCeps } from '../dev/inMemoryCeps.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildServer } from '../buildServer.js';
 import { inMemoryCustomers } from '../dev/inMemoryCustomers.js';
@@ -72,6 +73,7 @@ describe('RO-01..03: rotas de roteiro', () => {
         vehicles: inMemoryVehicles(),
         itineraries: inMemoryItineraries(),
         schedule: inMemorySchedule(),
+        ceps: inMemoryCeps(),
         bookings: inMemoryBookings(),
         payments: inMemoryPayments([]),
         suppliers: inMemorySuppliers(),

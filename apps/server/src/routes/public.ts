@@ -1,5 +1,6 @@
 import {
   listOpenGroups,
+  lookupCep,
   receivePublicEnrollment,
   resolvePublicEnrollmentLink,
 } from '@expedition/application';
@@ -37,6 +38,34 @@ const LEITURA_PUBLICA = { max: 30, timeWindow: '1 minute' } as const;
 export function registerPublicRoutes(app: FastifyInstance, deps: ServerDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
   const tenantParam = z.object({ tenantSlug: z.string().min(1).max(60) });
+
+  /**
+   * CL-02 — o endereço de um CEP, para o autocomplete do formulário.
+   *
+   * **Sem `tenantSlug` no caminho, e é a única aqui.** Um CEP não é dado de tenant nenhum;
+   * pedir o slug fingiria uma ligação que não existe e cobraria uma consulta a mais por letra
+   * digitada. As outras duas regras do arquivo continuam valendo: limite por IP, e nada no
+   * corpo além do que vai na tela.
+   *
+   * Existe porque a CSP do front não lista o ViaCEP em `connect-src` — a consulta feita no
+   * navegador vinha sendo bloqueada em silêncio, e a tela dizia "CEP não encontrado" — e
+   * porque a página de inscrição é pública: chamá-lo de lá daria a um terceiro o IP de todo
+   * interessado, a mesma objeção que manteve o captcha fora do escopo (SEC-20).
+   */
+  typed.get(
+    '/v1/public/cep/:cep',
+    {
+      schema: { params: z.object({ cep: z.string().min(8).max(10) }) },
+      config: { rateLimit: LEITURA_PUBLICA },
+    },
+    async (request, reply) => {
+      const endereco = await lookupCep({ ceps: deps.ceps }, { cep: request.params.cep });
+      // Não encontrado é 404 e não corpo vazio: a tela distingue "não achei, preencha à mão"
+      // de "achei um endereço sem rua", que é resposta legítima de cidade pequena.
+      if (endereco === null) return reply.status(404).send({ error: 'not_found' });
+      return reply.send(endereco);
+    },
+  );
 
   // IN-24: vitrine pública — as saídas abertas de um tenant, resolvidas pelo slug.
   typed.get(

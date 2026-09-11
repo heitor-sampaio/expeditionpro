@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { brDateToIso } from './dateFields.js';
-import { AddressFields, EMPTY_ADDRESS_DRAFT, type AddressDraft } from './AddressFields.js';
+import { AddressFields, EMPTY_ADDRESS_DRAFT, type AddressDraft } from '../ui/AddressFields.js';
 import { CompanionForm } from './CompanionForm.js';
 import { EMPTY_VEHICLE_DRAFT, sameVehicle, type VehicleDraft } from './VehicleFields.js';
 import { MemberFields, VehicleBlock, type MemberDraft } from './FamilyEditorFields.js';

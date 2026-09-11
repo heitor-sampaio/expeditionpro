@@ -1,3 +1,5 @@
+import { EMPTY_ADDRESS_DRAFT, type AddressDraft } from '../ui/AddressFields.js';
+
 /**
  * IN-25b — o que a página monta, e quando ela deixa enviar.
  *
@@ -17,12 +19,8 @@ export interface EnrollmentForm {
   nascimento: string;
   email: string;
   telefone: string;
-  cep: string;
-  endereco: string;
-  numero: string;
-  bairro: string;
-  cidade: string;
-  estado: string;
+  /** CL-02: o mesmo bloco do cadastro, com o mesmo autocomplete por CEP. */
+  endereco: AddressDraft;
   marca: string;
   modelo: string;
   placa: string;
@@ -37,12 +35,7 @@ export function formularioVazio(): EnrollmentForm {
     nascimento: '',
     email: '',
     telefone: '',
-    cep: '',
-    endereco: '',
-    numero: '',
-    bairro: '',
-    cidade: '',
-    estado: '',
+    endereco: EMPTY_ADDRESS_DRAFT,
     marca: '',
     modelo: '',
     placa: '',
@@ -102,14 +95,7 @@ export interface DadosDoLink {
  * importava.
  */
 export function corpoDaInscricao(form: EnrollmentForm, link: DadosDoLink): Record<string, unknown> {
-  const endereco = semVazios({
-    street: form.endereco,
-    number: form.numero,
-    district: form.bairro,
-    city: form.cidade,
-    state: form.estado,
-    zip: form.cep,
-  });
+  const endereco = semVazios({ ...form.endereco });
   const veiculo = semVazios({ brand: form.marca, model: form.modelo, plate: form.placa });
   const companions = form.acompanhantes.filter(completo).map((a) => ({
     full_name: a.nome.trim(),

@@ -1,3 +1,4 @@
+import { inMemoryCeps } from '../dev/inMemoryCeps.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildServer } from '../buildServer.js';
 import { inMemoryServerDeps } from '../dev/inMemoryServerDeps.js';
@@ -64,6 +65,7 @@ async function serverWith(customers: CustomerRepository): Promise<FastifyInstanc
       vehicles: inMemoryVehicles(),
       itineraries: inMemoryItineraries(),
       schedule: inMemorySchedule(),
+      ceps: inMemoryCeps(),
       bookings: inMemoryBookings(),
       payments: inMemoryPayments([]),
       suppliers: inMemorySuppliers(),
@@ -607,6 +609,7 @@ describe('PC-01/PC-02: POST /v1/customers/:id/portal-invite', () => {
         vehicles: inMemoryVehicles(),
         itineraries: inMemoryItineraries(),
         schedule: inMemorySchedule(),
+        ceps: inMemoryCeps(),
         bookings: inMemoryBookings(),
         payments: inMemoryPayments([]),
         suppliers: inMemorySuppliers(),

@@ -639,6 +639,10 @@ export {
   type SiteEnrollmentPayload,
 } from './intake/siteEnrollmentPayload.js';
 export { listOpenGroups, type ListOpenGroupsDeps } from './schedule/listOpenGroups.js';
+
+// CL-02 — consulta de CEP, servida pelo nosso servidor e não pelo navegador.
+export { lookupCep, type LookupCepDeps, type LookupCepCommand } from './address/lookupCep.js';
+export type { CepAddress, CepDirectory } from './address/cepDirectory.js';
 export {
   listAgendaEvents,
   type AgendaEvent,

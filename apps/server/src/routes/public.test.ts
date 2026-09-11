@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildServer } from '../buildServer.js';
 import { inMemoryServerDeps } from '../dev/inMemoryServerDeps.js';
-import type { RequestContext } from '@expedition/application';
+import type { CepDirectory, RequestContext } from '@expedition/application';
 import type { FastifyInstance } from 'fastify';
 
 /**
@@ -346,6 +346,98 @@ describe('IN-25b: a inscrição pública entra na fila', () => {
 
     const recentes = (await app.inject({ method: 'GET', url: '/v1/bookings/recent' })).json();
     expect(recentes).toEqual([]);
+    await app.close();
+  });
+});
+
+/**
+ * CL-02 · SEC-20 — a consulta de CEP é servida por nós, e não pelo navegador.
+ *
+ * A rota existe porque a CSP do front não lista o ViaCEP em `connect-src` — a consulta feita
+ * na tela vinha sendo bloqueada em silêncio — e porque a página de inscrição é pública:
+ * chamá-lo de lá daria a um terceiro o IP de todo interessado.
+ *
+ * **Sem `tenantSlug` no caminho, de propósito.** É a única rota deste arquivo sem ele, e é
+ * honesto que seja: um CEP não é dado de tenant nenhum, e pedir o slug fingiria uma ligação
+ * que não existe — além de uma consulta a mais por letra digitada.
+ */
+describe('CL-02: consulta de CEP sem autenticação', () => {
+  async function comCep(directory: CepDirectory) {
+    const deps = {
+      ...inMemoryServerDeps({ resolveContext: () => Promise.resolve(ctx) }),
+      ceps: directory,
+    };
+    const app = await buildServer({ logger: false, deps });
+    await app.ready();
+    return app;
+  }
+
+  const encontrado: CepDirectory = {
+    lookup: () =>
+      Promise.resolve({
+        street: 'Rua Felipe Schmidt',
+        district: 'Centro',
+        city: 'Florianópolis',
+        state: 'SC',
+      }),
+  };
+
+  it('devolve o endereço, sem sessão nenhuma', async () => {
+    const app = await comCep(encontrado);
+
+    const res = await app.inject({ method: 'GET', url: '/v1/public/cep/88010000' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      street: 'Rua Felipe Schmidt',
+      district: 'Centro',
+      city: 'Florianópolis',
+      state: 'SC',
+    });
+    await app.close();
+  });
+
+  it('aceita o CEP pontuado, como quem digita escreve', async () => {
+    const app = await comCep(encontrado);
+
+    const res = await app.inject({ method: 'GET', url: '/v1/public/cep/88010-000' });
+
+    expect(res.statusCode).toBe(200);
+    await app.close();
+  });
+
+  /** CEP que não existe é resposta, não erro: a tela segue com o preenchimento à mão. */
+  it('CEP inexistente responde 404, e a tela sabe o que fazer', async () => {
+    // O 404 é conferido junto com a consulta: sozinho, ele passaria igual se a rota não
+    // existisse — o 404 de rota inexistente tem o mesmo corpo.
+    let pedidos = 0;
+    const app = await comCep({
+      lookup: () => {
+        pedidos += 1;
+        return Promise.resolve(null);
+      },
+    });
+
+    const res = await app.inject({ method: 'GET', url: '/v1/public/cep/99999999' });
+
+    expect(res.statusCode).toBe(404);
+    expect(pedidos).toBe(1);
+    await app.close();
+  });
+
+  it('CEP malformado não chega ao diretório', async () => {
+    let pedidos = 0;
+    const app = await comCep({
+      lookup: () => {
+        pedidos += 1;
+        return Promise.resolve(null);
+      },
+    });
+
+    const res = await app.inject({ method: 'GET', url: '/v1/public/cep/abc' });
+
+    expect(res.statusCode).toBe(400);
+    expect(pedidos).toBe(0);
     await app.close();
   });
 });

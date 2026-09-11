@@ -1,3 +1,4 @@
+import { inMemoryCeps } from '../dev/inMemoryCeps.js';
 import { describe, expect, it } from 'vitest';
 import { buildServer } from '../buildServer.js';
 import { inMemoryCustomers } from '../dev/inMemoryCustomers.js';
@@ -50,6 +51,7 @@ async function serverWith(authAdmin: AuthAdminGateway | undefined): Promise<Fast
       vehicles: inMemoryVehicles(),
       itineraries: inMemoryItineraries(),
       schedule: inMemorySchedule(),
+      ceps: inMemoryCeps(),
       bookings,
       payments: inMemoryPayments(bookings.rows),
       suppliers: inMemorySuppliers(),

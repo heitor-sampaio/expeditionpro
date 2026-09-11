@@ -1,3 +1,4 @@
+import { inMemoryCeps } from '../dev/inMemoryCeps.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildServer } from '../buildServer.js';
 import { inMemoryCustomers } from '../dev/inMemoryCustomers.js';
@@ -85,6 +86,7 @@ describe('GR-03/IN-18: POST /v1/groups/:groupId/bookings', () => {
         vehicles: inMemoryVehicles(),
         itineraries: inMemoryItineraries(),
         schedule: inMemorySchedule(),
+        ceps: inMemoryCeps(),
         bookings,
         payments: inMemoryPayments(bookings.rows),
         suppliers: inMemorySuppliers(),
@@ -570,6 +572,7 @@ describe('GR-03/IN-18: POST /v1/groups/:groupId/bookings', () => {
         vehicles: inMemoryVehicles(),
         itineraries: inMemoryItineraries(),
         schedule: inMemorySchedule(),
+        ceps: inMemoryCeps(),
         bookings,
         payments: inMemoryPayments(bookings.rows),
         suppliers: inMemorySuppliers(),

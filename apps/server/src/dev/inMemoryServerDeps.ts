@@ -1,3 +1,4 @@
+import { inMemoryCeps } from './inMemoryCeps.js';
 import { asaasGateway } from '@expedition/infrastructure';
 import type { RequestContext } from '@expedition/application';
 import type { ServerDeps } from '../buildServer.js';
@@ -53,6 +54,9 @@ export function inMemoryServerDeps(override: Partial<ServerDeps> = {}): ServerDe
     itineraries,
     // IN-25: a agenda resolve o slug do roteiro no link público — precisa dos mesmos roteiros.
     schedule: inMemorySchedule(itineraries, tenants),
+    // Determinístico de propósito: teste de rota que toca o ViaCEP de verdade falha quando a
+    // internet oscila e passa a medir o serviço dos outros. Quem fala com ele é o main.ts.
+    ceps: inMemoryCeps(),
     bookings,
     // O ledger de recebimentos lê as linhas de inscrição: precisa das mesmas, não de outras.
     payments: inMemoryPayments('rows' in bookings ? (bookings as { rows: never[] }).rows : []),

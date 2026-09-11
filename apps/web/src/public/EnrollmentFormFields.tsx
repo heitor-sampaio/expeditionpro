@@ -1,3 +1,4 @@
+import { AddressFields } from '../ui/AddressFields.js';
 import { acompanhanteVazio, type AcompanhanteForm, type EnrollmentForm } from './enrollmentForm.js';
 
 /**
@@ -7,9 +8,12 @@ import { acompanhanteVazio, type AcompanhanteForm, type EnrollmentForm } from '.
  * que fica de fora é decidido em `enrollmentForm.ts`, que tem teste — aqui só há campo, rótulo
  * e o que o dedo toca.
  *
- * A ordem segue o que a pessoa sabe de cor: ela mesma, quem vai com ela, e por último o carro,
- * que é o único bloco opcional. Pedir placa antes de nome faria o formulário parecer longo
- * logo no começo, que é onde se desiste dele.
+ * A ordem segue o que a pessoa sabe de cor: ela mesma, quem vai com ela e, por último, os dois
+ * blocos opcionais — endereço e carro. Pedir CEP ou placa antes de nome faria o formulário
+ * parecer longo logo no começo, que é onde se desiste dele.
+ *
+ * O endereço é o mesmo componente do cadastro de cliente (CL-02), com o mesmo autocomplete por
+ * CEP: dois formulários que pedem a mesma coisa não têm por que pedi-la de dois jeitos.
  */
 export function EnrollmentFormFields({
   form,
@@ -114,6 +118,14 @@ export function EnrollmentFormFields({
         >
           Acrescentar pessoa
         </button>
+      </section>
+
+      <section className="card pub-card">
+        <span className="field-label">Seu endereço</span>
+        <span className="field-help">
+          Opcional — o CEP preenche o resto sozinho, e poupa a equipe de pedir depois.
+        </span>
+        <AddressFields value={form.endereco} onChange={(endereco) => set({ endereco })} />
       </section>
 
       <section className="card pub-card">

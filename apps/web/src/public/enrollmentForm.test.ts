@@ -1,3 +1,4 @@
+import { EMPTY_ADDRESS_DRAFT } from '../ui/AddressFields.js';
 import { describe, expect, it } from 'vitest';
 import { corpoDaInscricao, formularioVazio, podeEnviar } from './enrollmentForm.js';
 
@@ -109,6 +110,51 @@ describe('IN-25b: o corpo que vai para o servidor', () => {
 
     expect(corpo['vehicle']).toBeUndefined();
     expect(corpo['address']).toBeUndefined();
+  });
+
+  it('endereço preenchido vai no formato canônico', () => {
+    const corpo = corpoDaInscricao(
+      {
+        ...cheio(),
+        endereco: {
+          zip: '88010-000',
+          street: 'Rua Felipe Schmidt',
+          number: '100',
+          district: 'Centro',
+          city: 'Florianópolis',
+          state: 'SC',
+        },
+      },
+      { roteiro: 'coxilha-rica', groupId: 'g-jan' },
+    );
+
+    expect(corpo['address']).toEqual({
+      zip: '88010-000',
+      street: 'Rua Felipe Schmidt',
+      number: '100',
+      district: 'Centro',
+      city: 'Florianópolis',
+      state: 'SC',
+    });
+  });
+
+  /**
+   * O CEP sozinho é o caso de quem digitou e desistiu antes de a busca responder. Vai assim
+   * mesmo: um campo a menos para a equipe perguntar depois, e o servidor aceita o bloco
+   * parcial.
+   */
+  it('endereço pela metade viaja com o que tem', () => {
+    const corpo = corpoDaInscricao(
+      { ...cheio(), endereco: { ...EMPTY_ADDRESS_DRAFT, zip: '88010-000' } },
+      { roteiro: 'coxilha-rica', groupId: 'g-jan' },
+    );
+
+    expect(corpo['address']).toEqual({ zip: '88010-000' });
+  });
+
+  /** Endereço nunca trava o envio: é opcional aqui como é no cadastro (CL-02). */
+  it('endereço em branco não impede enviar', () => {
+    expect(podeEnviar(cheio(), 'g-jan')).toBe(true);
   });
 
   it('veículo preenchido vai no formato canônico', () => {

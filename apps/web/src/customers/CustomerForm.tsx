@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { cpfErrorFor, topErrorFor } from './errorMessages.js';
-import { useCep } from './useCep.js';
+import { useCep } from '../ui/useCep.js';
 import {
   useCreateCustomer,
   type CreatedCustomer,

@@ -12,6 +12,7 @@ export { prismaCustomerRepository } from './customers/prismaCustomerRepository.j
 export { prismaVehicleRepository } from './vehicles/prismaVehicleRepository.js';
 export { prismaItineraryRepository } from './itineraries/prismaItineraryRepository.js';
 export { prismaScheduleRepository } from './schedule/prismaScheduleRepository.js';
+export { viaCepDirectory } from './address/viaCepDirectory.js';
 export { prismaBookingRepository } from './bookings/prismaBookingRepository.js';
 export { prismaPaymentRepository } from './payments/prismaPaymentRepository.js';
 export { prismaSupplierRepository } from './suppliers/prismaSupplierRepository.js';

@@ -7,6 +7,7 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
+import type { CepDirectory } from '@expedition/application';
 import type {
   ApiKeyRepository,
   AuditLogRepository,
@@ -82,6 +83,8 @@ export interface ServerDeps {
   readonly vehicles: VehicleRepository;
   readonly itineraries: ItineraryRepository;
   readonly schedule: ScheduleRepository;
+  /** CL-02: consulta de CEP, servida por nós — a CSP do front não alcança o ViaCEP. */
+  readonly ceps: CepDirectory;
   readonly bookings: BookingRepository;
   readonly payments: PaymentRepository;
   readonly suppliers: SupplierRepository;
