@@ -60,7 +60,7 @@ async function comSaidas(datas: readonly string[]) {
 const LINK = '/v1/public/dev/enrollment-link?roteiro=coxilha-rica';
 
 describe('IN-25: o link público abre sem autenticação nenhuma', () => {
-  it('com o mês do link, devolve a saída daquele mês e as outras', async () => {
+  it('com o mês do link, devolve aquela saída e mais nenhuma', async () => {
     const { app } = await comSaidas(['2027-01-15', '2027-02-20']);
 
     const res = await app.inject({ method: 'GET', url: `${LINK}&saida=jan-27` });
@@ -72,7 +72,8 @@ describe('IN-25: o link público abre sem autenticação nenhuma', () => {
       saidaReconhecida: boolean;
     };
     expect(body.match?.startDate).toBe('2027-01-15');
-    expect(body.alternatives.map((g) => g.startDate)).toEqual(['2027-02-20']);
+    // O link já escolheu; a resposta pública nem chega a listar a agenda do roteiro.
+    expect(body.alternatives).toEqual([]);
     expect(body.saidaReconhecida).toBe(true);
     await app.close();
   });

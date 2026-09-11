@@ -1,3 +1,4 @@
+import { saidasDoLink } from './saidasDoLink.js';
 import { useState } from 'react';
 import { formatDateRangeLong } from '../ui/format.js';
 import { whatsappLink } from '../ui/whatsapp.js';
@@ -67,6 +68,7 @@ export function PublicEnrollmentScreen({
   }
 
   const { view } = state;
+  const { opcoes, escolhaAberta } = saidasDoLink(view);
   const selecionada = view.match ?? view.alternatives.find((s) => s.groupId === escolhida) ?? null;
   const atual = escolhida ?? view.match?.groupId ?? null;
   const semNenhuma = view.match === null && view.alternatives.length === 0;
@@ -133,29 +135,36 @@ export function PublicEnrollmentScreen({
           )}
 
           <section className="card pub-card">
-            <span className="field-label">
-              {view.match === null ? 'Escolha a saída' : 'Sua saída'}
-            </span>
+            <span className="field-label">{escolhaAberta ? 'Escolha a saída' : 'Sua saída'}</span>
 
             <div className="enroll-list">
-              {[...(view.match === null ? [] : [view.match]), ...view.alternatives].map((saida) => (
-                <label
-                  key={saida.groupId}
-                  className={`check-row pub-saida${atual === saida.groupId ? ' is-selected' : ''}`}
-                >
-                  <input
-                    type="radio"
-                    className="check"
-                    name="saida"
-                    checked={atual === saida.groupId}
-                    onChange={() => setEscolhida(saida.groupId)}
-                  />
-                  <span className="check-name">
-                    {formatDateRangeLong(saida.startDate, saida.endDate)}
-                  </span>
-                  <span className="cell-sub">{vagasDe(saida)}</span>
-                </label>
-              ))}
+              {opcoes.map((saida) =>
+                escolhaAberta ? (
+                  <label
+                    key={saida.groupId}
+                    className={`check-row pub-saida${atual === saida.groupId ? ' is-selected' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      className="check"
+                      name="saida"
+                      checked={atual === saida.groupId}
+                      onChange={() => setEscolhida(saida.groupId)}
+                    />
+                    <span className="check-name">
+                      {formatDateRangeLong(saida.startDate, saida.endDate)}
+                    </span>
+                    <span className="cell-sub">{vagasDe(saida)}</span>
+                  </label>
+                ) : (
+                  <div key={saida.groupId} className="check-row pub-saida is-selected">
+                    <span className="check-name">
+                      {formatDateRangeLong(saida.startDate, saida.endDate)}
+                    </span>
+                    <span className="cell-sub">{vagasDe(saida)}</span>
+                  </div>
+                ),
+              )}
             </div>
           </section>
 

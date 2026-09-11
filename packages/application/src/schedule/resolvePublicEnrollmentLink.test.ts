@@ -45,7 +45,7 @@ function deps(achado: PublicItinerary | null) {
 }
 
 describe('IN-25: o link público abre a página certa', () => {
-  it('com o mês do link, devolve a saída daquele mês', async () => {
+  it('com o mês do link, devolve aquela saída e mais nenhuma', async () => {
     const visao = await resolvePublicEnrollmentLink(deps(roteiro), {
       tenantSlug: 'drk',
       itinerarySlug: 'coxilha-rica',
@@ -55,7 +55,8 @@ describe('IN-25: o link público abre a página certa', () => {
 
     expect(visao?.itineraryName).toBe('Coxilha Rica');
     expect(visao?.match?.groupId).toBe('g-jan');
-    expect(visao?.alternatives.map((g) => g.groupId)).toEqual(['g-fev']);
+    // A escolha da data aconteceu no site: repeti-la aqui reabre o que estava decidido.
+    expect(visao?.alternatives).toEqual([]);
   });
 
   /**

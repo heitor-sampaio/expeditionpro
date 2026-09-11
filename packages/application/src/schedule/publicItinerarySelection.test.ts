@@ -33,10 +33,17 @@ describe('IN-25: a saída que o link escolheu', () => {
     expect(match?.groupId).toBe('g-jan');
   });
 
-  /** Escolhida a saída, as outras continuam à mão: quem clicou errado troca sem recomeçar. */
-  it('as outras datas vêm junto, em ordem', () => {
-    const { alternatives } = selectGroupForMonth(abertas, { year: 2027, month: 1 }, HOJE);
-    expect(alternatives.map((g) => g.groupId)).toEqual(['g-fev', 'g-mar']);
+  /**
+   * **Quando o link escolheu o mês, a página não oferece outras datas.** Quem clicou no botão
+   * do site já escolheu ali, olhando as datas; repetir a lista aqui reabre uma decisão que
+   * estava tomada e convida a hesitar no último passo. As outras continuam a um clique de
+   * distância — no site, que é de onde a pessoa veio.
+   */
+  it('mês casado não oferece as datas dos outros meses', () => {
+    const { match, alternatives } = selectGroupForMonth(abertas, { year: 2027, month: 1 }, HOJE);
+
+    expect(match?.groupId).toBe('g-jan');
+    expect(alternatives).toEqual([]);
   });
 
   it('mês sem saída não casa nada, e oferece todas as abertas', () => {
@@ -72,9 +79,10 @@ describe('IN-25: a saída que o link escolheu', () => {
   });
 
   /**
-   * Duas saídas no mesmo mês acontecem (um feriado e um fim de semana). Casa a **primeira**, e
-   * a outra continua na lista ao lado — quem quer a segunda a escolhe, em vez de o sistema
-   * decidir por ela em silêncio.
+   * Duas saídas no mesmo mês acontecem (um feriado e um fim de semana), e aí `nov-26` é
+   * ambíguo: o link não tem como dizer qual das duas. Casa a **primeira** e mantém a outra à
+   * vista — não é "outra data", é a desambiguação do mês que a pessoa já escolheu. É a única
+   * alternativa que sobrevive a um link que casou.
    */
   it('duas no mesmo mês: casa a primeira e mantém a outra à vista', () => {
     const duas = [saida('g-1', '2027-01-05'), saida('g-2', '2027-01-25')];
