@@ -58,6 +58,11 @@ export interface ItineraryPatch {
 export interface ItineraryRepository {
   create(itinerary: NewItinerary, initialPrice: NewPriceVersion): Promise<ItineraryRecord>;
   findById(tenantId: string, id: string): Promise<ItineraryRecord | null>;
+  /**
+   * RO-02: quem já ocupa este endereço no tenant. Existe para o slug editável recusar a
+   * colisão com uma mensagem, em vez de deixá-la estourar no unique como erro de banco.
+   */
+  findBySlug(tenantId: string, slug: string): Promise<ItineraryRecord | null>;
   list(tenantId: string): Promise<ItineraryRecord[]>;
   update(tenantId: string, id: string, patch: ItineraryPatch): Promise<ItineraryRecord>;
   addPriceVersion(tenantId: string, itineraryId: string, version: NewPriceVersion): Promise<void>;

@@ -39,6 +39,11 @@ export function inMemoryItineraries(): ItineraryRepository {
         withCover(itineraries.find((i) => i.tenantId === tenantId && i.id === id) ?? null),
       );
     },
+    findBySlug(tenantId: string, slug: string) {
+      return Promise.resolve(
+        withCover(itineraries.find((i) => i.tenantId === tenantId && i.slug === slug) ?? null),
+      );
+    },
     list(tenantId: string) {
       return Promise.resolve(
         itineraries.filter((i) => i.tenantId === tenantId).map((i) => withCover(i)!),

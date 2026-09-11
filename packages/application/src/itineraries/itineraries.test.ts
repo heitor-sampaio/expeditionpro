@@ -78,7 +78,7 @@ describe('RO-01/02: editar roteiro', () => {
     return { itineraries, itin };
   }
 
-  it('atualiza nome (com slug novo), descrição, dificuldade, faixas e situação', async () => {
+  it('atualiza nome, descrição, dificuldade, faixas e situação — e não mexe no slug', async () => {
     const { itineraries, itin } = await withItinerary();
     const updated = await updateItinerary({ itineraries }, ctx, {
       id: itin.id,
@@ -91,7 +91,8 @@ describe('RO-01/02: editar roteiro', () => {
     });
 
     expect(updated.name).toBe('Vale Europeu');
-    expect(updated.slug).toBe('vale-europeu');
+    // O slug é endereço: renomear o roteiro não pode derrubar o anúncio que aponta para ele.
+    expect(updated.slug).toBe('coxilha-rica');
     expect(updated.description).toBe('## Roteiro\nDescida pela serra.');
     expect(updated.difficulty).toBe('difícil');
     expect(updated.status).toBe('archived');
@@ -277,5 +278,76 @@ describe('RO-03: preços versionados por valid_from', () => {
     await expect(
       listItineraryPriceVersions({ itineraries }, ctx, { itineraryId: 'nao-existe' }),
     ).rejects.toThrow(NotFoundError);
+  });
+});
+
+describe('RO-02: o slug é editável, porque é o endereço do link público (IN-25)', () => {
+  async function comRoteiro(name = 'Coxilha Rica') {
+    const itineraries = fakeItineraryRepository();
+    const itin = await createItinerary({ itineraries }, ctx, { name, prices: PRICE });
+    return { itineraries, itin };
+  }
+
+  it('aceita um slug novo e normaliza o que a equipe digitou', async () => {
+    const { itineraries, itin } = await comRoteiro('Coxilha Rica • O caminho dos tropeiros');
+    expect(itin.slug).toBe('coxilha-rica-o-caminho-dos-tropeiros');
+
+    const updated = await updateItinerary({ itineraries }, ctx, {
+      id: itin.id,
+      slug: '  Coxilha Rica  ',
+    });
+    expect(updated.slug).toBe('coxilha-rica');
+  });
+
+  it('recusa slug que não sobra nada depois de normalizar', async () => {
+    const { itineraries, itin } = await comRoteiro();
+    await expect(
+      updateItinerary({ itineraries }, ctx, { id: itin.id, slug: '•••' }),
+    ).rejects.toMatchObject({ code: 'invalid_slug' });
+  });
+
+  it('recusa slug já usado por outro roteiro do mesmo tenant', async () => {
+    const { itineraries, itin } = await comRoteiro();
+    await createItinerary({ itineraries }, ctx, { name: 'Vale Europeu', prices: PRICE });
+
+    await expect(
+      updateItinerary({ itineraries }, ctx, { id: itin.id, slug: 'vale-europeu' }),
+    ).rejects.toMatchObject({ code: 'slug_taken' });
+  });
+
+  it('salvar o próprio slug de novo não colide consigo mesmo', async () => {
+    const { itineraries, itin } = await comRoteiro();
+    const updated = await updateItinerary({ itineraries }, ctx, {
+      id: itin.id,
+      slug: 'coxilha-rica',
+      name: 'Coxilha Rica reformulada',
+    });
+    expect(updated.slug).toBe('coxilha-rica');
+    expect(updated.name).toBe('Coxilha Rica reformulada');
+  });
+
+  it('o mesmo slug em tenants diferentes convive — o unique é composto', async () => {
+    const itineraries = fakeItineraryRepository();
+    await createItinerary({ itineraries }, ctx, { name: 'Coxilha Rica', prices: PRICE });
+    const outro = await createItinerary(
+      { itineraries },
+      { tenantId: 'tenant-b', actor: { kind: 'team', userId: 'u2', role: 'admin' } },
+      { name: 'Coxilha Rica', prices: PRICE },
+    );
+    expect(outro.slug).toBe('coxilha-rica');
+  });
+
+  it('criar roteiro com nome que já existe no tenant recusa em vez de estourar no unique', async () => {
+    const { itineraries } = await comRoteiro();
+    await expect(
+      createItinerary({ itineraries }, ctx, { name: 'coxilha rica', prices: PRICE }),
+    ).rejects.toMatchObject({ code: 'slug_taken' });
+  });
+
+  it('criar roteiro cujo nome não vira endereço nenhum recusa', async () => {
+    const itineraries = fakeItineraryRepository();
+    await expect(
+      createItinerary({ itineraries }, ctx, { name: '•••', prices: PRICE }),
+    ).rejects.toMatchObject({ code: 'invalid_slug' });
   });
 });

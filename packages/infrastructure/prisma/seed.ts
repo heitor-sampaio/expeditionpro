@@ -1,3 +1,4 @@
+import { itinerarySlug } from '@expedition/domain';
 import { VEHICLE_CATALOG, ITINERARIES } from '../src/catalog/catalog.js';
 import { createPrismaClient } from '../src/prisma/client.js';
 
@@ -16,15 +17,6 @@ try {
  */
 
 const TENANT = { name: 'Drakkar Expedições', slug: 'drk' };
-
-function slugify(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
 
 async function main(): Promise<void> {
   const prisma = createPrismaClient();
@@ -57,7 +49,9 @@ async function main(): Promise<void> {
 
     let itineraryCount = 0;
     for (const name of ITINERARIES) {
-      const slug = slugify(name);
+      // O catálogo é fixo e todo nome dele vira endereço; null aqui seria erro de catálogo.
+      const slug = itinerarySlug(name);
+      if (slug === null) throw new Error(`roteiro sem endereço possível: ${name}`);
       await prisma.itinerary.upsert({
         where: { tenantId_slug: { tenantId, slug } },
         update: {},

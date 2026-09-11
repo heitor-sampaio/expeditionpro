@@ -58,6 +58,16 @@ export function prismaItineraryRepository(base: PrismaClient): ItineraryReposito
       return row ? toItineraryRecord(row, coverOf(row)) : null;
     },
 
+    async findBySlug(tenantId: string, slug: string): Promise<ItineraryRecord | null> {
+      // RO-02: findFirst, e não findUnique pelo composto, porque a extensão é quem injeta o
+      // tenantId — passá-lo à mão aqui seria a segunda fonte de verdade do isolamento.
+      const row = await tenantClient(base, tenantId).itinerary.findFirst({
+        where: { slug },
+        include: coverInclude,
+      });
+      return row ? toItineraryRecord(row, coverOf(row)) : null;
+    },
+
     async list(tenantId: string): Promise<ItineraryRecord[]> {
       const rows = await tenantClient(base, tenantId).itinerary.findMany({
         orderBy: { name: 'asc' },

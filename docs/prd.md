@@ -1,5 +1,5 @@
 # PRD — ExpeditionPRO
-### Sistema de gestão de expedições 4x4 · v1.11.0
+### Sistema de gestão de expedições 4x4 · v1.12.0
 
 ---
 
@@ -661,6 +661,7 @@ automation_run_steps(id, tenant_id, run_id, node_id, kind,
 | RO-02 | Configuração das faixas etárias e dos valores das 5 categorias, por roteiro, herdando o padrão da empresa. |
 | RO-03 | Preços versionados por `valid_from`. |
 | RO-04 | `kind: catalog \| custom` — roteiro personalizado fica fora da vitrine e dos filtros públicos. |
+| RO-08 | **O endereço do roteiro é um campo, não um efeito do nome.** Ele nasce do nome na criação e a partir daí só muda quando a equipe o edita — renomear "Coxilha Rica" para "Coxilha Rica • O caminho dos tropeiros" não pode derrubar todo anúncio já pago que aponta para o endereço antigo, porque é por ele que o link público de inscrição (IN-25) chama o roteiro. Único por tenant, normalizado ao salvar (minúscula, sem acento, só letra, número e hífen), e o endereço já ocupado é recusado com o nome do endereço, não com um erro de banco. A tela mostra a URL que vai ficar, porque "endereço do link" sem a prévia é um campo que só quem escreveu o código entende. |
 
 ### 5.4 Agenda
 

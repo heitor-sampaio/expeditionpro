@@ -3,6 +3,7 @@ import { BusinessRuleError } from '../errors.js';
 import type { RequestContext } from '../context.js';
 import type { ItineraryRecord } from './itineraryRepository.js';
 import { toPriceVersion, type ItineraryDeps, type PriceInput } from './priceInput.js';
+import { resolveItinerarySlug } from './resolveItinerarySlug.js';
 
 /**
  * RO-01/02 — cria um roteiro com suas faixas etárias e a tabela de preços inicial.
@@ -38,11 +39,13 @@ export async function createItinerary(
     );
   }
 
+  const slug = await resolveItinerarySlug(deps.itineraries, ctx.tenantId, command.name);
+
   return deps.itineraries.create(
     {
       tenantId: ctx.tenantId,
       name: command.name.trim(),
-      slug: slugify(command.name),
+      slug,
       description: blankToNull(command.description),
       difficulty: blankToNull(command.difficulty),
       status: 'active',
@@ -52,15 +55,6 @@ export async function createItinerary(
     },
     toPriceVersion(command.prices),
   );
-}
-
-function slugify(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
 }
 
 function blankToNull(value: string | undefined): string | null {

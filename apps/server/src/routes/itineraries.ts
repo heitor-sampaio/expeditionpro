@@ -46,6 +46,9 @@ const createBody = z.object({
 
 const updateBody = z.object({
   name: z.string().trim().min(1).optional(),
+  // RO-02: o endereço do link público. O teto existe porque isto vai dentro de uma URL que
+  // alguém cola num anúncio; o caso de uso é quem normaliza e confere a colisão.
+  slug: z.string().trim().min(1).max(120).optional(),
   description: z.string().optional(),
   difficulty: z.string().optional(),
   status: z.enum(['draft', 'active', 'archived']).optional(),

@@ -1,3 +1,4 @@
+import { mensagemDoErroDeRoteiro } from './itinerarySlugField.js';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../auth/api.js';
 
@@ -43,6 +44,8 @@ export interface NewItineraryInput {
 
 export interface UpdateItineraryInput {
   name?: string;
+  /** RO-02: o endereço do link público. O servidor normaliza e confere a colisão. */
+  slug?: string;
   description?: string;
   difficulty?: string;
   status?: string;
@@ -110,7 +113,7 @@ export function useItinerariesAdmin() {
         refresh();
         return { ok: true };
       }
-      return { ok: false, message: messageFor(res.status) };
+      return { ok: false, message: await messageFor(res) };
     },
     [refresh],
   );
@@ -126,7 +129,7 @@ export function useItinerariesAdmin() {
         refresh();
         return { ok: true };
       }
-      return { ok: false, message: messageFor(res.status) };
+      return { ok: false, message: await messageFor(res) };
     },
     [refresh],
   );
@@ -145,7 +148,7 @@ export function useItinerariesAdmin() {
         body: JSON.stringify({ photos }),
       });
       if (res.ok) return { ok: true };
-      return { ok: false, message: messageFor(res.status) };
+      return { ok: false, message: await messageFor(res) };
     },
     [],
   );
@@ -163,7 +166,7 @@ export function useItinerariesAdmin() {
       body: JSON.stringify(prices),
     });
     if (res.ok) return { ok: true };
-    return { ok: false, message: messageFor(res.status) };
+    return { ok: false, message: await messageFor(res) };
   }, []);
 
   return {
@@ -178,8 +181,8 @@ export function useItinerariesAdmin() {
   };
 }
 
-function messageFor(status: number): string {
-  if (status === 400 || status === 422) return 'Confira os campos antes de salvar.';
-  if (status === 409) return 'Já existe um roteiro com esse nome.';
-  return 'Não foi possível salvar. Tente de novo.';
+async function messageFor(res: Response): Promise<string> {
+  // O corpo é { error: <código> } (§11.7). Corpo ilegível não pode derrubar a mensagem.
+  const corpo = (await res.json().catch(() => null)) as { error?: string } | null;
+  return mensagemDoErroDeRoteiro(res.status, corpo?.error);
 }

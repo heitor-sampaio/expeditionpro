@@ -40,6 +40,11 @@ export function fakeItineraryRepository(): ItineraryRepository & {
         withCover(itineraries.find((i) => i.tenantId === tenantId && i.id === id) ?? null),
       );
     },
+    findBySlug(tenantId: string, slug: string) {
+      return Promise.resolve(
+        withCover(itineraries.find((i) => i.tenantId === tenantId && i.slug === slug) ?? null),
+      );
+    },
     update(tenantId: string, id: string, patch: ItineraryPatch) {
       const index = itineraries.findIndex((i) => i.tenantId === tenantId && i.id === id);
       const current = itineraries[index];

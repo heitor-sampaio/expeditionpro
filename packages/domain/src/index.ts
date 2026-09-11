@@ -317,6 +317,7 @@ export {
   type PostLayout,
 } from './community/post.js';
 export { searchKey } from './text/searchKey.js';
+export { itinerarySlug } from './text/itinerarySlug.js';
 
 // §5.17 — atendimento
 export {

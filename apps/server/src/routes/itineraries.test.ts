@@ -128,7 +128,7 @@ describe('RO-01..03: rotas de roteiro', () => {
     expect(res.json().error).toBe('invalid_age_bands');
   });
 
-  it('RO-01/02: edita nome, descrição, faixas e situação por PATCH', async () => {
+  it('RO-01/02: edita nome, descrição, faixas e situação por PATCH — sem tocar no slug', async () => {
     const created = (
       await app.inject({
         method: 'POST',
@@ -153,12 +153,56 @@ describe('RO-01..03: rotas de roteiro', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.name).toBe('Serra Renovada');
-    expect(body.slug).toBe('serra-renovada');
+    expect(body.slug).toBe('serra-editavel');
     expect(body.description).toBe('## Roteiro\nSubida da serra.');
     expect(body.difficulty).toBe('difícil');
     expect(body.status).toBe('archived');
     expect(body.childYoungMaxAge).toBe(4);
     expect(body.childMidMaxAge).toBe(8);
+  });
+
+  it('RO-02: o slug é campo próprio — PATCH troca o endereço e normaliza o que veio', async () => {
+    const created = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/itineraries',
+        payload: { name: 'Serra do Endereço', prices: PRICE },
+      })
+    ).json();
+    expect(created.slug).toBe('serra-do-endereco');
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/v1/itineraries/${created.id}`,
+      payload: { slug: '  Serra Gaúcha  ' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().slug).toBe('serra-gaucha');
+  });
+
+  it('RO-02: endereço já ocupado responde 400 com slug_taken, não 500 do unique', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/v1/itineraries',
+      payload: { name: 'Vale Ocupado', prices: PRICE },
+    });
+    const outro = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/itineraries',
+        payload: { name: 'Vale Livre', prices: PRICE },
+      })
+    ).json();
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/v1/itineraries/${outro.id}`,
+      payload: { slug: 'vale-ocupado' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('slug_taken');
   });
 
   it('RO-01: grava a galeria e promove a primeira foto a capa', async () => {

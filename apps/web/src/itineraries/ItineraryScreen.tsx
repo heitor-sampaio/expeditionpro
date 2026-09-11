@@ -1,3 +1,4 @@
+import { enderecoDoRoteiro } from './itinerarySlugField.js';
 import { useEffect, useState } from 'react';
 import { PhotoGallery, type PhotoItem } from './PhotoGallery.js';
 import { removeImages } from '../ui/uploadImages.js';
@@ -138,6 +139,7 @@ function ItineraryEditor({
     description: itinerary.description ?? '',
   });
   const [status, setStatus] = useState(itinerary.status);
+  const [slug, setSlug] = useState(itinerary.slug);
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   // O que estava salvo quando a página abriu (ou no último save): o que sumir daqui é
   // arquivo a apagar do Storage.
@@ -174,6 +176,7 @@ function ItineraryEditor({
     setMeta((m) => ({ ...m, [key]: value }));
 
   const canSave = meta.name.trim() !== '' && !saving;
+  const previa = enderecoDoRoteiro(window.location.origin, slug);
   const priceChanged = priceDiffers(pricesOf(priceValues, ''), currentVersion);
 
   const submit = async () => {
@@ -186,6 +189,7 @@ function ItineraryEditor({
     setSaving(true);
     const result = await onUpdate({
       name: meta.name.trim(),
+      slug,
       description: meta.description.trim(),
       difficulty: meta.difficulty,
       status,
@@ -281,6 +285,19 @@ function ItineraryEditor({
                 </option>
               ))}
             </select>
+          </label>
+
+          <label className="field field-full">
+            <span className="field-label">Endereço do link</span>
+            <input
+              className="field-input is-mono"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              placeholder="coxilha-rica"
+            />
+            <span className="field-help">
+              {previa ?? 'É por aqui que o botão do site abre a inscrição deste roteiro.'}
+            </span>
           </label>
 
           <div className="form-divider">Preço</div>
