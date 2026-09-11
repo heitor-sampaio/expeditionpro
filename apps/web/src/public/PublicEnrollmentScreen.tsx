@@ -193,7 +193,9 @@ export function PublicEnrollmentScreen({
             onClick={() => {
               if (atual === null) return;
               void envio.enviar(form, {
-                roteiro: rota.roteiro,
+                // O slug que o servidor reconheceu, não o que veio na barra de endereço:
+                // aqui eles são o mesmo valor, e o da resposta é o que ele já normalizou.
+                roteiro: view.itinerarySlug,
                 saida: rota.saida,
                 groupId: atual,
               });

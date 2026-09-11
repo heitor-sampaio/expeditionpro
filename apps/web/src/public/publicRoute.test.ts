@@ -34,11 +34,28 @@ describe('IN-25: o link público é reconhecido', () => {
   });
 
   /**
-   * **Sem roteiro não é rota pública.** `/inscricao` pelado não tem o que mostrar, e cair no
-   * login é melhor que uma página vazia pedindo que a pessoa adivinhe o que fazer.
+   * **`/inscricao` é público com ou sem roteiro.** Cair no login era a decisão anterior, e ela
+   * estava errada: o encurtador que come a query, o botão do site configurado sem os
+   * parâmetros e quem copia só o começo da URL levam gente comum à porta do back-office, que
+   * pede uma senha que ela não tem e nunca terá. A recusa legível já existe na própria página.
    */
-  it('sem roteiro, não é rota pública', () => {
-    expect(resolvePublicRoute('/inscricao', '')).toBeNull();
+  it('sem roteiro continua sendo a página pública, não o login', () => {
+    expect(resolvePublicRoute('/inscricao', '')).toEqual({
+      kind: 'inscricao',
+      roteiro: null,
+      saida: undefined,
+    });
+  });
+
+  it('roteiro em branco é o mesmo que ausente — e também não vai para o login', () => {
+    expect(resolvePublicRoute('/inscricao', '?roteiro=%20%20')).toMatchObject({ roteiro: null });
+  });
+
+  /** As UTMs sozinhas são o caso do encurtador: sobrou a origem, sumiu o roteiro. */
+  it('só UTMs na URL ainda é a página pública', () => {
+    expect(resolvePublicRoute('/inscricao', '?utm_source=instagram')).toMatchObject({
+      roteiro: null,
+    });
   });
 
   it.each(['/', '/app', '/portal', '/inscricao-antiga', '/inscricaoX'])(
@@ -59,10 +76,5 @@ describe('IN-25: o link público é reconhecido', () => {
     expect(resolvePublicRoute('/inscricao', '?roteiro=vale%20europeu')).toMatchObject({
       roteiro: 'vale europeu',
     });
-  });
-
-  /** Roteiro em branco é o mesmo que roteiro ausente: não há o que abrir. */
-  it('roteiro em branco não abre a página', () => {
-    expect(resolvePublicRoute('/inscricao', '?roteiro=%20%20')).toBeNull();
   });
 });

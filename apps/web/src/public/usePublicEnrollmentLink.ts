@@ -39,6 +39,13 @@ export function usePublicEnrollmentLink(rota: PublicRouteInscricao): LinkState {
   const [state, setState] = useState<LinkState>({ status: 'loading' });
 
   useEffect(() => {
+    // Link sem roteiro (encurtador que comeu a query, botão do site pela metade): a recusa
+    // é a mesma, e perguntá-la ao servidor só gastaria uma ida à rede para ouvir 404.
+    if (rota.roteiro === null) {
+      setState({ status: 'not-found' });
+      return;
+    }
+
     const controller = new AbortController();
     const params = new URLSearchParams({ roteiro: rota.roteiro });
     if (rota.saida !== undefined) params.set('saida', rota.saida);
