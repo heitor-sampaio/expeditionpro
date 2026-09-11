@@ -1,3 +1,4 @@
+import type { PublicGroup } from './publicItinerarySelection.js';
 import type { LocalDate } from '@expedition/domain';
 
 /**
@@ -71,6 +72,31 @@ export interface ScheduleRepository {
   deleteEvent(tenantId: string, eventId: string): Promise<void>;
   /** IN-24: vitrine pública — grupos abertos e públicos de um tenant, por slug. */
   listOpenGroupsBySlug(tenantSlug: string): Promise<OpenGroup[]>;
+  /**
+   * IN-25 — o roteiro de um link público, com as saídas que dá para escolher.
+   *
+   * Resolve os **dois** slugs numa consulta, e é por isso que mora aqui e não num `findBySlug`
+   * do port de roteiros: quem chega pelo link não tem `tenantId` nenhum para passar — é o slug
+   * do tenant que o descobre.
+   *
+   * O filtro é o mesmo da vitrine (IN-24): grupo `open` + `public` e roteiro `active` +
+   * `catalog`. Roteiro fora disso devolve `null`, como se não existisse — a regra do
+   * `isShowcase`, que responde 404 e nunca 403 para não confirmar o que não é público.
+   */
+  findPublicItineraryBySlug(
+    tenantSlug: string,
+    itinerarySlug: string,
+  ): Promise<PublicItinerary | null>;
+}
+
+/** IN-25 — o que a página pública precisa saber do roteiro que o link apontou. */
+export interface PublicItinerary {
+  readonly tenantId: string;
+  readonly itineraryId: string;
+  readonly itineraryName: string;
+  readonly itinerarySlug: string;
+  /** As saídas abertas e públicas, sem filtro de data — quem decide isso é o domínio. */
+  readonly groups: readonly PublicGroup[];
 }
 
 /** Grupo aberto exposto na leitura pública (IN-24). Sem nada sensível. */

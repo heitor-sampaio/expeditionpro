@@ -95,5 +95,31 @@ export function fakeScheduleRepository(): ScheduleRepository & {
           })),
       );
     },
+    /**
+     * IN-25: o fake não conhece slug de roteiro — quem prova a resolução dos dois slugs é o
+     * teste de integração, contra o banco. Aqui devolve as saídas abertas, que é o que os
+     * testes de caso de uso precisam.
+     */
+    findPublicItineraryBySlug(tenantSlug: string, itinerarySlug: string) {
+      void tenantSlug;
+      const abertos = events.filter(
+        (e) => e.group.status === 'open' && e.group.visibility === 'public',
+      );
+      const primeiro = abertos[0];
+      if (primeiro === undefined) return Promise.resolve(null);
+      return Promise.resolve({
+        tenantId: primeiro.event.tenantId,
+        itineraryId: primeiro.group.itineraryId,
+        itineraryName: primeiro.group.name,
+        itinerarySlug,
+        groups: abertos.map((e) => ({
+          groupId: e.group.id,
+          name: e.group.name,
+          startDate: e.event.startDate,
+          endDate: e.event.endDate,
+          vacancies: e.group.capacityVehicles,
+        })),
+      });
+    },
   };
 }

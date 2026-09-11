@@ -138,6 +138,95 @@ página. Página e conta profissional já estão vinculadas.
 
 ---
 
+## Link público de inscrição (IN-25) — em andamento
+
+Escopo novo, decidido em 2026-09-11. O site de apresentação ganha um botão "Realizar inscrição"
+que leva a uma **página nossa**, com roteiro e saída já na URL:
+
+```
+/inscricao?roteiro=coxilha-rica&saida=jan-27&utm_source=instagram&utm_campaign=inverno-27
+```
+
+Hoje a inscrição pelo site passa pelo formulário do WordPress e **não diz para qual saída é**:
+o roteiro sai de um mapa `form_id → roteiro` e a data, de nada — a equipe adivinha na fila.
+
+**O PRD mudou numa linha.** "Formulário público hospedado" estava em *fora de escopo no v1*; o
+tenant continua dono do próprio site, mas a tela em que a inscrição é feita passa a ser nossa,
+porque é ela que sabe qual saída o botão escolheu. O que **não** mudou é a decisão de
+2026-08-28: toda inscrição entra na fila e a equipe aprova alocando.
+
+### Decisões que não se rediscutem
+
+- **Parâmetros próprios, não `utm_*`.** Bloqueador de anúncio e encurtador removem ou reescrevem
+  `utm_*`; se a saída viajasse neles, a inscrição chegaria sem saber para onde é. As `utm_*`
+  seguem junto e são guardadas como origem comercial.
+- **Mês em pt-BR abreviado** (`jan-27`), porque quem cola o link num anúncio precisa conseguir
+  ler o que está colando. `01-27` é recusado: com dois números não dá para saber se é mês-ano ou
+  dia-mês. Ano de dois dígitos é sempre `20xx` — janela móvel faria o mesmo link significar
+  outra coisa com o tempo.
+- **Link velho não fecha a porta.** Mês sem saída abre a página assim mesmo, com as outras datas
+  do roteiro à vista: um anúncio continua rodando depois de a saída fechar, e quem clicou é um
+  interessado como qualquer outro.
+- **Formulário completo** (fatia 2): responsável e cada acompanhante com CPF e nascimento. Sem o
+  nascimento de cada um não há faixa etária, e sem faixa etária não há preço (§3.4) — um
+  formulário mais curto empurraria o trabalho para um telefonema antes de poder alocar.
+- **Tenant implícito** no link (`VITE_PUBLIC_TENANT_SLUG`). Com o segundo tenant o caminho ganha
+  `/inscricao/:tenantSlug` e os links antigos continuam valendo.
+
+### Fatia 1 — o link abre a página certa ✅ (2026-09-11)
+
+O botão já pode ir para o ar: a página mostra o roteiro e a saída de `jan-27`, ou as outras
+datas quando aquele mês não tem, e a ação é o WhatsApp — o funil que já existe. **Zero escrita
+anônima em produção.**
+
+- **Domínio:** `monthYearPtBr` — ler e escrever `jan-27`. Os nomes de mês viviam só no front,
+  para formatar; subiram para o domínio porque o parser precisa deles **e** porque o inverso é o
+  que vai deixar a equipe *gerar* o link a partir da agenda em vez de digitá-lo — que é onde
+  `Jan-27` nasce. `apps/web/src/portal/format.ts` virou `ui/format.ts` e passou a consumir a
+  tabela do domínio: uma lista só, para o link e a tela nunca discordarem sobre o que é "jan".
+- **Aplicação:** `selectGroupForMonth` (puro) e `resolvePublicEnrollmentLink`. O port ganhou
+  `findPublicItineraryBySlug`, que resolve os **dois** slugs numa consulta — e é por isso que
+  não entrou um `findBySlug` no port de roteiros: quem chega pelo link não tem `tenantId` para
+  passar, é o slug do tenant que o descobre.
+- **Borda:** as duas rotas públicas que existiam **mudaram de casa** para
+  `apps/server/src/routes/public.ts`, junto com a nova. As URLs não mudaram (há teste disso). O
+  ganho é uma propriedade que se confere: *um arquivo é o inventário completo da superfície sem
+  autenticação*. Antes, responder "o que um estranho alcança?" exigia comparar, handler a
+  handler, quem chama `resolveContext`.
+- **Front:** a bifurcação acontece no `main.tsx`, **não** no `App.tsx` — o `App` chama
+  `useAuth()` incondicionalmente, e um visitante anônimo não deve acordar o cliente de
+  autenticação nem correr o risco do `signOut` que o `api.ts` dispara num 401. `publicApi.ts` é
+  `fetch` liso, sem `Authorization` e sem retentativa.
+- **Tela:** uma coluna, uma decisão, uma ação — abre quase sempre num celular vindo de anúncio.
+  Densidade confortável fixa e modo pelo `prefers-color-scheme`, **sem `localStorage`**: um
+  estranho não herda a preferência de quem testou o app no mesmo navegador. O aviso de "mês sem
+  saída" é cinza: não é erro de ninguém, é o desenho funcionando. Nenhum componente novo.
+
+> **A recusa é uma só.** Tenant inexistente, roteiro inexistente e roteiro que não é de vitrine
+> respondem igual, corpo incluído — distinguir deixaria contar, por tentativa, quais empresas
+> usam o sistema e quais roteiros elas têm. É a mesma regra que `webhookEnumeration.test.ts` já
+> fixou para os webhooks, e o teste de paridade a repete aqui.
+>
+> Escrevê-lo **encontrou um defeito no servidor de desenvolvimento**: o `inMemorySchedule`
+> ignorava os dois slugs e devolvia as saídas abertas para qualquer coisa. Passou a resolver
+> tenant e roteiro de verdade — o dev deixou de responder "achei" para um link que o banco
+> recusaria.
+
+**Suíte em 2.281 testes** (eram 2.229). Sem migration.
+
+### O que falta
+
+- **Fatia 2** — a inscrição entra na fila. É onde mora a primeira rota que **grava sem segredo
+  nenhum**: a página é pública e qualquer chave embutida nela vaza no primeiro "ver código-
+  fonte". A defesa é rate limit apertado, `bodyLimit`, Zod estrito, honeypot e — o que de fato
+  importa — a fila humana: nada vira cliente ou inscrição sem alguém alocar.
+- **Fatia 3** — a fila reconhece `site_enrollment` e mostra a saída já escolhida.
+- **Fatia 4** — as defesas, incluindo IP e user-agent no envelope (DOC-05 trata IP como
+  evidência de consentimento, e hoje a captura grava `null`).
+- **Fatias 5 e 6** — as UTMs na fila, e o botão "copiar link" na agenda.
+
+---
+
 ## Automações (§5.18) — no ar, com o quadro mandando
 
 Escopo pedido em 2026-09-02: entrada **Automações** na seção CRM, com CRUD e um editor de

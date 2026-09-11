@@ -51,6 +51,7 @@ import { registerCustomerRoutes } from './routes/customers.js';
 import { registerVehicleRoutes } from './routes/vehicles.js';
 import { registerItineraryRoutes } from './routes/itineraries.js';
 import { registerScheduleRoutes } from './routes/schedule.js';
+import { registerPublicRoutes } from './routes/public.js';
 import { registerBookingRoutes } from './routes/bookings.js';
 import { registerSupplierRoutes } from './routes/suppliers.js';
 import { registerSupplierCategoryRoutes } from './routes/supplierCategories.js';
@@ -282,6 +283,8 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
       registerVehicleRoutes(instance, deps);
       registerItineraryRoutes(instance, deps);
       registerScheduleRoutes(instance, deps);
+      // Tudo o que responde sem autenticação nenhuma vive num arquivo só, de propósito.
+      registerPublicRoutes(instance, deps);
       registerBookingRoutes(instance, deps);
       registerSupplierRoutes(instance, deps);
       registerSupplierCategoryRoutes(instance, deps);

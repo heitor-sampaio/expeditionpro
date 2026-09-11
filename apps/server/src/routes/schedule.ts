@@ -3,12 +3,10 @@ import {
   createScheduleEvent,
   deleteScheduleEvent,
   listAgendaEvents,
-  listOpenGroups,
   updateScheduleEvent,
 } from '@expedition/application';
-import { coreFormSchema } from '@expedition/domain';
 import { z } from 'zod';
-import type { AgendaEvent, OpenGroup, ScheduleEventWithGroup } from '@expedition/application';
+import type { AgendaEvent, ScheduleEventWithGroup } from '@expedition/application';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { ServerDeps } from '../buildServer.js';
@@ -111,46 +109,6 @@ export function registerScheduleRoutes(app: FastifyInstance, deps: ServerDeps): 
       return reply.send({ id: group.id, name: group.name, status: group.status });
     },
   );
-
-  // IN-24: vitrine pública — sem autenticação, resolvida pelo slug do tenant.
-  typed.get(
-    '/v1/public/:tenantSlug/groups',
-    {
-      schema: {
-        params: z.object({ tenantSlug: z.string().min(1) }),
-        querystring: z.object({ status: z.literal('open') }),
-      },
-      // SEC-14: endpoint público sem auth → limite dedicado por IP, mais apertado que o global.
-      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
-    },
-    async (request, reply) => {
-      const groups = await listOpenGroups({ schedule: deps.schedule }, request.params.tenantSlug);
-      return reply.send(groups.map(openGroupDto));
-    },
-  );
-
-  // IN-24: schema do formulário público — campos que o tenant espera receber. Estático no
-  // v1 (núcleo), sem dado de cliente. Leitura pública com o mesmo limite apertado por IP.
-  typed.get(
-    '/v1/public/:tenantSlug/form-schema',
-    {
-      schema: { params: z.object({ tenantSlug: z.string().min(1) }) },
-      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
-    },
-    async (_request, reply) => {
-      return reply.send(coreFormSchema());
-    },
-  );
-}
-
-function openGroupDto(group: OpenGroup) {
-  return {
-    groupId: group.groupId,
-    name: group.name,
-    itineraryName: group.itineraryName,
-    startDate: isoOf(group.startDate),
-    endDate: isoOf(group.endDate),
-  };
 }
 
 function agendaDto(row: AgendaEvent) {

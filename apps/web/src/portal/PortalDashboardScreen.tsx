@@ -3,7 +3,7 @@ import { usePendingRequests } from './usePendingRequests.js';
 import { ItineraryCover } from '../itineraries/ItineraryCover.js';
 import { useItineraryCovers } from '../itineraries/useItineraryCovers.js';
 import type { HomeState } from './usePortalHome.js';
-import { formatDateRange, formatCents } from './format.js';
+import { formatDateRange, formatCents } from '../ui/format.js';
 import { useState } from 'react';
 import { checkInAvailability, parseLocalDate } from '@expedition/domain';
 import { toLocalDate } from '../ui/toLocalDate.js';

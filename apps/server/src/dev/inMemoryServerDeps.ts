@@ -45,11 +45,14 @@ import { inMemoryVehicles } from './inMemoryVehicles.js';
  */
 export function inMemoryServerDeps(override: Partial<ServerDeps> = {}): ServerDeps {
   const bookings = override.bookings ?? inMemoryBookings();
+  const itineraries = override.itineraries ?? inMemoryItineraries();
+  const tenants = override.tenants ?? inMemoryTenants();
   return {
     customers: inMemoryCustomers(),
     vehicles: inMemoryVehicles(),
-    itineraries: inMemoryItineraries(),
-    schedule: inMemorySchedule(),
+    itineraries,
+    // IN-25: a agenda resolve o slug do roteiro no link público — precisa dos mesmos roteiros.
+    schedule: inMemorySchedule(itineraries, tenants),
     bookings,
     // O ledger de recebimentos lê as linhas de inscrição: precisa das mesmas, não de outras.
     payments: inMemoryPayments('rows' in bookings ? (bookings as { rows: never[] }).rows : []),
@@ -57,7 +60,7 @@ export function inMemoryServerDeps(override: Partial<ServerDeps> = {}): ServerDe
     apiKeys: inMemoryApiKeys([]),
     intake: inMemoryIntake(),
     formMappings: inMemoryFormMappings(),
-    tenants: inMemoryTenants(),
+    tenants,
     cashback: inMemoryCashback(),
     coupons: inMemoryCoupons(),
     identityRequests: inMemoryIdentityChange(),

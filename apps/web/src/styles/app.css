@@ -5605,3 +5605,57 @@
     overflow-y: visible;
   }
 }
+
+/*
+ * IN-25 — a página pública de inscrição.
+ *
+ * A única tela que um estranho vê, e a única que quase sempre abre num celular, vinda de um
+ * anúncio. Por isso ela é estreita de propósito: uma coluna, uma decisão, uma ação. Não há nav,
+ * não há sidebar e não há alternador de tema disputando espaço com o que se veio fazer.
+ *
+ * Tudo aqui é composição do que já existe — cartão, linha de seleção, botão, estados. Nenhum
+ * componente novo: se esta tela precisasse de um, o padrão estaria errado antes do componente.
+ */
+.pub-page {
+  max-width: 560px;
+  margin: 0 auto;
+  gap: 16px;
+}
+.pub-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 20px;
+}
+/*
+ * A ação ocupa a largura toda: num celular, botão centralizado de 180px é alvo que se erra, e
+ * esta é a única coisa que a página pede.
+ */
+.pub-cta {
+  width: 100%;
+  justify-content: center;
+}
+/*
+ * A saída escolhida é **estado de interface** — daí o accent. Não é estado financeiro: verde e
+ * vermelho continuam reservados a pago e cancelado, e nada disto aqui é dinheiro.
+ */
+.pub-saida {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--card);
+}
+.pub-saida .check-name {
+  font-weight: 600;
+}
+.pub-saida.is-selected {
+  border-color: var(--o);
+  background: var(--o-soft);
+}
+@media (max-width: 420px) {
+  /* Data e vagas empilham: lado a lado em 380px, a contagem some atrás das reticências. */
+  .pub-saida {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+}

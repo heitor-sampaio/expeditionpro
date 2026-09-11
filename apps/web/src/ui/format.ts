@@ -1,9 +1,14 @@
-/**
- * Formatação de apresentação do portal — data civil (ISO "YYYY-MM-DD") e dinheiro em
- * centavos. Só a borda de UI: nenhuma regra de negócio, nenhum cálculo com fuso.
- */
+import { MONTH_ABBR_PT_BR } from '@expedition/domain';
 
-const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+/**
+ * Formatação de apresentação — data civil (ISO "YYYY-MM-DD") e dinheiro em centavos. Só a
+ * borda de UI: nenhuma regra de negócio, nenhum cálculo com fuso.
+ *
+ * Os meses vêm do domínio porque o link público (IN-25) **lê** "jan-27" com a mesma tabela
+ * que esta tela usa para **escrever** "15 jan". Duas listas seriam duas verdades, e o dia em
+ * que divergissem o link geraria um mês e a tela mostraria outro.
+ */
+const MONTHS = MONTH_ABBR_PT_BR;
 
 /** "12 ago" a partir de "2026-08-12". */
 export function formatDay(iso: string): string {

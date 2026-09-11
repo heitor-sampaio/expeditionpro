@@ -176,6 +176,12 @@ export {
 } from './coupon/coupon.js';
 
 export { compareLocalDate, addDays, addMonths } from './date/localDate.js';
+export {
+  MONTH_ABBR_PT_BR,
+  formatMonthYearPtBr,
+  parseMonthYearPtBr,
+  type MonthYear,
+} from './date/monthYearPtBr.js';
 
 // Leitura do grupo — Tabela 1 (§5.5, GR-07/GR-13)
 export {

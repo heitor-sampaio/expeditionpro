@@ -7,7 +7,7 @@ import { usePortalExpeditions, usePortalFamily, type Expedition } from './usePor
 import { EnrollModal } from './EnrollModal.js';
 import { FamilyBudgetCard } from './FamilyBudgetCard.js';
 import { useItineraryPrices } from '../itineraries/useItineraryPrices.js';
-import { formatDateRange } from './format.js';
+import { formatDateRange } from '../ui/format.js';
 
 /**
  * O roteiro visto pelo cliente (RO-01, só leitura): capa, nome, dificuldade, descrição e

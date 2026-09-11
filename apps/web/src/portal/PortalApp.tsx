@@ -8,7 +8,7 @@ import { PortalItineraryScreen } from './PortalItineraryScreen.js';
 import { PortalAgendaScreen } from './PortalAgendaScreen.js';
 import { PortalContaScreen } from './PortalContaScreen.js';
 import { usePortalHome, type HomeState } from './usePortalHome.js';
-import { formatCents } from './format.js';
+import { formatCents } from '../ui/format.js';
 import { NavIcon } from '../ui/NavIcon.js';
 import { useSidebarCollapsed } from '../ui/useSidebarCollapsed.js';
 import type { ThemeControls } from '../ui/useTheme.js';

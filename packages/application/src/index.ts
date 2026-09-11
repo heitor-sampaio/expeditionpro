@@ -221,6 +221,7 @@ export type {
   NewGroup,
   GroupRecord,
   ScheduleEventWithGroup,
+  PublicItinerary,
 } from './schedule/scheduleRepository.js';
 
 // Inscrições — alocação manual com snapshot (GR-03/IN-07/IN-18)
@@ -623,6 +624,11 @@ export {
   type RevokeApiKeyCommand,
   type ManageApiKeysDeps,
 } from './intake/manageApiKeys.js';
+export {
+  resolvePublicEnrollmentLink,
+  type PublicEnrollmentLink,
+} from './schedule/resolvePublicEnrollmentLink.js';
+export { selectGroupForMonth, type PublicGroup } from './schedule/publicItinerarySelection.js';
 export { listOpenGroups, type ListOpenGroupsDeps } from './schedule/listOpenGroups.js';
 export {
   listAgendaEvents,

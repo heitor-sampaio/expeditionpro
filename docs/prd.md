@@ -748,6 +748,7 @@ Uma linha por **fornecedor**. Colunas: fornecedor, descrição, valor total, val
 | IN-22 | Chave conferida antes de qualquer gravação; inválida, revogada, expirada, sem escopo ou de outro tenant → `401`. |
 | IN-23 | Rate limit por chave, não por IP. |
 | IN-24 | `GET /groups?status=open` e `GET /form-schema` como leitura pública, com CORS restrito aos domínios do tenant. |
+| IN-25 | **Link público de inscrição**, para o botão do site de apresentação: `/inscricao?roteiro=<slug>&saida=<mes-ano>` abre uma página hospedada por nós, com o roteiro e a saída já resolvidos. Os parâmetros são **próprios**, não `utm_*` — bloqueador de anúncio e encurtador de link removem ou reescrevem `utm_*`, e a inscrição chegaria sem saber para onde é; as `utm_*` viajam junto e são guardadas como origem comercial. O mês vai em pt-BR abreviado (`jan-27`) porque quem cola o link num anúncio precisa conseguir ler o que está colando. **Link velho não fecha a porta**: mês sem saída — anúncio que continuou rodando, saída cancelada — abre a página assim mesmo, com as outras datas do roteiro à vista, porque quem clicou é um interessado como qualquer outro. A recusa é **uma só** para tenant inexistente, roteiro inexistente e roteiro que não é de vitrine (§11: não confirmar o que não é público). Toda a superfície sem autenticação vive num arquivo só, que é o que torna "o que um estranho alcança?" uma pergunta com resposta. |
 
 #### 5.7.1 Contrato de entrada
 
@@ -1356,7 +1357,7 @@ dias → se não respondeu, mande esta mensagem"*.
 
 
 
-Emissão automática de NFS-e (só o gancho fica previsto) · conversão multi-moeda · uso offline · comunidade cross-tenant · **mensagem direta entre clientes** (segue fora: o §5.17 abre equipe ↔ pessoa de fora, nunca cliente ↔ cliente) · **chat no portal do cliente** (AT-11) · **mídia nas conversas** (AT-13) · **editor de campos personalizados** (as colunas `jsonb` e a tabela de definição entram desde já; a tela de edição espera o segundo tenant, §3.8) · **formulário público hospedado** — o tenant mantém o próprio front (§5.7.1) · publicação nas lojas antes do sistema estar em uso real.
+Emissão automática de NFS-e (só o gancho fica previsto) · conversão multi-moeda · uso offline · comunidade cross-tenant · **mensagem direta entre clientes** (segue fora: o §5.17 abre equipe ↔ pessoa de fora, nunca cliente ↔ cliente) · **chat no portal do cliente** (AT-11) · **mídia nas conversas** (AT-13) · **editor de campos personalizados** (as colunas `jsonb` e a tabela de definição entram desde já; a tela de edição espera o segundo tenant, §3.8) · ~~formulário público hospedado~~ — **entrou** (IN-25): o link do site de apresentação abre uma página nossa, com roteiro e saída já resolvidos. O tenant continua dono do próprio site; o que passou a ser nosso é a tela em que a inscrição é feita, porque é ela que sabe qual saída o botão escolheu · publicação nas lojas antes do sistema estar em uso real.
 
 ---
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { usePortalExpeditions, usePortalFamily, type Expedition } from './usePortalBrowse.js';
-import { formatDateRange } from './format.js';
+import { formatDateRange } from '../ui/format.js';
 import { EnrollModal } from './EnrollModal.js';
 import { ItineraryCover } from '../itineraries/ItineraryCover.js';
 import { useItineraryCovers } from '../itineraries/useItineraryCovers.js';

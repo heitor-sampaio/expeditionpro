@@ -6,6 +6,7 @@ import type {
   ScheduleEventUpdate,
   ScheduleEventWithGroup,
   ScheduleRepository,
+  PublicItinerary,
 } from '@expedition/application';
 import type { LocalDate } from '@expedition/domain';
 import type {
@@ -161,6 +162,65 @@ export function prismaScheduleRepository(base: PrismaClient): ScheduleRepository
           startDate: dateToLocalDate(row.scheduleEvent!.startDate),
           endDate: dateToLocalDate(row.scheduleEvent!.endDate),
         }));
+    },
+    /**
+     * IN-25 — o roteiro de um link público, com as saídas que dá para escolher.
+     *
+     * Os **dois** slugs numa consulta: quem chega pelo link não tem `tenantId` nenhum para
+     * passar — é o slug do tenant que o descobre, e o do roteiro que é único dentro dele.
+     *
+     * O filtro é o mesmo da vitrine, e pela mesma razão: status e kind andam juntos. Um roteiro
+     * `draft` tem preço ainda não fechado, e um `archived` é o que a empresa decidiu não vender
+     * mais — nenhum dos dois pode receber inscrição de estranho.
+     */
+    async findPublicItineraryBySlug(
+      tenantSlug: string,
+      itinerarySlug: string,
+    ): Promise<PublicItinerary | null> {
+      const tenant = await base.tenant.findUnique({ where: { slug: tenantSlug } });
+      if (tenant === null) return null;
+
+      const itinerary = await base.itinerary.findFirst({
+        where: {
+          tenantId: tenant.id,
+          slug: itinerarySlug,
+          status: 'active',
+          kind: 'catalog',
+        },
+      });
+      // Roteiro que não é de vitrine responde como o que não existe: o `isShowcase` decidiu que
+      // aqui se devolve 404 e nunca 403, para não confirmar o que não é público.
+      if (itinerary === null) return null;
+
+      const rows = await base.group.findMany({
+        where: {
+          tenantId: tenant.id,
+          itineraryId: itinerary.id,
+          status: 'open',
+          visibility: 'public',
+          deletedAt: null,
+          scheduleEvent: { isNot: null },
+        },
+        include: { scheduleEvent: true },
+        orderBy: { scheduleEvent: { startDate: 'asc' } },
+      });
+
+      return {
+        tenantId: tenant.id,
+        itineraryId: itinerary.id,
+        itineraryName: itinerary.name,
+        itinerarySlug: itinerary.slug,
+        groups: rows
+          .filter((row) => row.scheduleEvent !== null)
+          .map((row) => ({
+            groupId: row.id,
+            name: row.name,
+            startDate: dateToLocalDate(row.scheduleEvent!.startDate),
+            endDate: dateToLocalDate(row.scheduleEvent!.endDate),
+            // PC-20: sem limite definido, não há vaga a contar — quem conta é a mesa.
+            vacancies: row.capacityVehicles,
+          })),
+      };
     },
   };
 }

@@ -1,5 +1,5 @@
 import { bandLabel, familyBudget, type AgeBandsInput, type BudgetMember } from './familyBudget.js';
-import { formatCents } from './format.js';
+import { formatCents } from '../ui/format.js';
 import type { PriceTableDto } from '../itineraries/useItineraryPrices.js';
 
 /**
