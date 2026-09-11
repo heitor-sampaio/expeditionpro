@@ -47,9 +47,22 @@ function isoOf(date: LocalDate): string {
   return `${date.year}-${mm}-${dd}`;
 }
 
-/** A saída escolhida pelo cliente no app (payload `portal_enrollment`), quando houver. */
+/**
+ * Os envelopes que carregam uma saída **já escolhida**, e não uma a adivinhar.
+ *
+ * Lista explícita, e não "tem `groupId`, então serve": um payload qualquer com essa chave
+ * passaria a decidir onde uma família viaja. Envelope novo entra aqui de propósito, com o
+ * pensamento junto.
+ */
+const KINDS_COM_GRUPO = new Set(['portal_enrollment', 'site_enrollment']);
+
+/**
+ * A saída já escolhida — pelo cliente no app, ou pelo link em que ele clicou no site (IN-25).
+ * Nos dois casos a fila mostra essa, e não a sugestão de "próximo grupo aberto", que existe
+ * para quem chegou por um formulário que não perguntou a data.
+ */
 function chosenGroupOf(payload: unknown): string | null {
   const candidate = payload as { kind?: string; groupId?: string } | null | undefined;
-  if (!candidate || candidate.kind !== 'portal_enrollment') return null;
+  if (!candidate || !KINDS_COM_GRUPO.has(candidate.kind ?? '')) return null;
   return candidate.groupId ?? null;
 }

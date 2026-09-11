@@ -4,6 +4,9 @@ import { whatsappLink } from '../ui/whatsapp.js';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon.js';
 import { TENANT_WHATSAPP } from '../tenant.js';
 import { usePublicEnrollmentLink, type PublicSaida } from './usePublicEnrollmentLink.js';
+import { EnrollmentFormFields } from './EnrollmentFormFields.js';
+import { formularioVazio, podeEnviar, type EnrollmentForm } from './enrollmentForm.js';
+import { useEnviarInscricao } from './useEnviarInscricao.js';
 import type { PublicRouteInscricao } from './publicRoute.js';
 
 /**
@@ -23,6 +26,8 @@ export function PublicEnrollmentScreen({
 }): React.JSX.Element {
   const state = usePublicEnrollmentLink(rota);
   const [escolhida, setEscolhida] = useState<string | null>(null);
+  const [form, setForm] = useState<EnrollmentForm>(formularioVazio);
+  const envio = useEnviarInscricao();
 
   if (state.status === 'loading') {
     return (
@@ -65,6 +70,41 @@ export function PublicEnrollmentScreen({
   const selecionada = view.match ?? view.alternatives.find((s) => s.groupId === escolhida) ?? null;
   const atual = escolhida ?? view.match?.groupId ?? null;
   const semNenhuma = view.match === null && view.alternatives.length === 0;
+
+  /*
+   * Enviada, o formulário sai da tela. Deixá-lo ali convidaria a mandar de novo — e diria, sem
+   * querer, que talvez não tenha dado certo.
+   */
+  if (envio.state.status === 'done') {
+    return (
+      <Casca>
+        <h1 className="page-title">Inscrição recebida</h1>
+        <section className="card pub-card">
+          <span className="cell-name">
+            {selecionada === null
+              ? view.itineraryName
+              : `${view.itineraryName} · ${formatDateRangeLong(selecionada.startDate, selecionada.endDate)}`}
+          </span>
+          <span className="field-help">
+            A equipe confere os dados e entra em contato pelo WhatsApp para combinar o pagamento.
+            Sua vaga fica garantida quando o primeiro pagamento entrar.
+          </span>
+        </section>
+        <a
+          className="btn btn-wa btn-ico pub-cta"
+          href={whatsappLink(
+            TENANT_WHATSAPP,
+            `Olá! Acabei de me inscrever na ${view.itineraryName}.`,
+          )}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <WhatsAppIcon />
+          Falar com a equipe agora
+        </a>
+      </Casca>
+    );
+  }
 
   return (
     <Casca>
@@ -119,25 +159,58 @@ export function PublicEnrollmentScreen({
             </div>
           </section>
 
+          <EnrollmentFormFields form={form} onChange={setForm} />
+
           {/*
-           * A inscrição em si chega na próxima fatia. Até lá o botão leva ao WhatsApp, que é o
-           * funil que já existe — e já leva a saída escolhida no texto, para a equipe não
-           * precisar perguntar.
+           * DOC-04 · SEC-11 — o aceite é capturado **na inscrição**, e cobre explicitamente o
+           * dado das crianças que o responsável está informando por elas. Sem ele não há base
+           * para guardar nada do que foi preenchido.
            */}
-          <a
-            className="btn btn-primary btn-wa btn-ico pub-cta"
-            href={whatsappLink(
-              TENANT_WHATSAPP,
-              selecionada === null
-                ? `Olá! Quero me inscrever na ${view.itineraryName}.`
-                : `Olá! Quero me inscrever na ${view.itineraryName}, saída de ${formatDateRangeLong(selecionada.startDate, selecionada.endDate)}.`,
-            )}
-            target="_blank"
-            rel="noreferrer"
+          <label className="check-row pub-aceite">
+            <input
+              type="checkbox"
+              className="check"
+              checked={form.aceite}
+              onChange={(e) => setForm({ ...form, aceite: e.target.checked })}
+            />
+            <span className="check-name">
+              Li e aceito o termo de adesão, e autorizo o tratamento dos dados informados aqui,
+              inclusive os das pessoas que vão comigo.
+            </span>
+          </label>
+
+          {envio.state.status === 'error' && (
+            <div className="feedback feedback-error" role="alert">
+              <span className="feedback-dot" />
+              <span>{envio.state.message}</span>
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="btn btn-primary pub-cta"
+            disabled={!podeEnviar(form, atual) || envio.state.status === 'sending'}
+            onClick={() => {
+              if (atual === null) return;
+              void envio.enviar(form, {
+                roteiro: rota.roteiro,
+                saida: rota.saida,
+                groupId: atual,
+              });
+            }}
           >
-            <WhatsAppIcon />
-            Quero me inscrever
-          </a>
+            {envio.state.status === 'sending' ? 'Enviando…' : 'Enviar inscrição'}
+          </button>
+
+          {/*
+           * O que acontece depois, dito antes de acontecer: a inscrição não confirma vaga até a
+           * equipe olhar, e prometer o contrário faria alguém contar com uma viagem que ainda
+           * não está garantida.
+           */}
+          <p className="field-help pub-nota">
+            A equipe confere os dados e entra em contato para o pagamento. Sua vaga fica garantida
+            quando o primeiro pagamento entrar.
+          </p>
         </>
       )}
     </Casca>

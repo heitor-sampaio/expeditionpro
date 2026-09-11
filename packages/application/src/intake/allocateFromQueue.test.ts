@@ -476,3 +476,59 @@ describe('§5.8: aprovação do pedido feito no portal', () => {
     expect(booking.cashbackRuleSnapshot).toBeDefined();
   });
 });
+
+/**
+ * IN-25c · CB-09 — alocar a inscrição que veio do link do site.
+ *
+ * Ela vira booking `webhook`, e **não** `portal`: cashback é do cliente que usa o app, e quem
+ * chega por um anúncio pode nem ser cliente ainda. A regra já existia de graça — mas o envelope
+ * do site é parecido com o do app, e a diferença entre os dois vale dinheiro. Por isso fica
+ * provada.
+ */
+describe('IN-25c: a inscrição vinda do link do site', () => {
+  async function doSite() {
+    const base = await setup();
+    const stored = await base.intake.store({
+      tenantId: ctx.tenantId,
+      source: 'site',
+      externalId: `${base.group.id}:90000010057`,
+      payload: {
+        kind: 'site_enrollment',
+        groupId: base.group.id,
+        link: { roteiro: 'coxilha-rica', saida: 'jan-27' },
+        body: {},
+      },
+      normalized: normalized(),
+      formId: null,
+      submittedAt: null,
+      status: 'needs_allocation',
+      error: null,
+      itineraryId: null,
+      isTest: false,
+    });
+    return { ...base, intakeId: stored.id };
+  }
+
+  it('vira booking sem cashback, como qualquer inscrição do site', async () => {
+    const { deps, bookings, group, intakeId } = await doSite();
+
+    const result = await allocateFromQueue(deps, ctx, { intakeId, groupId: group.id });
+
+    const booking = bookings.rows.find((b) => b.id === result.bookingId);
+    expect(booking?.source).toBe('webhook');
+  });
+
+  /**
+   * O envelope do site tem `kind` e `groupId` como o do app, mas **não** tem os ids de cliente:
+   * quem vem do link pode nem existir na base. Lido como pedido do portal, a alocação tentaria
+   * reaproveitar pessoas que não existem.
+   */
+  it('não é lida como pedido do app: o cliente é criado pelo CPF', async () => {
+    const { deps, customers, group, intakeId } = await doSite();
+
+    const result = await allocateFromQueue(deps, ctx, { intakeId, groupId: group.id });
+
+    expect(result.responsibleCustomerId).toBeTruthy();
+    expect(customers.rows.length).toBeGreaterThan(0);
+  });
+});

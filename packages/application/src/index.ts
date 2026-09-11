@@ -629,6 +629,15 @@ export {
   type PublicEnrollmentLink,
 } from './schedule/resolvePublicEnrollmentLink.js';
 export { selectGroupForMonth, type PublicGroup } from './schedule/publicItinerarySelection.js';
+export {
+  receivePublicEnrollment,
+  type ReceivePublicEnrollmentCommand,
+} from './intake/receivePublicEnrollment.js';
+export {
+  SITE_ENROLLMENT_KIND,
+  SITE_SOURCE,
+  type SiteEnrollmentPayload,
+} from './intake/siteEnrollmentPayload.js';
 export { listOpenGroups, type ListOpenGroupsDeps } from './schedule/listOpenGroups.js';
 export {
   listAgendaEvents,

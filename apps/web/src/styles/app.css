@@ -5659,3 +5659,32 @@
     flex-wrap: wrap;
   }
 }
+
+/* IN-25b — os blocos do formulário público. */
+.pub-acomp {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+}
+/*
+ * O aceite é a última coisa antes de enviar, e precisa de espaço para respirar: apertado entre
+ * dois blocos, vira caixinha que se marca sem ler — e é justamente o que ele não pode ser.
+ */
+.pub-aceite {
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 2px;
+}
+.pub-aceite .check-name {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+/* O que acontece depois, dito antes: a inscrição não garante vaga até o pagamento entrar. */
+.pub-nota {
+  margin: 0;
+  text-align: center;
+}

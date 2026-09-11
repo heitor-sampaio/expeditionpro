@@ -1,4 +1,8 @@
-import { listOpenGroups, resolvePublicEnrollmentLink } from '@expedition/application';
+import {
+  listOpenGroups,
+  receivePublicEnrollment,
+  resolvePublicEnrollmentLink,
+} from '@expedition/application';
 import { coreFormSchema, parseLocalDate } from '@expedition/domain';
 import { z } from 'zod';
 import type { OpenGroup, PublicEnrollmentLink, PublicGroup } from '@expedition/application';
@@ -99,6 +103,106 @@ export function registerPublicRoutes(app: FastifyInstance, deps: ServerDeps): vo
       return reply.send(enrollmentLinkDto(visao));
     },
   );
+  /**
+   * IN-25b — a inscrição que vem da página pública.
+   *
+   * **A única escrita do sistema sem segredo nenhum.** A página é pública e qualquer chave
+   * embutida nela vazaria no primeiro "ver código-fonte" — então não há chave, e as defesas são
+   * outras:
+   *
+   * | Defesa | Contra o quê |
+   * |---|---|
+   * | Limite de 5/min por IP | Escrita não é leitura: 30/min numa leitura é generoso, numa escrita é convite |
+   * | `bodyLimit` de 16 KB | Amplificação de armazenamento — o padrão de 1 MB, no limite de taxa, enche o banco de graça |
+   * | Contrato **fechado** (`.strict()`, tudo com teto) | O webhook aceita corpo arbitrário porque o formulário é de terceiro. Aqui o formulário é nosso: não há motivo para aceitar o que não se pediu |
+   * | A fila | A que de fato importa: nada vira cliente nem inscrição sem alguém alocar |
+   *
+   * O que **não** entra: captcha de terceiro. Seria dependência de rede no meio do caminho de
+   * conversão, um terceiro vendo o IP de todo interessado, e `script-src` de outro domínio na
+   * CSP que o front se dá ao trabalho de manter limpa. Entra no dia em que o abuso aparecer.
+   */
+  typed.post(
+    '/v1/public/:tenantSlug/enrollments',
+    {
+      schema: {
+        params: tenantParam,
+        body: z
+          .object({
+            roteiro: z.string().min(1).max(80),
+            groupId: z.string().min(1).max(64),
+            /** Como o link veio, para o registro — a decisão já foi tomada pelo `groupId`. */
+            saida: z
+              .string()
+              .regex(/^[a-zA-Zç]{3}-(\d{2}|\d{4})$/)
+              .optional(),
+            responsible: z
+              .object({
+                full_name: texto(120),
+                cpf: texto(20),
+                birth_date: texto(10),
+                email: texto(160),
+                phone: texto(24),
+              })
+              .strict(),
+            address: z
+              .object({
+                street: texto(160).optional(),
+                number: texto(20).optional(),
+                district: texto(80).optional(),
+                city: texto(80).optional(),
+                state: texto(40).optional(),
+                zip: texto(12).optional(),
+              })
+              .strict()
+              .optional(),
+            vehicle: z
+              .object({
+                brand: texto(60).optional(),
+                model: texto(60).optional(),
+                plate: texto(10).optional(),
+              })
+              .strict()
+              .optional(),
+            /*
+             * Quinze é folga sobre a maior família que já entrou numa saída. Sem teto, um corpo
+             * com dez mil acompanhantes passaria pelo `bodyLimit` e viraria dez mil validações.
+             */
+            companions: z
+              .array(
+                z.object({ full_name: texto(120), cpf: texto(20), birth_date: texto(10) }).strict(),
+              )
+              .max(15)
+              .optional(),
+            consent: z.boolean().optional(),
+          })
+          .strict(),
+      },
+      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+      bodyLimit: 16_384,
+    },
+    async (request, reply) => {
+      const { roteiro, groupId, saida, ...corpo } = request.body;
+      const recebida = await receivePublicEnrollment(
+        { intake: deps.intake, schedule: deps.schedule, clock: deps.clock ?? (() => new Date()) },
+        {
+          tenantSlug: request.params.tenantSlug,
+          itinerarySlug: roteiro,
+          groupId,
+          body: corpo,
+          link: { roteiro, saida },
+        },
+      );
+      // 202 e não 201: a inscrição ainda não existe: existe um item de fila, e quem a cria é a
+      // equipe ao alocar. Prometer "criada" aqui seria dizer à pessoa que ela já tem vaga.
+      const codigo = recebida.status === 'duplicate' ? 200 : 202;
+      return reply.status(codigo).send(recebida);
+    },
+  );
+}
+
+/** Texto com teto: a porta por onde entra o que um estranho digita. */
+function texto(max: number) {
+  return z.string().trim().min(1).max(max);
 }
 
 /**

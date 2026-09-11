@@ -283,6 +283,7 @@ export {
 } from './intake/mapWpFlatPayload.js';
 
 // Webhook — schema público do formulário (§5.7.1 · IN-24)
+export { publicEnrollmentExternalId } from './intake/publicEnrollmentKey.js';
 export {
   coreFormSchema,
   type FormSchema,

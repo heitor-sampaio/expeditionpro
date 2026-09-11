@@ -87,7 +87,13 @@ export function RecentBookings({
 
 /** De onde veio: o app do cliente, o formulário do site ou a própria equipe. */
 function sourceLabel(source: string): string {
-  const map: Record<string, string> = { portal: 'app', webhook: 'site', manual: 'equipe' };
+  const map: Record<string, string> = {
+    portal: 'app',
+    webhook: 'site',
+    // IN-25: o link de inscrição é do site também, mas já chega com a saída escolhida.
+    site: 'link',
+    manual: 'equipe',
+  };
   return map[source] ?? source;
 }
 

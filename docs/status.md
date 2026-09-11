@@ -214,16 +214,82 @@ anônima em produção.**
 
 **Suíte em 2.281 testes** (eram 2.229). Sem migration.
 
+### Fatia 2 — a inscrição entra na fila ✅ (2026-09-11)
+
+O laço fecha: formulário → fila → equipe aloca → booking, com a saída já escolhida. É a
+**primeira escrita do sistema sem segredo nenhum** — a página é pública e qualquer chave
+embutida nela vazaria no primeiro "ver código-fonte".
+
+| Defesa | Contra o quê |
+|---|---|
+| 5/min por IP | Escrita não é leitura: 30/min numa leitura é generoso, numa escrita é convite |
+| Corpo de 16 KB | Amplificação de armazenamento — o padrão de 1 MB, no limite de taxa, enche o banco de graça |
+| Contrato fechado | O webhook aceita corpo arbitrário porque o formulário é de terceiro; aqui ele é nosso |
+| A fila | A que importa: nada vira cliente nem inscrição sem alguém alocar |
+
+> **O servidor nunca confia no grupo que o navegador manda.** Ele é conferido contra as saídas
+> do roteiro que o link apontou — sem isso, editar a requisição inscreveria alguém numa saída
+> privada, ou na de outro roteiro, e o preço daquela saída seria congelado na alocação como se
+> fosse legítimo. O teste que prova isso falha se a conferência sair.
+
+**O caso de uso vive ao lado do `receiveIntake`, não dentro.** A primeira instrução daquele é a
+checagem de API key; criar lá um ramo cuja única função é pular a autenticação seria mexer no
+caminho de produção testado para acomodar o novo. Eles divergem em quase tudo — identidade,
+resolução de roteiro, origem — e compartilham o que importa: o mapeador, que é puro.
+
+O envelope guarda o corpo canônico sob a chave `body` **de propósito**: o mapeador já
+desembrulha `.body` sozinho, então o item do site é reprocessável sem código novo. E `site`
+entrou em `intakeProfiles` pela mesma razão — a fila relê o perfil pelo `source` na hora de
+reprocessar, e sem o registro o botão quebraria em `unsupported_source`.
+
+Dedupe por `${groupId}:${cpf}`, usando o unique que já existia — **sem migration**. Duplo clique
+em celular acontece, porque a resposta demora o tempo de uma rede móvel.
+
+O aceite do termo é capturado no envio (DOC-04) e cobre explicitamente o dado das crianças que o
+responsável informa por elas (SEC-11) — sem ele o botão não acende.
+
+### Fatia 3 — a fila entende a inscrição do site ✅ (2026-09-11)
+
+`chosenGroupOf` passou a ler uma **lista explícita** de envelopes que carregam saída escolhida,
+em vez de "tem `groupId`, então serve" — um payload qualquer com essa chave passaria a decidir
+onde uma família viaja.
+
+`kind: site_enrollment` próprio, e não `portal_enrollment` estendido: a alocação lê daquele o
+`headCustomerId` e os `participantCustomerIds`, que a inscrição do site não tem — quem vem do
+link pode nem existir como cliente. A guarda dupla (`kind` **e** `source`) já protegia; o teste
+novo prova que a inscrição do site vira booking `webhook`, **sem cashback** (CB-09), e falha se
+alguém mudar isso.
+
+Na fila, a origem virou três: app, site (formulário do WordPress) e **link** — que é do site
+também, mas chega com a saída escolhida.
+
+**Suíte em 2.319 testes** (eram 2.229 no começo do dia). Sem migration em nenhuma das três
+fatias.
+
+
 ### O que falta
 
-- **Fatia 2** — a inscrição entra na fila. É onde mora a primeira rota que **grava sem segredo
-  nenhum**: a página é pública e qualquer chave embutida nela vaza no primeiro "ver código-
-  fonte". A defesa é rate limit apertado, `bodyLimit`, Zod estrito, honeypot e — o que de fato
-  importa — a fila humana: nada vira cliente ou inscrição sem alguém alocar.
-- **Fatia 3** — a fila reconhece `site_enrollment` e mostra a saída já escolhida.
-- **Fatia 4** — as defesas, incluindo IP e user-agent no envelope (DOC-05 trata IP como
-  evidência de consentimento, e hoje a captura grava `null`).
-- **Fatias 5 e 6** — as UTMs na fila, e o botão "copiar link" na agenda.
+- **Fatia 4 — o honeypot e a responsabilização.** Um campo isca que humano não preenche, com o
+  acerto respondendo `202` e **não gravando nada** — gravar daria ao bot o primitivo de escrita
+  que o ponto todo é negar. E IP e user-agent no envelope: hoje `allocateFromQueue →
+  captureTermAcceptance` grava `ip: null, userAgent: null`, e o DOC-05 trata IP como evidência
+  de consentimento. A rota pública é justamente a que **tem** esse IP na mão. É também a resposta
+  ao risco de verdade desta frente, que não é spam: qualquer um pode inscrever o CPF de
+  terceiros, e o que contém isso é a fila humana somada à responsabilização.
+- **Fatia 5 — as UTMs.** Guardadas no payload (não em coluna: seria migration e checklist de RLS
+  para zero leitores hoje), sem `gclid` nem `fbclid` — são identificadores de clique, dado
+  pessoal com nome comercial. Na fila, uma linha discreta: "Origem: instagram · campanha
+  inverno-27".
+- **Fatia 6 — a equipe gera o link** a partir da agenda, com `formatMonthYearPtBr` e o slug do
+  roteiro. É o que faz parar de existir link escrito à mão, que é onde `Jan-27` nasce. Junto, a
+  limpeza: `DROP COLUMN intake_events.preferred_date`, uma coluna sem leitor nem escritor — e o
+  mês do link **não é uma data**, é o texto `jan-27`, que já vai em `payload.link.saida`.
+
+**Antes de pôr o botão no ar:** a fatia 4. E o botão do site tem que ser **link**, nunca
+`iframe` — a CSP do front tem `frame-ancestors 'none'`, e um embed simplesmente não carregaria.
+
+**Não visto em tela ainda:** a página inteira. Layout, o formulário no celular e o colapso em
+380px foram feitos lendo CSS, não navegador.
 
 ---
 

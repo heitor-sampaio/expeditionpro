@@ -122,3 +122,64 @@ describe('IN-20b: fila pré-seleciona o próximo grupo aberto do roteiro', () =>
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
+
+/**
+ * IN-25c — a fila entende a inscrição que veio do link do site.
+ *
+ * O link já disse qual saída era, e a fila tem de mostrar essa — não a sugestão de "próximo
+ * grupo aberto", que existe para quem chegou por um formulário sem data. Ignorar a escolha
+ * faria a equipe alocar em janeiro quem clicou no botão de março.
+ */
+describe('IN-25c: a saída do link aparece na fila', () => {
+  async function comInscricaoDoSite(groupId: string) {
+    const intake = fakeIntakeRepository();
+    const schedule = fakeScheduleRepository();
+    const proximo = await openGroup(schedule, '2026-09-01', '2026-09-03');
+    const escolhido = await openGroup(schedule, '2027-01-15', '2027-01-18');
+
+    await intake.store({
+      tenantId: TENANT,
+      source: 'site',
+      externalId: `${groupId}:90000010057`,
+      payload: {
+        kind: 'site_enrollment',
+        groupId: groupId === 'o-escolhido' ? escolhido.id : groupId,
+        link: { roteiro: 'coxilha-rica', saida: 'jan-27' },
+        body: {},
+      },
+      normalized: null,
+      formId: null,
+      itineraryId: ITIN,
+      submittedAt: null,
+      status: 'needs_allocation',
+      error: null,
+      isTest: false,
+    });
+
+    return { intake, schedule, escolhido, proximo };
+  }
+
+  it('a saída escolhida no link vira a sugestão, e não o próximo grupo', async () => {
+    const { intake, schedule, escolhido } = await comInscricaoDoSite('o-escolhido');
+
+    const fila = await listAllocationQueue({ intake, schedule, clock: NOW }, teamCtx);
+
+    expect(fila[0]).toMatchObject({
+      source: 'site',
+      chosenGroupId: escolhido.id,
+      suggestedGroupId: escolhido.id,
+    });
+  });
+
+  /**
+   * O item do site é lido como item do site, e não como pedido do app. São payloads diferentes:
+   * o do portal carrega os ids dos clientes, e quem vem do link pode nem existir como cliente.
+   */
+  it('não é confundido com o pedido do app', async () => {
+    const { intake, schedule } = await comInscricaoDoSite('o-escolhido');
+
+    const fila = await listAllocationQueue({ intake, schedule, clock: NOW }, teamCtx);
+
+    expect(fila[0]?.source).not.toBe('portal');
+  });
+});

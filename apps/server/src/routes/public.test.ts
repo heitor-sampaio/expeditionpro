@@ -188,3 +188,163 @@ describe('IN-25: sem dependências, a superfície pública não existe', () => {
     await app.close();
   });
 });
+
+/**
+ * IN-25b · SEC-20 — a inscrição que vem da página pública.
+ *
+ * É a **única escrita do sistema sem segredo nenhum**. Não há chave para conferir, então o que
+ * se cobra aqui são as defesas que sobraram: o contrato fechado, o teto do corpo, o limite por
+ * IP — e o fato de nada virar cliente nem inscrição sem alguém alocar na fila.
+ */
+describe('IN-25b: a inscrição pública entra na fila', () => {
+  const corpo = (extra: Record<string, unknown> = {}) => ({
+    roteiro: 'coxilha-rica',
+    groupId: 'dev-group-1',
+    saida: 'jan-27',
+    responsible: {
+      full_name: 'Vanessa Santos',
+      cpf: '900.000.100-57',
+      birth_date: '1989-01-14',
+      email: 'vanessa@exemplo.com',
+      phone: '48999998877',
+    },
+    consent: true,
+    ...extra,
+  });
+
+  async function comLink() {
+    const { app } = await comSaidas(['2027-01-15']);
+    const link = (await app.inject({ method: 'GET', url: `${LINK}&saida=jan-27` })).json() as {
+      match: { groupId: string };
+    };
+    return { app, groupId: link.match.groupId };
+  }
+
+  it('responde 202 e vai para a fila, com a saída do link', async () => {
+    const { app, groupId } = await comLink();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/public/dev/enrollments',
+      payload: corpo({ groupId }),
+    });
+
+    expect(res.statusCode).toBe(202);
+    expect(res.json()).toMatchObject({ status: 'queued' });
+
+    // A prova de que a equipe vai encontrá-la: a fila é a mesma de sempre.
+    const fila = (await app.inject({ method: 'GET', url: '/v1/intake' })).json() as {
+      responsibleName: string;
+      source: string;
+    }[];
+    expect(fila).toHaveLength(1);
+    expect(fila[0]).toMatchObject({ responsibleName: 'Vanessa Santos', source: 'site' });
+    await app.close();
+  });
+
+  /** Duplo clique no celular, que acontece porque a resposta demora o tempo de uma rede móvel. */
+  it('a segunda submissão responde 200 duplicate, sem segunda linha na fila', async () => {
+    const { app, groupId } = await comLink();
+    await app.inject({
+      method: 'POST',
+      url: '/v1/public/dev/enrollments',
+      payload: corpo({ groupId }),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/public/dev/enrollments',
+      payload: corpo({ groupId }),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ status: 'duplicate' });
+    expect((await app.inject({ method: 'GET', url: '/v1/intake' })).json()).toHaveLength(1);
+    await app.close();
+  });
+
+  /** IN-05: o campo culpado volta para quem está preenchendo, e o que ela digitou não se perde. */
+  it('CPF inválido responde 422 com o campo culpado', async () => {
+    const { app, groupId } = await comLink();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/public/dev/enrollments',
+      payload: corpo({ groupId, responsible: { ...corpo().responsible, cpf: '111.111.111-11' } }),
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toMatchObject({ error: 'validation_failed' });
+    await app.close();
+  });
+
+  /**
+   * SEC-20 — **o `groupId` do navegador não vale nada até ser conferido.** Sem isso, editar a
+   * requisição inscreveria alguém numa saída privada ou de outro roteiro, e o preço daquela
+   * saída seria congelado na alocação como se fosse legítimo.
+   */
+  it('SEC-20: grupo que não é do roteiro do link é recusado', async () => {
+    const { app } = await comLink();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/public/dev/enrollments',
+      payload: corpo({ groupId: 'grupo-de-outro-roteiro' }),
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect((await app.inject({ method: 'GET', url: '/v1/intake' })).json()).toHaveLength(0);
+    await app.close();
+  });
+
+  /**
+   * SEC-20 — o contrato é **fechado**. O webhook aceita corpo arbitrário porque o formulário é
+   * de terceiro; aqui o formulário é nosso, e não há motivo para aceitar o que não se pediu.
+   */
+  it('SEC-20: chave desconhecida no corpo é recusada', async () => {
+    const { app, groupId } = await comLink();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/public/dev/enrollments',
+      payload: corpo({ groupId, admin: true }),
+    });
+
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  /** Sem teto, um corpo com dez mil acompanhantes viraria dez mil validações. */
+  it('SEC-20: acompanhantes acima do teto são recusados', async () => {
+    const { app, groupId } = await comLink();
+    const muitos = Array.from({ length: 20 }, (_, i) => ({
+      full_name: `Pessoa ${String(i)}`,
+      cpf: '111.444.777-35',
+      birth_date: '2015-03-22',
+    }));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/public/dev/enrollments',
+      payload: corpo({ groupId, companions: muitos }),
+    });
+
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  /** A inscrição não existe ainda: existe um item de fila, e quem a cria é a equipe ao alocar. */
+  it('nenhuma inscrição é criada antes de a equipe alocar', async () => {
+    const { app, groupId } = await comLink();
+
+    await app.inject({
+      method: 'POST',
+      url: '/v1/public/dev/enrollments',
+      payload: corpo({ groupId }),
+    });
+
+    const recentes = (await app.inject({ method: 'GET', url: '/v1/bookings/recent' })).json();
+    expect(recentes).toEqual([]);
+    await app.close();
+  });
+});

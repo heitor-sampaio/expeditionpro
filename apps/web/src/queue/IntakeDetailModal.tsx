@@ -44,9 +44,7 @@ export function IntakeDetailModal({
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Detalhe da inscrição">
       <div className="modal modal-lg intake-modal">
         <h2 className="modal-title">Inscrição recebida</h2>
-        <p className="modal-sub">
-          {item.source === 'portal' ? 'Pelo app do cliente' : 'Pelo formulário do site'}
-        </p>
+        <p className="modal-sub">{origemLegivel(item.source)}</p>
 
         {state.status === 'loading' && <p className="members-empty">Carregando…</p>}
         {state.status === 'error' && (
@@ -178,4 +176,17 @@ function bandLabel(band: string): string {
 
 function firstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] ?? fullName;
+}
+
+/**
+ * De onde a inscrição veio, em palavras da equipe.
+ *
+ * `site` é o link de inscrição que o botão do site de apresentação abre (IN-25) — e ele é
+ * diferente do formulário do WordPress, que continua chegando por webhook: neste a saída já
+ * vem escolhida, naquele a equipe escolhe na fila.
+ */
+function origemLegivel(source: string): string {
+  if (source === 'portal') return 'Pelo app do cliente';
+  if (source === 'site') return 'Pelo link de inscrição do site';
+  return 'Pelo formulário do site';
 }
