@@ -1,3 +1,4 @@
+import { VeiculoFields } from './VeiculoFields.js';
 import { AddressFields } from '../ui/AddressFields.js';
 import { acompanhanteVazio, type AcompanhanteForm, type EnrollmentForm } from './enrollmentForm.js';
 
@@ -131,11 +132,7 @@ export function EnrollmentFormFields({
       <section className="card pub-card">
         <span className="field-label">Seu veículo</span>
         <span className="field-help">Opcional — dá para completar depois com a equipe.</span>
-        <div className="form-grid">
-          <Campo rotulo="Marca" valor={form.marca} onChange={(marca) => set({ marca })} />
-          <Campo rotulo="Modelo" valor={form.modelo} onChange={(modelo) => set({ modelo })} />
-          <Campo rotulo="Placa" valor={form.placa} onChange={(placa) => set({ placa })} />
-        </div>
+        <VeiculoFields value={form.veiculo} onChange={(veiculo) => set({ veiculo })} />
       </section>
     </>
   );

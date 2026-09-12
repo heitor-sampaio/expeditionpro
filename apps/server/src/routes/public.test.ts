@@ -1,3 +1,4 @@
+import { inMemoryVehicles } from '../dev/inMemoryVehicles.js';
 import { describe, expect, it } from 'vitest';
 import { buildServer } from '../buildServer.js';
 import { inMemoryServerDeps } from '../dev/inMemoryServerDeps.js';
@@ -438,6 +439,83 @@ describe('CL-02: consulta de CEP sem autenticação', () => {
 
     expect(res.statusCode).toBe(400);
     expect(pedidos).toBe(0);
+    await app.close();
+  });
+});
+
+/**
+ * CL-05 · IN-25 — o catálogo de veículos sem autenticação.
+ *
+ * Existe porque a inscrição do site pede marca e modelo, e digitar "Hilux" à mão produz
+ * "hilux", "Hillux" e "Toyota Hilux" — três veículos onde há um. O combobox é o que faz a
+ * inscrição chegar com o nome que o catálogo já usa.
+ */
+describe('CL-05: o catálogo de veículos sem sessão', () => {
+  const MARCAS = [{ id: 'b-ford', tenantId: 'dev-tenant', name: 'Ford', isActive: true }];
+  const MODELOS = [
+    { id: 'm-ranger', tenantId: 'dev-tenant', brandId: 'b-ford', name: 'Ranger', isActive: true },
+  ];
+
+  async function comCatalogo() {
+    const deps = {
+      ...inMemoryServerDeps({ resolveContext: () => Promise.resolve(ctx) }),
+      vehicles: inMemoryVehicles({ brands: MARCAS, models: MODELOS }),
+    };
+    const app = await buildServer({ logger: false, deps });
+    await app.ready();
+    return app;
+  }
+
+  it('lista as marcas do tenant do link, sem autenticação', async () => {
+    const app = await comCatalogo();
+
+    const res = await app.inject({ method: 'GET', url: '/v1/public/dev/vehicle-brands' });
+
+    expect(res.statusCode).toBe(200);
+    const marcas = res.json() as { id: string; name: string }[];
+    expect(marcas.length).toBeGreaterThan(0);
+    expect(Object.keys(marcas[0]!).sort()).toEqual(['id', 'name']);
+    await app.close();
+  });
+
+  it('lista os modelos da marca, em cascata', async () => {
+    const app = await comCatalogo();
+    const marcas = (
+      await app.inject({ method: 'GET', url: '/v1/public/dev/vehicle-brands' })
+    ).json() as { id: string; name: string }[];
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/public/dev/vehicle-brands/${marcas[0]!.id}/models`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(res.json())).toBe(true);
+    await app.close();
+  });
+
+  /** A recusa é uma só: lista vazia não confirma nem nega que a empresa usa o sistema. */
+  it('tenant inexistente devolve lista vazia, e não 404', async () => {
+    const app = await comCatalogo();
+
+    const res = await app.inject({ method: 'GET', url: '/v1/public/nao-existe/vehicle-brands' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([]);
+    await app.close();
+  });
+
+  /** Marca de outro tenant não vaza modelo: quem filtra é o repositório, por tenant. */
+  it('marca que não é do tenant não devolve modelo nenhum', async () => {
+    const app = await comCatalogo();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/public/dev/vehicle-brands/00000000-0000-0000-0000-000000000000/models',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([]);
     await app.close();
   });
 });

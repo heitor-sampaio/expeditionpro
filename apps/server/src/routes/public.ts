@@ -1,5 +1,7 @@
 import {
   listOpenGroups,
+  listPublicVehicleBrands,
+  listPublicVehicleModels,
   lookupCep,
   receivePublicEnrollment,
   resolvePublicEnrollmentLink,
@@ -64,6 +66,49 @@ export function registerPublicRoutes(app: FastifyInstance, deps: ServerDeps): vo
       // de "achei um endereço sem rua", que é resposta legítima de cidade pequena.
       if (endereco === null) return reply.status(404).send({ error: 'not_found' });
       return reply.send(endereco);
+    },
+  );
+
+  /**
+   * CL-05 — o catálogo de veículos que alimenta o combobox da inscrição.
+   *
+   * Digitar marca e modelo à mão produz "hilux", "Hillux" e "Toyota Hilux" — três veículos
+   * onde há um, e a equipe descobrindo isso no dia do comboio. O combobox é o que faz a
+   * inscrição chegar com o nome que o catálogo já usa.
+   *
+   * Marca de carro não é segredo de negócio: o corpo é id e nome, e nada mais (regra 3).
+   * Tenant inexistente devolve lista vazia, que é a recusa mais silenciosa possível — não
+   * confirma nem nega que a empresa usa o sistema (regra 2).
+   */
+  typed.get(
+    '/v1/public/:tenantSlug/vehicle-brands',
+    { schema: { params: tenantParam }, config: { rateLimit: LEITURA_PUBLICA } },
+    async (request, reply) => {
+      const marcas = await listPublicVehicleBrands(
+        { tenants: deps.tenants, vehicles: deps.vehicles },
+        { tenantSlug: request.params.tenantSlug },
+      );
+      return reply.send(marcas);
+    },
+  );
+
+  typed.get(
+    '/v1/public/:tenantSlug/vehicle-brands/:brandId/models',
+    {
+      schema: {
+        params: z.object({
+          tenantSlug: z.string().min(1).max(60),
+          brandId: z.string().min(1).max(60),
+        }),
+      },
+      config: { rateLimit: LEITURA_PUBLICA },
+    },
+    async (request, reply) => {
+      const modelos = await listPublicVehicleModels(
+        { tenants: deps.tenants, vehicles: deps.vehicles },
+        { tenantSlug: request.params.tenantSlug, brandId: request.params.brandId },
+      );
+      return reply.send(modelos);
     },
   );
 

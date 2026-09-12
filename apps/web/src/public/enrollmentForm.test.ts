@@ -157,13 +157,58 @@ describe('IN-25b: o corpo que vai para o servidor', () => {
     expect(podeEnviar(cheio(), 'g-jan')).toBe(true);
   });
 
-  it('veículo preenchido vai no formato canônico', () => {
+  it('veículo escolhido no catálogo viaja com o nome do catálogo', () => {
     const corpo = corpoDaInscricao(
-      { ...cheio(), marca: 'Ford', modelo: 'Ranger', placa: 'SFG0H61' },
+      {
+        ...cheio(),
+        veiculo: {
+          placa: 'SFG0H61',
+          marca: { id: 'b-ford', nome: 'Ford', outro: false },
+          modelo: { id: 'm-ranger', nome: 'Ranger', outro: false },
+        },
+      },
       { roteiro: 'coxilha-rica', groupId: 'g-jan' },
     );
 
     expect(corpo['vehicle']).toEqual({ brand: 'Ford', model: 'Ranger', plate: 'SFG0H61' });
+  });
+
+  /**
+   * "Outro" existe porque o catálogo nunca está completo, e a inscrição não pode parar por
+   * causa de um modelo que ninguém cadastrou. O texto livre viaja igual: quem cataloga depois
+   * é a equipe.
+   */
+  it('marca fora do catálogo viaja como texto, igual ao que veio da lista', () => {
+    const corpo = corpoDaInscricao(
+      {
+        ...cheio(),
+        veiculo: {
+          placa: 'SFG0H61',
+          marca: { id: null, nome: 'Troller', outro: true },
+          modelo: { id: null, nome: 'T4', outro: true },
+        },
+      },
+      { roteiro: 'coxilha-rica', groupId: 'g-jan' },
+    );
+
+    expect(corpo['vehicle']).toEqual({ brand: 'Troller', model: 'T4', plate: 'SFG0H61' });
+  });
+
+  /** Marca escolhida e modelo ainda não: vai o que tem, e o resto a equipe completa. */
+  it('veículo pela metade viaja com o que tem', () => {
+    const corpo = corpoDaInscricao(
+      {
+        ...cheio(),
+        veiculo: {
+          placa: '',
+          marca: { id: 'b-ford', nome: 'Ford', outro: false },
+          modelo: { id: null, nome: '', outro: false },
+        },
+      },
+      { roteiro: 'coxilha-rica', groupId: 'g-jan' },
+    );
+
+    expect(corpo['vehicle']).toEqual({ brand: 'Ford' });
   });
 
   /** Link sem mês: o corpo não leva `saida`, e o servidor recusaria uma string vazia. */

@@ -7,6 +7,34 @@ import { EMPTY_ADDRESS_DRAFT, type AddressDraft } from '../ui/AddressFields.js';
  * ficaria espalhado em três `&&` dentro do JSX, onde ninguém lê e nada cobra.
  */
 
+/**
+ * CL-05 — uma escolha de combobox: o item do catálogo, ou o texto livre de "Outro".
+ *
+ * `nome` é o texto final nos dois casos, e é ele que viaja no payload — o servidor fala em
+ * marca e modelo por nome, como o webhook sempre falou. O `id` fica só para a tela: é o que
+ * o combobox marca como selecionado e o que puxa os modelos daquela marca.
+ */
+export interface EscolhaCatalogo {
+  /** `null` quando veio de "Outro" — não há item de catálogo por trás. */
+  id: string | null;
+  nome: string;
+  outro: boolean;
+}
+
+export interface VeiculoForm {
+  placa: string;
+  marca: EscolhaCatalogo;
+  modelo: EscolhaCatalogo;
+}
+
+export function escolhaVazia(): EscolhaCatalogo {
+  return { id: null, nome: '', outro: false };
+}
+
+export function veiculoVazio(): VeiculoForm {
+  return { placa: '', marca: escolhaVazia(), modelo: escolhaVazia() };
+}
+
 export interface AcompanhanteForm {
   nome: string;
   cpf: string;
@@ -21,9 +49,7 @@ export interface EnrollmentForm {
   telefone: string;
   /** CL-02: o mesmo bloco do cadastro, com o mesmo autocomplete por CEP. */
   endereco: AddressDraft;
-  marca: string;
-  modelo: string;
-  placa: string;
+  veiculo: VeiculoForm;
   acompanhantes: AcompanhanteForm[];
   aceite: boolean;
 }
@@ -36,9 +62,7 @@ export function formularioVazio(): EnrollmentForm {
     email: '',
     telefone: '',
     endereco: EMPTY_ADDRESS_DRAFT,
-    marca: '',
-    modelo: '',
-    placa: '',
+    veiculo: veiculoVazio(),
     acompanhantes: [],
     aceite: false,
   };
@@ -96,7 +120,11 @@ export interface DadosDoLink {
  */
 export function corpoDaInscricao(form: EnrollmentForm, link: DadosDoLink): Record<string, unknown> {
   const endereco = semVazios({ ...form.endereco });
-  const veiculo = semVazios({ brand: form.marca, model: form.modelo, plate: form.placa });
+  const veiculo = semVazios({
+    brand: form.veiculo.marca.nome,
+    model: form.veiculo.modelo.nome,
+    plate: form.veiculo.placa,
+  });
   const companions = form.acompanhantes.filter(completo).map((a) => ({
     full_name: a.nome.trim(),
     cpf: a.cpf.trim(),

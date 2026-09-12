@@ -642,6 +642,12 @@ export { listOpenGroups, type ListOpenGroupsDeps } from './schedule/listOpenGrou
 
 // CL-02 — consulta de CEP, servida pelo nosso servidor e não pelo navegador.
 export { lookupCep, type LookupCepDeps, type LookupCepCommand } from './address/lookupCep.js';
+export {
+  listPublicVehicleBrands,
+  listPublicVehicleModels,
+  type PublicVehicleCatalogDeps,
+  type PublicCatalogItem,
+} from './vehicles/listPublicVehicleCatalog.js';
 export type { CepAddress, CepDirectory } from './address/cepDirectory.js';
 export {
   listAgendaEvents,
