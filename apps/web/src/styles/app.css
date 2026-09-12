@@ -5617,6 +5617,15 @@
  * componente novo: se esta tela precisasse de um, o padrão estaria errado antes do componente.
  */
 .pub-page {
+  /*
+   * O que tira a página de baixo do relevo. No back-office quem faz isso é `.app`, que
+   * envolve tudo; aqui não há casca nenhuma — a tela pública é o `main` e mais nada —, e sem
+   * estas duas linhas o `.topo`, que é `position: fixed`, é pintado depois do conteúdo
+   * estático e passa por cima dos cartões. É a regra do design system dita no lugar em que
+   * esta tela precisa dela: o fundo nunca sob o dado.
+   */
+  position: relative;
+  z-index: 1;
   max-width: 560px;
   margin: 0 auto;
   gap: 16px;
