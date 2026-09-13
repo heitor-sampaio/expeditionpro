@@ -68,9 +68,9 @@ export function PublicEnrollmentScreen({
   }
 
   const { view } = state;
-  const { opcoes, escolhaAberta } = saidasDoLink(view);
-  const selecionada = view.match ?? view.alternatives.find((s) => s.groupId === escolhida) ?? null;
-  const atual = escolhida ?? view.match?.groupId ?? null;
+  const { opcoes, escolhaAberta, padrao, aviso } = saidasDoLink(view, rota.saida);
+  const atual = escolhida ?? padrao;
+  const selecionada = opcoes.find((s) => s.groupId === atual) ?? null;
   const semNenhuma = view.match === null && view.alternatives.length === 0;
 
   /*
@@ -123,11 +123,11 @@ export function PublicEnrollmentScreen({
            * Cinza, e nunca vermelho: o mês do link ter fechado não é erro de ninguém — é o
            * desenho funcionando. Vermelho, neste sistema, quer dizer cancelado.
            */}
-          {view.match === null && (
+          {aviso !== null && (
             <div className="feedback feedback-info">
               <span className="feedback-dot" />
               <span>
-                {view.saidaReconhecida
+                {aviso === 'data-fechada'
                   ? 'A data deste link não está mais aberta. Escolha uma das próximas:'
                   : 'Não reconheci a data deste link. Escolha uma das próximas:'}
               </span>
