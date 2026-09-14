@@ -167,9 +167,18 @@ describe('IN-25b: o corpo que vai para o servidor', () => {
     expect(corpo['address']).toEqual({ zip: '88010-000' });
   });
 
-  /** Endereço nunca trava o envio: é opcional aqui como é no cadastro (CL-02). */
-  it('endereço em branco não impede enviar', () => {
+  /**
+   * **Endereço e veículo nunca travam o envio, e a tela não diz que são opcionais.** Campo
+   * anunciado como opcional é campo que ninguém preenche; sem o aviso, alguns preenchem. Mas
+   * aí o único guardião da opcionalidade é este teste — e é ele que falha se alguém somar
+   * endereço ou veículo à condição do botão.
+   */
+  it('endereço e veículo em branco não impedem enviar', () => {
+    const vazio = formularioVazio();
     expect(podeEnviar(cheio(), 'g-jan')).toBe(true);
+    expect(
+      podeEnviar({ ...cheio(), endereco: vazio.endereco, veiculo: vazio.veiculo }, 'g-jan'),
+    ).toBe(true);
   });
 
   it('veículo escolhido no catálogo viaja com o nome do catálogo', () => {
