@@ -10,7 +10,7 @@ import {
  * decide de verdade; a tela desabilita o que já se sabe que vai falhar e diz por quê.
  */
 
-describe('GR-15/GR-16: quando dá para gerar documento da saída', () => {
+describe('GR-15/GR-16: quando dá para gerar documento do grupo', () => {
   it('owner e admin geram quando há inscrição confirmada', () => {
     for (const role of ['owner', 'admin']) {
       expect(resolveGroupDocumentAction({ confirmedCount: 2, role })).toEqual({
@@ -24,7 +24,7 @@ describe('GR-15/GR-16: quando dá para gerar documento da saída', () => {
     const action = resolveGroupDocumentAction({ confirmedCount: 0, role: 'owner' });
 
     expect(action.enabled).toBe(false);
-    expect(action.reason).toBe('Nenhuma inscrição confirmada nesta saída.');
+    expect(action.reason).toBe('Nenhuma inscrição confirmada neste grupo.');
   });
 
   it('papel sem permissão vê o botão desabilitado, não escondido', () => {
@@ -32,21 +32,21 @@ describe('GR-15/GR-16: quando dá para gerar documento da saída', () => {
       const action = resolveGroupDocumentAction({ confirmedCount: 3, role });
 
       expect(action.enabled).toBe(false);
-      expect(action.reason).toBe('Gerar documentos da saída exige owner ou admin.');
+      expect(action.reason).toBe('Gerar documentos do grupo exige owner ou admin.');
     }
   });
 
   it('a falta de permissão é dita antes da falta de confirmada', () => {
     expect(resolveGroupDocumentAction({ confirmedCount: 0, role: 'operator' }).reason).toBe(
-      'Gerar documentos da saída exige owner ou admin.',
+      'Gerar documentos do grupo exige owner ou admin.',
     );
   });
 });
 
 describe('GR-15/GR-16: o erro que a tela mostra', () => {
   it('traduz os códigos do servidor', () => {
-    expect(documentErrorFor('forbidden')).toBe('Gerar documentos da saída exige owner ou admin.');
-    expect(documentErrorFor('not_found')).toBe('Esta saída não existe mais.');
+    expect(documentErrorFor('forbidden')).toBe('Gerar documentos do grupo exige owner ou admin.');
+    expect(documentErrorFor('not_found')).toBe('Este grupo não existe mais.');
     expect(documentErrorFor('qualquer-outro')).toBe(
       'Não foi possível gerar o documento. Tente de novo.',
     );

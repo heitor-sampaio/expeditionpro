@@ -108,7 +108,7 @@ export function ScheduleLifecycleActions({
 
       {dialog === 'edit' && (
         <Modal
-          title="Editar datas da saída"
+          title="Editar datas do grupo"
           subtitle="O nome do grupo acompanha a nova data. Inscrições já feitas mantêm o valor congelado."
           error={error}
           busy={busy}
@@ -152,11 +152,11 @@ export function ScheduleLifecycleActions({
 
       {dialog === 'cancel' && (
         <Modal
-          title="Cancelar esta saída?"
+          title="Cancelar este grupo?"
           subtitle="Ela sai da vitrine e da auto-inscrição, mas continua na agenda com o registro do cancelamento. As inscrições e o dinheiro já lançado ficam como estão — devolução e cashback são avaliados caso a caso."
           error={error}
           busy={busy}
-          confirmLabel="Cancelar saída"
+          confirmLabel="Cancelar grupo"
           canConfirm={reason.trim() !== ''}
           onClose={close}
           onConfirm={async () => {
@@ -183,11 +183,11 @@ export function ScheduleLifecycleActions({
 
       {dialog === 'delete' && (
         <Modal
-          title="Excluir esta saída?"
+          title="Excluir este grupo?"
           subtitle="A data some da agenda junto com o grupo, e não dá para desfazer. Só é possível enquanto não houver inscrição nem gasto lançado."
           error={error}
           busy={busy}
-          confirmLabel="Excluir saída"
+          confirmLabel="Excluir grupo"
           canConfirm
           onClose={close}
           onConfirm={async () => {

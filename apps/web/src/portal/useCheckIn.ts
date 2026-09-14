@@ -36,8 +36,8 @@ export function useCheckIn(onDone: () => void) {
 }
 
 function messageFor(code: string | undefined, status: number): string {
-  if (code === 'not_started') return 'O check-in abre no dia da saída.';
-  if (code === 'already_over') return 'Esta saída já terminou.';
+  if (code === 'not_started') return 'O check-in abre no dia do grupo.';
+  if (code === 'already_over') return 'Este grupo já terminou.';
   if (code === 'already_checked_in') return 'Vocês já fizeram o check-in.';
   if (code === 'not_confirmed') return 'O check-in abre quando a inscrição for confirmada.';
   if (code === 'cancelled') return 'Esta inscrição está cancelada.';

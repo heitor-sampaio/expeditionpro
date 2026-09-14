@@ -59,7 +59,7 @@ export function RecentBookings({
       <div className="tbl tbl-recent">
         <div className="tbl-row tbl-head">
           <span>Família</span>
-          <span>Saída</span>
+          <span>Grupo</span>
           <span>Origem</span>
           <span className="col-num">Pessoas</span>
           <span className="col-num">Contratado</span>

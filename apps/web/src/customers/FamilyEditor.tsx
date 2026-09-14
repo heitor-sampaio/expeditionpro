@@ -282,7 +282,7 @@ function EditorForm({
           <div className="modal">
             <h2 className="modal-title">Remover {removing.fullName}?</h2>
             <p className="modal-sub">
-              O cadastro sai da família e não dá para desfazer. Quem já participou de uma saída não
+              O cadastro sai da família e não dá para desfazer. Quem já participou de um grupo não
               pode ser removido — o histórico fica.
             </p>
             <div className="form-actions">

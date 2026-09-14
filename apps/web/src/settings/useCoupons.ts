@@ -113,7 +113,7 @@ function messageFor(code: string | undefined, status: number): string {
     invalid_value: 'O desconto precisa ser maior que zero, e o percentual até 100.',
     invalid_window: 'A validade termina antes de começar.',
     invalid_limit: 'O limite de usos precisa ser maior que zero.',
-    ambiguous_scope: 'Escolha restringir por roteiro ou por saída, não os dois.',
+    ambiguous_scope: 'Escolha restringir por roteiro ou por grupo, não os dois.',
     validation_failed: 'Confira os dados antes de salvar.',
     not_found: 'Este cupom não existe mais.',
   };

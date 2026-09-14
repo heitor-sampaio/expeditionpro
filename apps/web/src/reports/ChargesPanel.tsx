@@ -88,7 +88,7 @@ export function ChargesPanel(): React.JSX.Element | null {
           <div className="tbl-row tbl-head">
             <span>Emitida</span>
             <span>Família</span>
-            <span>Saída</span>
+            <span>Grupo</span>
             <span>Forma</span>
             <span className="col-num">Cliente paga</span>
             <span className="col-num">Esperado</span>

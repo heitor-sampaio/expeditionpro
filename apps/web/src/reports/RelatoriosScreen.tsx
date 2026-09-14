@@ -37,7 +37,7 @@ export function RelatoriosScreen(): React.JSX.Element {
     <main className="page page-wide">
       <div className="page-header">
         <h1 className="page-title">Relatórios</h1>
-        <p className="page-meta">Fechamento por saída — receita, gastos e margem, sem planilha.</p>
+        <p className="page-meta">Fechamento por grupo — receita, gastos e margem, sem planilha.</p>
       </div>
 
       <section className="card report-filters">
@@ -112,12 +112,12 @@ export function RelatoriosScreen(): React.JSX.Element {
           <div className="state" role="status">
             <div className="state-text">
               <span className="state-title">
-                {hasFilter ? 'Nenhuma saída no filtro' : 'Nenhuma saída ainda'}
+                {hasFilter ? 'Nenhum grupo no filtro' : 'Nenhum grupo ainda'}
               </span>
               <span className="state-line">
                 {hasFilter
                   ? 'Ajuste o período ou o roteiro para ver o fechamento.'
-                  : 'Monte uma saída na agenda para ver o fechamento aqui.'}
+                  : 'Monte um grupo na agenda para ver o fechamento aqui.'}
               </span>
             </div>
             {hasFilter && (
@@ -163,7 +163,7 @@ function Report({ report }: { report: FinancialReport }): React.JSX.Element {
         <div className="tbl-wrap">
           <div className="tbl tbl-report">
             <div className="tbl-row tbl-head">
-              <span>Saída</span>
+              <span>Grupo</span>
               <span className="col-num">Receita</span>
               <span className="col-num">Gastos</span>
               <span className="col-num">Margem</span>

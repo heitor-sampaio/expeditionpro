@@ -134,7 +134,7 @@ function resumo(data: BlockData): string {
   }
   if (data.type === 'scheduled') {
     const dias = Number(c['offsetDays'] ?? 0);
-    if (dias === 0) return 'no dia da saída';
+    if (dias === 0) return 'no dia do grupo';
     return dias < 0 ? `${String(-dias)} dias antes` : `${String(dias)} dias depois`;
   }
   if (data.type === 'find_one') {

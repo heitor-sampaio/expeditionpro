@@ -20,7 +20,7 @@ import { brl } from '../ui/money.js';
 type Tab = 'saidas' | 'pagamentos' | 'fiscais';
 
 const TABS: readonly { id: Tab; label: string }[] = [
-  { id: 'saidas', label: 'Saídas' },
+  { id: 'saidas', label: 'Grupos' },
   { id: 'pagamentos', label: 'Pagamentos' },
   { id: 'fiscais', label: 'Dados fiscais' },
 ];
@@ -197,7 +197,7 @@ function SaidasTab({
     return (
       <div className="state" role="status">
         <div className="state-text">
-          <span className="state-title">Nenhuma saída ainda</span>
+          <span className="state-title">Nenhum grupo ainda</span>
           <span className="state-line">Este fornecedor ainda não teve gastos lançados.</span>
         </div>
       </div>
@@ -207,7 +207,7 @@ function SaidasTab({
     <div className="tbl-wrap">
       <div className="tbl tbl-fsaidas">
         <div className="tbl-row tbl-head">
-          <span>Saída</span>
+          <span>Grupo</span>
           <span>Datas</span>
           <span className="col-num">Contratado</span>
           <span className="col-num">Pago</span>
@@ -281,7 +281,7 @@ function PagamentosTab({
       <div className="tbl tbl-fpag">
         <div className="tbl-row tbl-head">
           <span>Data</span>
-          <span>Saída</span>
+          <span>Grupo</span>
           <span>Descrição</span>
           <span>Forma</span>
           <span className="col-num">Valor</span>

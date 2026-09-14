@@ -69,11 +69,11 @@ Teste de fumaça obrigatório na fase 0: um teste automatizado que prova que o t
 |---|---|---|
 | **Roteiro** | `itineraries` | O produto: Coxilha Rica, Vale Europeu. Descrição, fotos, faixas etárias e preços. |
 | **Evento de agenda** | `schedule_events` | Roteiro + data início + data fim no calendário. |
-| **Grupo** | `groups` | O grupo de uma saída. Onde as inscrições vivem. |
+| **Grupo** | `groups` | A viagem que vai acontecer numa data. Onde as inscrições vivem. |
 | **Inscrição** | `bookings` | Uma família dentro de um grupo. Linha da Tabela 1. |
 | **Participante** | `booking_participants` | Cada pessoa dentro de uma inscrição. |
 | **Cliente** | `customers` | Pessoa física. Única por `(tenant_id, cpf)`. |
-| **Fornecedor** | `suppliers` | Parceiro que presta serviço na saída. |
+| **Fornecedor** | `suppliers` | Parceiro que presta serviço no grupo. |
 | **Oportunidade** | `opportunities` | Alguém interessado, **antes** de virar inscrição. O cartão do funil (§5.16). |
 | **Etapa** | `opportunity_stages` | Coluna do funil. Configurável por tenant. |
 | **Conversa** | `conversations` | O fio com uma pessoa num canal de mensagem (§5.17). |
@@ -128,11 +128,11 @@ E-mail, telefone e endereço, quando vierem preenchidos, são aproveitados; quan
 >
 > Obrigatório bloqueia o envio; opcional nunca bloqueia nada.
 
-**Função é derivada, nunca digitada.** Ela vive no cadastro e é estável: `responsible_id IS NULL ? Responsável : Acompanhante`. Quem é responsável continua responsável em todas as saídas.
+**Função é derivada, nunca digitada.** Ela vive no cadastro e é estável: `responsible_id IS NULL ? Responsável : Acompanhante`. Quem é responsável continua responsável em todos os grupos.
 
 `responsible_id` é preenchido automaticamente pela primeira inscrição em que o cliente entra como acompanhante. Não há campo editável de função no formulário — a mudança acontece pelas operações de reorganização abaixo.
 
-Cada inscrição guarda seu próprio `bookings.responsible_customer_id`, o que preserva o histórico: reorganizar uma família hoje não reescreve quem era o responsável de uma saída do ano passado.
+Cada inscrição guarda seu próprio `bookings.responsible_customer_id`, o que preserva o histórico: reorganizar uma família hoje não reescreve quem era o responsável de um grupo do ano passado.
 
 ### 3.2.1 Reorganização de vínculo familiar
 
@@ -246,23 +246,23 @@ Lotar o grupo bloqueia novas inscrições pelo portal, mas **não mexe nas pende
 
 ### 3.5.1 Expedições fechadas e personalizadas
 
-Casos como "Dimas" e "Supresa 2025": saída montada para um grupo fechado, com roteiro que não existe no catálogo e preço negociado como pacote. Resolvido com dois eixos independentes, sem entidade nova.
+Casos como "Dimas" e "Supresa 2025": viagem montada para um grupo fechado, com roteiro que não existe no catálogo e preço negociado como pacote. Resolvido com dois eixos independentes, sem entidade nova.
 
 **Eixo 1 — natureza do roteiro:** `itineraries.kind`
 
 | `kind` | Comportamento |
 |---|---|
 | `catalog` | Roteiro regular. Aparece na vitrine do portal e no site. |
-| `custom` | Roteiro criado para uma saída específica. Fora da vitrine, fora dos filtros públicos, mas com ficha, fotos e preços próprios como qualquer outro. |
+| `custom` | Roteiro criado para um grupo específico. Fora da vitrine, fora dos filtros públicos, mas com ficha, fotos e preços próprios como qualquer outro. |
 
 **Eixo 2 — visibilidade do grupo:** `groups.visibility`
 
 | `visibility` | Comportamento |
 |---|---|
 | `public` | Aparece na vitrine, aceita inscrição pelo portal. |
-| `private` | Não aparece na vitrine. Inscrição só pelo back-office. Quem já está inscrito enxerga a saída normalmente em "minhas expedições". |
+| `private` | Não aparece na vitrine. Inscrição só pelo back-office. Quem já está inscrito enxerga o grupo normalmente em "minhas expedições". |
 
-Os dois eixos são independentes de propósito: dá para fechar uma saída de roteiro do catálogo (uma Coxilha Rica exclusiva para uma empresa) sem precisar duplicar o roteiro.
+Os dois eixos são independentes de propósito: dá para fechar um grupo de roteiro do catálogo (uma Coxilha Rica exclusiva para uma empresa) sem precisar duplicar o roteiro.
 
 **Eixo 3 — precificação:** `groups.pricing_mode`
 
@@ -302,7 +302,7 @@ Duas audiências no mesmo Supabase Auth, separadas por `app_metadata`:
 | Ver a agenda — **só ver** | Procurar, criar, editar ou apagar outro cliente |
 | Ver as expedições ativas (roteiro `active` + `catalog`, RO-07) | Criar, editar ou apagar roteiro |
 | Se inscrever em uma ou mais expedições | Qualquer tipo de lançamento — recebimento, gasto, pagamento |
-| Postar, curtir e comentar na comunidade | Criar ou apagar saída na agenda |
+| Postar, curtir e comentar na comunidade | Criar ou apagar grupo na agenda |
 | Apagar o **próprio** post ou comentário; remover a **própria** curtida | Apagar publicação, comentário ou curtida de outro |
 | Editar os próprios dados de contato (e-mail, telefone, endereço) | Trocar nome, CPF ou nascimento sem aprovação (PC-07) |
 
@@ -406,7 +406,7 @@ O prefixo visível (`epk_live_drk_`) serve para identificar a chave na interface
 | Escopo | Permite |
 |---|---|
 | `intake:write` | Enviar inscrição pelo webhook |
-| `public:read` | Ler saídas abertas e definição de campos (§5.7.2) |
+| `public:read` | Ler grupos abertos e definição de campos (§5.7.2) |
 
 Escopos adicionais entram conforme a API crescer. A regra é que uma chave nunca ganha permissão por padrão — o tenant marca o que ela pode fazer.
 
@@ -623,7 +623,7 @@ automation_run_steps(id, tenant_id, run_id, node_id, kind,
 | CL-03 | Formulário familiar: 1 responsável + N acompanhantes (limite configurável, default 4), cada um virando cliente próprio com `responsible_id` preenchido. |
 | CL-04 | Busca por nome ou CPF retornando a família inteira. |
 | CL-05 | Veículo com marca e modelo em combobox filtrável por digitação, "Outro" sempre visível, modelo em cascata da marca e placa validada. |
-| CL-06 | Ficha do cliente com abas: **Expedições** (todas as saídas em que participou), **Financeiro** (lançamentos vinculados), **Cashback** (extrato e saldo). |
+| CL-06 | Ficha do cliente com abas: **Expedições** (todos os grupos em que participou), **Financeiro** (lançamentos vinculados), **Cashback** (extrato e saldo). |
 | CL-07 | Merge de clientes duplicados, com reatribuição de histórico. |
 | CL-08 | CPF mascarado em listagens; completo apenas na ficha. |
 | CL-09 | Função (responsável / acompanhante) derivada de `responsible_id`, sem campo editável no cadastro. |
@@ -639,7 +639,7 @@ automation_run_steps(id, tenant_id, run_id, node_id, kind,
 | FO-03 | Ficha com histórico de expedições atendidas, total contratado, total pago, saldo em aberto. |
 | FO-04 | Categoria do fornecedor, selecionada no cadastro e na edição, com criação inline pelo próprio seletor. Aparece como coluna no índice e na ficha. |
 | FO-05 | Gerência do catálogo de categorias na tela de Fornecedores: listar, renomear e excluir. Renomear exige owner ou admin, porque alcança o histórico. **Excluir é bloqueado enquanto houver fornecedor na categoria** — o caminho é recategorizar os fornecedores antes. |
-| FO-06 | Relatório de gastos por categoria: contratado, pago e em aberto por categoria, na **mesma janela do fechamento por saída** (data de início da saída e roteiro), de modo que os dois somem o mesmo total de gastos. Gasto de fornecedor sem categoria vira a linha "Sem categoria", nunca some. |
+| FO-06 | Relatório de gastos por categoria: contratado, pago e em aberto por categoria, na **mesma janela do fechamento por grupo** (data de início do grupo e roteiro), de modo que os dois somem o mesmo total de gastos. Gasto de fornecedor sem categoria vira a linha "Sem categoria", nunca some. |
 | FO-07 | **Chave PIX do fornecedor**, no cadastro e na edição. O tipo (CPF, CNPJ, e-mail, celular ou aleatória) **não é escolhido em seletor: sai da própria chave**, reconhecido na borda — quem cadastra cola o que o fornecedor mandou. Chave inválida é recusada com `422`. Guardada normalizada (dígitos, E.164 ou caixa baixa) e devolvida **formatada e inteira, nunca mascarada**: chave mascarada não se copia para o app do banco, e a área de fornecedor é só da equipe (SEC-01). |
 
 > **A categoria é do fornecedor, não do gasto (FO-04..FO-06).** O gasto herda a categoria do
@@ -657,7 +657,7 @@ automation_run_steps(id, tenant_id, run_id, node_id, kind,
 | ID | Requisito |
 |---|---|
 | RO-01 | Cadastro: nome, descrição rica, dificuldade, galeria de fotos (Supabase Storage, path por tenant). |
-| RO-07 | **Para o cliente, a galeria é catálogo**: quem tem conta vê a ficha e as fotos de qualquer roteiro **ativo e `kind: catalog`** do tenant, mesmo sem nunca ter viajado — a galeria vive dentro da apresentação do roteiro, e foto sem nome não é apresentação. **Roteiro `custom` fica fora** (§3.5.1): saída fechada não entra em vitrine. Some-se a isso o roteiro de qualquer saída da própria família, mesmo `custom` ou arquivado, para o histórico do PC-09 não sumir. **Não abre** `itinerary_prices`, `schedule_events` nem `groups`: preço de catálogo é decisão comercial, e o cliente lê só o preço da própria saída (§3.7). |
+| RO-07 | **Para o cliente, a galeria é catálogo**: quem tem conta vê a ficha e as fotos de qualquer roteiro **ativo e `kind: catalog`** do tenant, mesmo sem nunca ter viajado — a galeria vive dentro da apresentação do roteiro, e foto sem nome não é apresentação. **Roteiro `custom` fica fora** (§3.5.1): grupo fechado não entra em vitrine. Some-se a isso o roteiro de qualquer grupo da própria família, mesmo `custom` ou arquivado, para o histórico do PC-09 não sumir. **Não abre** `itinerary_prices`, `schedule_events` nem `groups`: preço de catálogo é decisão comercial, e o cliente lê só o preço do próprio grupo (§3.7). |
 | RO-02 | Configuração das faixas etárias e dos valores das 5 categorias, por roteiro, herdando o padrão da empresa. |
 | RO-03 | Preços versionados por `valid_from`. |
 | RO-04 | `kind: catalog \| custom` — roteiro personalizado fica fora da vitrine e dos filtros públicos. |
@@ -683,7 +683,7 @@ Uma linha por **família**. Colunas: família/responsável, participantes com ca
 | ID | Requisito |
 |---|---|
 | GR-01 | Adicionar participantes buscando por nome ou CPF de qualquer cliente cadastrado. |
-| GR-02 | Ao encontrar, exibir a família completa e permitir **selecionar quais membros participam** — nem todos vão em toda saída. |
+| GR-02 | Ao encontrar, exibir a família completa e permitir **selecionar quais membros participam** — nem todos vão em todo grupo. |
 | GR-03 | Cálculo automático pelo algoritmo de §3.4, com categoria e valor congelados por participante. |
 | GR-04 | Override manual de valor, por participante ou por inscrição, com motivo obrigatório. |
 | GR-05 | Linha expansível para lançar recebimentos: data, valor, forma (pix / boleto / cartão / dinheiro). |
@@ -691,7 +691,7 @@ Uma linha por **família**. Colunas: família/responsável, participantes com ca
 | GR-07 | Totais no rodapé: contratado, recebido, a receber. |
 | GR-12 | Inscrições pendentes aparecem na lista, visualmente distintas das confirmadas, e não ocupam vaga. |
 | GR-13 | Totais separados entre confirmado e projetado (confirmado + pendente), para não inflar previsão de caixa. |
-| GR-14 | Check-in da inscrição na saída, feito na mesa pela equipe ou pelo cliente no app, com registro de quem marcou e quando. |
+| GR-14 | Check-in da inscrição no grupo, feito na mesa pela equipe ou pelo cliente no app, com registro de quem marcou e quando. |
 | GR-17 | **Lista do comboio**, em PDF ou XLSX à escolha: condutor, marca, modelo e placa, uma linha por inscrição confirmada, com o veículo do condutor da empresa (CF-04) à frente. Inscrição sem veículo cadastrado **aparece com o campo vazio** — o documento denuncia o que falta em vez de esconder um carro do comboio. |
 | GR-16 | **Lista do seguro em XLSX**, no modelo da seguradora: uma linha **por pessoa** (responsável e acompanhantes) das inscrições confirmadas, com CPF, nome, nascimento, e-mail e telefone. Sem o condutor da empresa — ele tem seguro próprio. Gerado sob demanda, restrito a owner/admin e registrado na trilha. |
 | GR-15 | **Roomlist do grupo em PDF**, para enviar ao hotel: um registro por inscrição **confirmada**, com nome, CPF, nascimento, e-mail, telefone e endereço do responsável, e nome e nascimento dos acompanhantes daquela inscrição. O primeiro registro é sempre o **condutor da empresa**. Gerado sob demanda, **nunca armazenado**, restrito a owner/admin e registrado na trilha. |
@@ -700,7 +700,7 @@ Uma linha por **família**. Colunas: família/responsável, participantes com ca
 
 > **Por que o documento não traz data (GR-15):** a expedição nem sempre dorme no mesmo hotel a viagem inteira. Uma data impressa que não é a da estadia daquele hotel gera confusão na recepção, e a correção custa telefonema. O período de cada hotel é combinado direto com ele; o documento responde **quem chega e quantos são**. A data de nascimento continua, porque é dado do hóspede — o hotel a exige no check-in.
 
-> **Por que a roomlist não é guardada (GR-15):** o arquivo é uma cópia consolidada de CPF e endereço de todas as famílias da saída. Guardá-lo criaria um segundo lugar onde esse dado vive, que envelhece sozinho e precisa ser eliminado junto com o cadastro (§11.5). Gerar na hora custa milissegundos e mantém uma fonte só — o mesmo raciocínio que dispensou o PDF do Termo (DOC-08).
+> **Por que a roomlist não é guardada (GR-15):** o arquivo é uma cópia consolidada de CPF e endereço de todas as famílias do grupo. Guardá-lo criaria um segundo lugar onde esse dado vive, que envelhece sozinho e precisa ser eliminado junto com o cadastro (§11.5). Gerar na hora custa milissegundos e mantém uma fonte só — o mesmo raciocínio que dispensou o PDF do Termo (DOC-08).
 
 > **Por que só confirmadas:** é quem ocupa vaga (GR-12). Mandar pendente ao hotel é reservar quarto para quem ainda pode não ir, e a correção depois custa mais que a segunda geração do documento.
 
@@ -736,8 +736,8 @@ Uma linha por **fornecedor**. Colunas: fornecedor, descrição, valor total, val
 | IN-10 | Confirmação manual sem pagamento disponível como exceção (cortesia, permuta, acerto fora do sistema), com motivo obrigatório registrado em `confirmed_note`. |
 | IN-11 | Excluir o único pagamento de uma inscrição confirmada **não** reverte o status automaticamente — o sistema alerta e exige decisão explícita. |
 | IN-12 | Fila de inscrições pendentes com recusar (motivo obrigatório) e alerta de pendência parada há mais de **24 horas**, configurável. |
-| IN-13 | **Recusa é sempre manual.** O sistema nunca recusa nem expira inscrição sozinho, inclusive quando a saída lota. |
-| IN-14 | Pendente em saída lotada recebe destaque na fila, com a indicação de que não há mais vaga — a decisão de recusar ou abrir vaga extra é sua. |
+| IN-13 | **Recusa é sempre manual.** O sistema nunca recusa nem expira inscrição sozinho, inclusive quando o grupo lota. |
+| IN-14 | Pendente em grupo lotado recebe destaque na fila, com a indicação de que não há mais vaga — a decisão de recusar ou abrir vaga extra é sua. |
 | IN-15 | **Cancelamento é feito apenas pela equipe**, com motivo obrigatório. O cliente não cancela pelo portal; a solicitação chega por contato direto. |
 | IN-16 | Cancelar inscrição com pagamento lançado não apaga o recebimento — o valor fica no ledger e o tratamento (devolução, crédito, retenção) é decidido caso a caso. |
 | IN-17 | Fila de alocação com estados `received`, `needs_allocation`, `allocated`, `discarded`, `error`. |
@@ -749,8 +749,8 @@ Uma linha por **fornecedor**. Colunas: fornecedor, descrição, valor total, val
 | IN-22 | Chave conferida antes de qualquer gravação; inválida, revogada, expirada, sem escopo ou de outro tenant → `401`. |
 | IN-23 | Rate limit por chave, não por IP. |
 | IN-24 | `GET /groups?status=open` e `GET /form-schema` como leitura pública, com CORS restrito aos domínios do tenant. |
-| IN-25 | **Link público de inscrição**, para o botão do site de apresentação: `/inscricao?roteiro=<slug>&saida=<mes-ano>` abre uma página hospedada por nós, com o roteiro e a saída já resolvidos. Os parâmetros são **próprios**, não `utm_*` — bloqueador de anúncio e encurtador de link removem ou reescrevem `utm_*`, e a inscrição chegaria sem saber para onde é; as `utm_*` viajam junto e são guardadas como origem comercial. O mês vai em pt-BR abreviado (`jan-27`) porque quem cola o link num anúncio precisa conseguir ler o que está colando. **Casado o mês, a página não oferece outra data**: a escolha aconteceu no site, diante do calendário, e repeti-la aqui reabre uma decisão tomada e convida a hesitar no último passo — a exceção é o mês com duas saídas, em que `nov-26` é ambíguo e desambiguar não é oferecer. **Link sem data não errou nada**: ele é o do post genérico, o do perfil, o que alguém mandou no grupo, e quem chegou por ele veio para escolher — abre direto com as próximas saídas, sem aviso nenhum. O aviso é para quem chegou com uma data que não deu certo, e aí diz qual dos dois problemas foi: ela fechou, ou não se consegue lê-la. **Link velho não fecha a porta**: mês sem saída — anúncio que continuou rodando, saída cancelada — abre a página assim mesmo, com as outras datas do roteiro à vista, porque quem clicou é um interessado como qualquer outro. A recusa é **uma só** para tenant inexistente, roteiro inexistente e roteiro que não é de vitrine (§11: não confirmar o que não é público). Toda a superfície sem autenticação vive num arquivo só, que é o que torna "o que um estranho alcança?" uma pergunta com resposta. |
-| IN-25b | **A inscrição feita na página pública entra na fila**, como toda inscrição — com a saída **já escolhida** pelo link, que é o que a equipe ganha: aloca num clique em vez de adivinhar a data. Formulário completo (responsável e cada acompanhante com CPF e nascimento), porque sem o nascimento de cada um não há faixa etária e sem faixa etária não há preço (§3.4). O aceite do termo é capturado aqui (DOC-04) e cobre explicitamente o dado das crianças que o responsável informa por elas (SEC-11). **O servidor nunca confia no grupo que o navegador manda**: ele é conferido contra as saídas do roteiro do link — sem isso, editar a requisição inscreveria alguém numa saída privada e o preço dela seria congelado como legítimo. O endereço do responsável entra pelo mesmo bloco do cadastro, com o mesmo autocomplete por CEP (CL-02), e é **opcional** como lá: é o último passo, que é onde se desiste, e um campo a mais para a equipe pedir depois custa menos que uma inscrição não enviada. Marca e modelo do veículo entram pelo **catálogo** (CL-05), em combobox filtrável com "Outro" sempre visível: texto livre produziria "hilux", "Hillux" e "Toyota Hilux" — três veículos onde há um, descobertos no dia do comboio. O catálogo é lido por rota pública do tenant do link, e catálogo vazio ou fora do ar cai no "Outro", que é texto livre — a inscrição nunca para por causa dele. Origem `site`, que não gera cashback (CB-09): quem chega por um anúncio pode nem ser cliente. Duas submissões da mesma pessoa na mesma saída são **uma** inscrição — duplo clique em celular acontece, porque a resposta demora o tempo de uma rede móvel. |
+| IN-25 | **Link público de inscrição**, para o botão do site de apresentação: `/inscricao?roteiro=<slug>&saida=<mes-ano>` abre uma página hospedada por nós, com o roteiro e o grupo já resolvidos. Os parâmetros são **próprios**, não `utm_*` — bloqueador de anúncio e encurtador de link removem ou reescrevem `utm_*`, e a inscrição chegaria sem saber para onde é; as `utm_*` viajam junto e são guardadas como origem comercial. O mês vai em pt-BR abreviado (`jan-27`) porque quem cola o link num anúncio precisa conseguir ler o que está colando. **Casado o mês, a página não oferece outra data**: a escolha aconteceu no site, diante do calendário, e repeti-la aqui reabre uma decisão tomada e convida a hesitar no último passo — a exceção é o mês com dois grupos, em que `nov-26` é ambíguo e desambiguar não é oferecer. **Link sem data não errou nada**: ele é o do post genérico, o do perfil, o que alguém mandou no grupo, e quem chegou por ele veio para escolher — abre direto com os próximos grupos, sem aviso nenhum. O aviso é para quem chegou com uma data que não deu certo, e aí diz qual dos dois problemas foi: ela fechou, ou não se consegue lê-la. **Link velho não fecha a porta**: mês sem grupo — anúncio que continuou rodando, grupo cancelado — abre a página assim mesmo, com as outras datas do roteiro à vista, porque quem clicou é um interessado como qualquer outro. A recusa é **uma só** para tenant inexistente, roteiro inexistente e roteiro que não é de vitrine (§11: não confirmar o que não é público). Toda a superfície sem autenticação vive num arquivo só, que é o que torna "o que um estranho alcança?" uma pergunta com resposta. |
+| IN-25b | **A inscrição feita na página pública entra na fila**, como toda inscrição — com o grupo **já escolhido** pelo link, que é o que a equipe ganha: aloca num clique em vez de adivinhar a data. Formulário completo (responsável e cada acompanhante com CPF e nascimento), porque sem o nascimento de cada um não há faixa etária e sem faixa etária não há preço (§3.4). O aceite do termo é capturado aqui (DOC-04) e cobre explicitamente o dado das crianças que o responsável informa por elas (SEC-11). **O servidor nunca confia no grupo que o navegador manda**: ele é conferido contra os grupos do roteiro do link — sem isso, editar a requisição inscreveria alguém num grupo privado e o preço dela seria congelado como legítimo. O endereço do responsável entra pelo mesmo bloco do cadastro, com o mesmo autocomplete por CEP (CL-02), e é **opcional** como lá: é o último passo, que é onde se desiste, e um campo a mais para a equipe pedir depois custa menos que uma inscrição não enviada. Marca e modelo do veículo entram pelo **catálogo** (CL-05), em combobox filtrável com "Outro" sempre visível: texto livre produziria "hilux", "Hillux" e "Toyota Hilux" — três veículos onde há um, descobertos no dia do comboio. O catálogo é lido por rota pública do tenant do link, e catálogo vazio ou fora do ar cai no "Outro", que é texto livre — a inscrição nunca para por causa dele. Origem `site`, que não gera cashback (CB-09): quem chega por um anúncio pode nem ser cliente. Duas submissões da mesma pessoa no mesmo grupo são **uma** inscrição — duplo clique em celular acontece, porque a resposta demora o tempo de uma rede móvel. |
 | SEC-20 | **A escrita pública se defende sem segredo.** A página é pública e qualquer chave embutida nela vazaria no primeiro "ver código-fonte", então a proteção é outra: limite de 5/min por IP (escrita não é leitura), teto de corpo de 16 KB — o padrão de 1 MB, no limite de taxa, encheria o banco de graça —, e contrato **fechado**, com toda chave conhecida, todo texto com teto e número máximo de acompanhantes. O webhook aceita corpo arbitrário porque o formulário é de terceiro; aqui o formulário é nosso, e não há motivo para aceitar o que não se pediu. A defesa que de fato importa é a fila: **nada vira cliente nem inscrição sem alguém alocar**. Captcha de terceiro fica fora — seria dependência de rede no caminho de conversão, um terceiro vendo o IP de todo interessado, e `script-src` de outro domínio na CSP — e entra no dia em que o abuso aparecer. |
 
 #### 5.7.1 Contrato de entrada
@@ -887,7 +887,7 @@ Isso transforma um problema sem solução técnica em um estado observável: em 
 
 **A inscrição que chega pelo webhook não vira `booking` na hora.** Ela entra na fila como `intake_event` sem grupo, e é o admin que aloca.
 
-Isso vem do fato de o formulário ser por **roteiro**, não por saída: alguém pode se inscrever hoje para uma Coxilha Rica de dezembro, e não necessariamente para a próxima. Adivinhar a data erra, e errar aqui significa colocar a família no grupo errado — com preço congelado da data errada.
+Isso vem do fato de o formulário ser por **roteiro**, não por grupo: alguém pode se inscrever hoje para uma Coxilha Rica de dezembro, e não necessariamente para a próxima. Adivinhar a data erra, e errar aqui significa colocar a família no grupo errado — com preço congelado da data errada.
 
 **Estados**
 
@@ -909,7 +909,7 @@ received → needs_allocation → allocated
 
 Ao alocar, o sistema em uma transação: cria ou reaproveita o cliente por CPF, cria os acompanhantes vinculados, cria o `booking` em `pending`, resolve a categoria de cada participante **pela data de início daquele grupo** e congela os preços.
 
-> **Por que congelar só na alocação:** faixa etária é calculada na data de início da saída (§3.4). Sem grupo definido não existe data, e sem data não existe preço. Congelar na chegada exigiria adivinhar a saída — exatamente o que a fila evita.
+> **Por que congelar só na alocação:** faixa etária é calculada na data de início do grupo (§3.4). Sem grupo definido não existe data, e sem data não existe preço. Congelar na chegada exigiria adivinhar o grupo — exatamente o que a fila evita.
 
 **O formulário não pergunta a data. Decisão de conversão, não de arquitetura.**
 
@@ -927,14 +927,14 @@ A sugestão é só um atalho da tela, nunca uma decisão automática: nada é al
 **Duas configurações que ajudam sem tocar no formulário:**
 
 - **Mapa `form_id` → roteiro**, em Configurações → Integrações. Custo zero na origem, e evita casar roteiro por `form_title` — que quebra no dia em que você renomear o formulário.
-- **Campo oculto `group_ref`**, opcional, para tenants cujo formulário seja por saída. Quando vem, a alocação é automática e a fila serve de conferência. O formulário da Drakkar não usa.
+- **Campo oculto `group_ref`**, opcional, para tenants cujo formulário seja por grupo. Quando vem, a alocação é automática e a fila serve de conferência. O formulário da Drakkar não usa.
 
 **Endpoints de leitura**
 
 ```
 GET /v1/public/{tenant_slug}/groups?status=open
 ```
-Saídas abertas: `group_ref`, roteiro, datas, vagas restantes e preços das 5 categorias. Serve a integrações que precisem montar agenda, calculadora de preço ou formulário por saída. O formulário da Drakkar não consome.
+Saídas abertas: `group_ref`, roteiro, datas, vagas restantes e preços das 5 categorias. Serve a integrações que precisem montar agenda, calculadora de preço ou formulário por grupo. O formulário da Drakkar não consome.
 
 ```
 GET /v1/public/{tenant_slug}/form-schema
@@ -957,7 +957,7 @@ A regra vive nas configurações da empresa e pode ser sobrescrita por grupo, o 
 | `cashback_mode` | `percent` ou `fixed` | `percent` |
 | `cashback_value` | % ou valor em centavos | `0` |
 | `cashback_base` | `paid` (valor pago) ou `contracted` (valor da inscrição) | `paid` |
-| `cashback_release_days` | dias após o término da saída | `0` |
+| `cashback_release_days` | dias após o término do grupo | `0` |
 | `cashback_validity_months` | validade do crédito; `0` = sem prazo | `0` |
 | `cashback_max_redemption_pct` | teto de uso numa inscrição; `0` = sem teto | `0` |
 
@@ -972,10 +972,10 @@ Todos os valores **nascem zerados** e o módulo nasce desligado. Nada de default
 | Estado | Efeito |
 |---|---|
 | `inherit` (default) | Segue a configuração da empresa, seja ela qual for |
-| `off` | Esta saída não gera crédito, mesmo com o módulo ligado |
-| `custom` | Regra própria: `mode`, `value` e demais parâmetros só desta saída |
+| `off` | Este grupo não gera crédito, mesmo com o módulo ligado |
+| `custom` | Regra própria: `mode`, `value` e demais parâmetros só deste grupo |
 
-Booleano não bastaria: "herdar" e "ligado" são coisas diferentes. Se o override fosse `true/false`, desligar o módulo geral deixaria todo grupo marcado `true` gerando crédito, ou obrigaria a varrer os grupos a cada mudança de configuração. Com `inherit` explícito, a saída acompanha o padrão sem congelá-lo.
+Booleano não bastaria: "herdar" e "ligado" são coisas diferentes. Se o override fosse `true/false`, desligar o módulo geral deixaria todo grupo marcado `true` gerando crédito, ou obrigaria a varrer os grupos a cada mudança de configuração. Com `inherit` explícito, o grupo acompanha o padrão sem congelá-lo.
 
 Isso é o que permite usar cashback como **campanha**: módulo desligado por padrão, e um grupo específico com `custom` — "nesta expedição, R$ 300 de crédito" — sem afetar o resto.
 
@@ -984,12 +984,12 @@ Isso é o que permite usar cashback como **campanha**: módulo desligado por pad
 | CB-01 | Regra por percentual **ou** valor fixo, definida nas configurações da empresa. |
 | CB-02 | Switch geral no tenant e override por grupo em três estados (`inherit`, `off`, `custom`), permitindo campanha pontual sem mexer no padrão. |
 | CB-03 | Crédito calculado sobre a base configurada e lançado ao **responsável da inscrição**, não rateado entre a família. |
-| CB-04 | Liberação após o término da saída, conforme `cashback_release_days`. Saída cancelada não gera crédito. |
+| CB-04 | Liberação após o término do grupo, conforme `cashback_release_days`. Grupo cancelado não gera crédito. |
 | CB-05 | Resgate aplicado como lançamento negativo na inscrição — nunca alterando o valor congelado do participante. |
 | CB-06 | Teto de resgate por inscrição, para o cashback não zerar uma venda. |
 | CB-07 | Validade configurável, com entrada `expiry` automática no vencimento e aviso ao cliente antes disso. |
 | CB-08 | Extrato e saldo na ficha do cliente e no portal, sempre derivados de `cashback_entries`. |
-| CB-09 | **A regra vigente é congelada na inscrição.** Mudar o percentual amanhã não altera o crédito de uma saída de ontem. |
+| CB-09 | **A regra vigente é congelada na inscrição.** Mudar o percentual amanhã não altera o crédito de um grupo de ontem. |
 
 > **Por que CB-09:** cashback é passivo — dinheiro que a empresa deve ao cliente. Recalcular crédito antigo quando a configuração muda gera saldo que não bate com o que o cliente viu, e é o mesmo raciocínio do snapshot de preço em §3.5.
 
@@ -1063,14 +1063,14 @@ O portal é a visão do próprio cliente dentro do sistema — mesma base de dad
 
 | ID | Requisito |
 |---|---|
-| PC-13 | Vitrine das saídas abertas: roteiro, datas, descrição, fotos e vagas restantes. |
+| PC-13 | Vitrine dos grupos abertos: roteiro, datas, descrição, fotos e vagas restantes. |
 | PC-14 | Botão de inscrição abre uma tela única já preenchida com o responsável e o veículo do cadastro. |
 | PC-15 | A família aparece em lista com checkbox — **o único passo obrigatório é marcar quem vai.** |
 | PC-16 | Preço recalculado ao vivo a cada marcação, mostrando a composição (base casal ou solo + adicionais) conforme §3.4. |
-| PC-17 | Idade de cada acompanhante calculada na data de início da saída, com a categoria exibida ao lado do nome. |
+| PC-17 | Idade de cada acompanhante calculada na data de início do grupo, com a categoria exibida ao lado do nome. |
 | PC-18 | Cadastrar acompanhante novo sem sair do fluxo. |
 | PC-19 | Inscrição pelo portal entra sempre como `pending`. Não existe confirmação automática. |
-| PC-20 | Vitrine só bloqueia a inscrição quando a saída tem limite definido **e** as confirmadas já preencheram as vagas. |
+| PC-20 | Vitrine só bloqueia a inscrição quando o grupo tem limite definido **e** as confirmadas já preencheram as vagas. |
 | PC-21 | Inscrição criada pelo portal grava `source: portal`, com preços congelados no ato como qualquer outra. |
 | PC-22 | A tela deixa explícito que **a vaga só é garantida após o primeiro pagamento**, antes de o cliente confirmar o envio. |
 | PC-23 | Cliente recebe "inscrição recebida" no envio, com as instruções de pagamento, e "inscrição confirmada" quando a equipe lançar o primeiro recebimento. |
@@ -1109,7 +1109,7 @@ Código promocional que abate valor de uma inscrição. Nasce no back-office —
 | Id | Requisito |
 |---|---|
 | CP-01 | Cupom por tenant: código único, desconto **percentual ou valor fixo**, ativo/inativo e janela de validade opcional (de/até). |
-| CP-02 | Escopo opcional: válido só para um roteiro **ou** só para uma saída. Sem escopo, vale para qualquer inscrição do tenant. |
+| CP-02 | Escopo opcional: válido só para um roteiro **ou** só para um grupo. Sem escopo, vale para qualquer inscrição do tenant. |
 | CP-03 | Nominal opcional: cupom emitido para um cliente específico; o responsável de outra inscrição não consegue aplicá-lo. |
 | CP-04 | Limite de usos **total** e **por cliente**, contados sobre resgates ativos. Sem limite declarado, uso livre. |
 | CP-05 | O desconto **não altera o valor congelado do participante** (§3.4): entra como linha própria e o contratado da inscrição passa a ser a soma dos unitários menos o desconto. |
@@ -1327,7 +1327,7 @@ dias → se não respondeu, mande esta mensagem"*.
 | AU-09 | Texto de mensagem aceita variáveis do contexto (`{{contato.nome}}`). Variável ausente vira vazio, nunca o marcador cru na cara do cliente. |
 | AU-10 | Automação é **só da equipe**: o cliente não vê, não dispara e não aparece na lista. A tabela nasce sem policy de cliente (como §5.17). |
 | AU-11 | Execução com falha guarda o motivo e não repete sozinha para sempre: há teto de tentativas, e o que estourou fica visível na tela em vez de sumir. |
-| AU-12 | Gatilho **temporal**: dispara em relação à data de início de uma saída — N dias antes ou depois. Não é despertador: a varredura pergunta o que está vencido, então processo fora do ar não perde disparo (quando voltar, continua vencido). Disparo duplo é impedido por **chave única** (automação + entidade + ocorrência), não pela precisão do relógio. |
+| AU-12 | Gatilho **temporal**: dispara em relação à data de início de um grupo — N dias antes ou depois. Não é despertador: a varredura pergunta o que está vencido, então processo fora do ar não perde disparo (quando voltar, continua vencido). Disparo duplo é impedido por **chave única** (automação + entidade + ocorrência), não pela precisão do relógio. |
 | AU-13 | Ligar uma automação que **toca dinheiro** — confirmar inscrição, emitir cobrança — exige confirmação à parte da que liga as outras, dizendo em texto o que ela vai fazer sozinha. É o mesmo cuidado da exclusão de recebimento (IN-09): a ação é reversível no papel e cara na prática. |
 | AU-14 | O **gatilho é um bloco do quadro**, e só um por automação. Criar pede o nome e abre o quadro; a automação nasce sem gatilho, e sem gatilho não liga. A coluna `trigger_type` — que existe porque cada evento procura por ela em milissegundos — é **cópia derivada do bloco** a cada salvamento, nunca escolhida à parte: duas fontes para o mesmo fato é como uma automação passa a reagir a um evento que ninguém desenhou. |
 | AU-15 | Bloco de **escolha múltipla**: compara um campo com vários valores e sai por um caminho por valor, mais o padrão. A saída carrega o **id do valor**, não a posição — apagar o primeiro valor não pode fazer a ligação do segundo apontar para o terceiro, em silêncio, depois de salvo. Toda saída precisa de caminho, inclusive o padrão, e escolha sem valor nenhum é recusada. |
@@ -1345,7 +1345,7 @@ dias → se não respondeu, mande esta mensagem"*.
 | AU-26 | **Os pequenos que fazem o dia render.** **Duplicar** automação: a cópia leva desenho e gatilho, ganha nome livre ("(cópia)", "(cópia 2)") e nasce desligada, como toda automação (AU-02). **Desligar um bloco** sem tirá-lo do quadro, para quem tem uma saída só — desvio desligado não tem resposta, porque não diz por qual lado o fluxo sai. **O valor lido no log**: o passo de condição e de escolha guarda o campo *e o que estava nele*, porque "saiu pelo não" é metade da resposta. |
 
 | AU-27 | **O bloco aberto mostra o que entra e o que sai**, num painel **sobre o quadro**: à esquerda o contexto que **chegou** nele — o que o bloco anterior entregou —, no meio a configuração, à direita o que ele **produziu**. É a resposta para a pergunta que trava quem desenha um fluxo, "o bloco de cima me dá o quê?". O painel vive fora do quadro porque dentro dele era desenhado pelo transform do canvas: com zoom, o texto encolhia junto e ficava ilegível justamente num fluxo grande, que é onde o zoom serve para alguma coisa. **Abrir é gesto próprio, e não consequência de selecionar** — enquanto foram a mesma coisa, clicar num bloco para movê-lo escancarava um formulário e a tecla de apagar alcançava o bloco enquanto se digitava. Com um ensaio rodado (AU-25) são os valores de verdade; sem ensaio, os campos que existem. **A variável entra por clique**, na lista da esquerda, e vai **na posição do cursor** do último campo que teve o foco. Numa ação, a saída é o que ela *receberia*: nada é executado, e prometer "mensagem enviada" seria mentira. O ensaio corre sobre **o desenho que está na tela**, e vale só para ele: mexer num bloco e continuar vendo o resultado de antes faria a pessoa concluir a coisa errada sobre a própria mudança. |
-| AU-28 | **Ensaiar com dado de verdade, e não com dezoito campos digitados.** Depois que os gatilhos de inscrição passaram a trazer contato, saída e dinheiro (AU-16), preencher o contexto à mão deixou de ser viável — e quem inventa os valores tira conclusão sobre uma automação que nunca vai receber esses dados. A equipe escolhe uma **inscrição real** numa lista e o servidor monta o contexto pela **mesma função** que a borda usa no gatilho: uma verdade só, para o ensaio não responder por um contexto que a execução não teria. O gatilho de tempo em tempo monta sozinho (é o relógio) e o de webhook segue digitado, porque o corpo é de quem chama. Também dá para ensaiar **em cima de uma execução que já aconteceu**, que responde outra pergunta: escolher uma inscrição é "o que este fluxo faria com esta família?"; escolher uma execução é "por que ele fez o que fez naquele dia?" — a de quem investiga uma mensagem que saiu errada. O contexto dessa execução vem de uma coluna própria, gravada no enfileiramento e **nunca sobrescrita**: as variáveis da execução são reescritas a cada passo pelo motor, e ensaiar em cima delas mostraria o estado do meio do caminho com a cara de ser fiel ao começo. Execução anterior a esse registro aparece na lista **desabilitada, com o motivo** — remendar com o estado final seria oferecer uma resposta que parece certa e não é. Inscrição escolhida que não existe mais é **erro à vista** — ao contrário do gatilho, onde degradar é o certo: ali perder o disparo seria pior; aqui, ler um fluxo inteiro com o contexto vazio faz culpar o desenho. Ensaiar é de **quem faz parte da equipe**, inclusive quem só lê: nada é executado e nada é gravado. E a rota ganhou teto por minuto, porque ensaiar roda as buscas de verdade e cada busca varre a entidade inteira do tenant. |
+| AU-28 | **Ensaiar com dado de verdade, e não com dezoito campos digitados.** Depois que os gatilhos de inscrição passaram a trazer contato, grupo e dinheiro (AU-16), preencher o contexto à mão deixou de ser viável — e quem inventa os valores tira conclusão sobre uma automação que nunca vai receber esses dados. A equipe escolhe uma **inscrição real** numa lista e o servidor monta o contexto pela **mesma função** que a borda usa no gatilho: uma verdade só, para o ensaio não responder por um contexto que a execução não teria. O gatilho de tempo em tempo monta sozinho (é o relógio) e o de webhook segue digitado, porque o corpo é de quem chama. Também dá para ensaiar **em cima de uma execução que já aconteceu**, que responde outra pergunta: escolher uma inscrição é "o que este fluxo faria com esta família?"; escolher uma execução é "por que ele fez o que fez naquele dia?" — a de quem investiga uma mensagem que saiu errada. O contexto dessa execução vem de uma coluna própria, gravada no enfileiramento e **nunca sobrescrita**: as variáveis da execução são reescritas a cada passo pelo motor, e ensaiar em cima delas mostraria o estado do meio do caminho com a cara de ser fiel ao começo. Execução anterior a esse registro aparece na lista **desabilitada, com o motivo** — remendar com o estado final seria oferecer uma resposta que parece certa e não é. Inscrição escolhida que não existe mais é **erro à vista** — ao contrário do gatilho, onde degradar é o certo: ali perder o disparo seria pior; aqui, ler um fluxo inteiro com o contexto vazio faz culpar o desenho. Ensaiar é de **quem faz parte da equipe**, inclusive quem só lê: nada é executado e nada é gravado. E a rota ganhou teto por minuto, porque ensaiar roda as buscas de verdade e cada busca varre a entidade inteira do tenant. |
 
 > **Por que a automação age como uma pessoa, e não como "sistema".** As guardas de audiência
 > (§10.2) recusam ator de sistema em quase toda escrita — é o desenho que impede um webhook de
@@ -1360,7 +1360,7 @@ dias → se não respondeu, mande esta mensagem"*.
 
 
 
-Emissão automática de NFS-e (só o gancho fica previsto) · conversão multi-moeda · uso offline · comunidade cross-tenant · **mensagem direta entre clientes** (segue fora: o §5.17 abre equipe ↔ pessoa de fora, nunca cliente ↔ cliente) · **chat no portal do cliente** (AT-11) · **mídia nas conversas** (AT-13) · **editor de campos personalizados** (as colunas `jsonb` e a tabela de definição entram desde já; a tela de edição espera o segundo tenant, §3.8) · ~~formulário público hospedado~~ — **entrou** (IN-25): o link do site de apresentação abre uma página nossa, com roteiro e saída já resolvidos. O tenant continua dono do próprio site; o que passou a ser nosso é a tela em que a inscrição é feita, porque é ela que sabe qual saída o botão escolheu · publicação nas lojas antes do sistema estar em uso real.
+Emissão automática de NFS-e (só o gancho fica previsto) · conversão multi-moeda · uso offline · comunidade cross-tenant · **mensagem direta entre clientes** (segue fora: o §5.17 abre equipe ↔ pessoa de fora, nunca cliente ↔ cliente) · **chat no portal do cliente** (AT-11) · **mídia nas conversas** (AT-13) · **editor de campos personalizados** (as colunas `jsonb` e a tabela de definição entram desde já; a tela de edição espera o segundo tenant, §3.8) · ~~formulário público hospedado~~ — **entrou** (IN-25): o link do site de apresentação abre uma página nossa, com roteiro e grupo já resolvidos. O tenant continua dono do próprio site; o que passou a ser nosso é a tela em que a inscrição é feita, porque é ela que sabe qual grupo o botão escolheu · publicação nas lojas antes do sistema estar em uso real.
 
 ---
 
@@ -1370,12 +1370,12 @@ Emissão automática de NFS-e (só o gancho fica previsto) · conversão multi-m
 |---|---|---|
 | 0 | Tenancy, auth, RLS, Prisma extension, schema, seed do catálogo, harness de testes e CI | Suíte de RLS provando isolamento entre tenants, rodando no CI |
 | 1 | Clientes e famílias, fornecedores, roteiros, configurações | Catálogo de veículos e roteiros semeados; cadastro de um cliente real ponta a ponta |
-| 2 | Agenda + grupos + inscrição manual | Uma saída real montada ponta a ponta |
-| 3 | Financeiro: recebimentos, gastos, pagamentos, NF, margem | Uma saída fechada sem planilha |
+| 2 | Agenda + grupos + inscrição manual | Um grupo real montado ponta a ponta |
+| 3 | Financeiro: recebimentos, gastos, pagamentos, NF, margem | Um grupo fechado sem planilha |
 | 4 | Webhook + fila de revisão | Inscrição real entrando sozinha e correta |
 | 5 | Históricos consolidados + cashback | Extrato do cliente batendo com o ledger |
 | 6 | Push + e-mail marketing | Primeira campanha enviada |
-| 7 | Portal do cliente: magic link, meus dados, minhas expedições, extrato, inscrição em 1 clique | Primeiro cliente se inscrevendo sozinho numa saída |
+| 7 | Portal do cliente: magic link, meus dados, minhas expedições, extrato, inscrição em 1 clique | Primeiro cliente se inscrevendo sozinho num grupo |
 | 8 | Comunidade: feed de fotos, curtidas, comentários, moderação | Primeiro post publicado e fila de moderação funcionando |
 | 9 | Empacotamento Capacitor (Android → iOS) | App instalado e em uso |
 
@@ -1395,7 +1395,7 @@ Emissão automática de NFS-e (só o gancho fica previsto) · conversão multi-m
 | `external_id` não único por origem | Inscrição válida descartada como duplicata, em silêncio | Campo opcional; quando enviado, id sequencial precisa ser composto. Deduplicação real por `(group_ref, cpf)` + constraint em `bookings` |
 | Campos personalizados virando muleta | Regra de negócio dependendo de `jsonb` sem tipo nem índice | `custom_fields` restrito a exibição, filtro e exportação — nunca a cálculo |
 | Origem externa divergindo do contrato | Inscrição rejeitada ou campo perdido sem ninguém notar | Perfil de mapeamento por `source`; `422` com o campo culpado; campo desconhecido vira aviso na fila, não erro |
-| Fila de alocação acumulando | Cliente inscrito sem saída definida, esperando resposta | Contador na home, alerta de item parado, ordenação por tempo de espera |
+| Fila de alocação acumulando | Cliente inscrito sem grupo definido, esperando resposta | Contador na home, alerta de item parado, ordenação por tempo de espera |
 | Reajuste reescrevendo o passado | Histórico inconsistente | Preços versionados + snapshot no participante |
 | Catálogo de veículos crescendo por texto livre | Sujeira ("SW4", "sw4", "Hilux SW4") | Fila de catalogação com merge |
 | LGPD (CPF, marketing) | Exposição legal | Consentimento por canal, mascaramento, audit log |
@@ -1771,7 +1771,7 @@ Para o seed de `itineraries` (campo `Expedições` do mesmo database):
 
 Soldados Sebold · Coxilha Rica · Urubici 360 · Serra Gaúcha · Pirâmides Sagradas · Quatro Elementos · Caminho Austral · Terra de Gigantes · Vale Europeu · Rota das Cascatas · Caminho das Montanhas · Ametista e Missões · Extremo Sul · Farol de Santa Marta · Personalizado
 
-*"Dimas" e "Supresa 2025" foram saídas pontuais para grupos fechados — entram como `kind: custom` com grupo `private`, conforme §3.5.1, e não como roteiros de catálogo. "Personalizado" também é `custom`.*
+*"Dimas" e "Supresa 2025" foram viagens pontuais para grupos fechados — entram como `kind: custom` com grupo `private`, conforme §3.5.1, e não como roteiros de catálogo. "Personalizado" também é `custom`.*
 
 *Histórico do Notion não será migrado por enquanto. O que é semeado aqui é o catálogo de roteiros e de veículos, não os registros antigos de clientes e financeiro.*
 

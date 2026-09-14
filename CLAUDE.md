@@ -16,17 +16,24 @@ Testes: Vitest · Playwright · Postgres real, nunca mock
 |---|---|---|
 | Roteiro | `itinerary` | Produto: Coxilha Rica, Vale Europeu |
 | Evento de agenda | `scheduleEvent` | Roteiro + datas no calendário |
-| Grupo | `group` | A saída; onde as inscrições vivem |
+| Grupo | `group` | A viagem numa data; onde as inscrições vivem |
 | Inscrição | `booking` | Uma família num grupo |
 | Participante | `bookingParticipant` | Cada pessoa numa inscrição |
 | Cliente | `customer` | Pessoa física, única por `(tenantId, cpf)` |
-| Fornecedor | `supplier` | Parceiro que presta serviço na saída |
+| Fornecedor | `supplier` | Parceiro que presta serviço no grupo |
 | Oportunidade | `opportunity` | Interessado **antes** de virar inscrição — o cartão do funil |
 | Etapa | `stage` | Coluna do funil, configurável por tenant |
 | Conversa | `conversation` | O fio com uma pessoa num canal |
 | Mensagem | `message` | Cada troca dentro de uma conversa |
 
 Nunca traduza de novo. Dois vocabulários = bug de conversa e bug de código.
+
+**"Saída" saiu do vocabulário** (2026-09-14): a tela dizia "saída" e o código dizia `group` —
+os dois vocabulários que a regra acima proíbe, separados por camada em vez de por idioma. Toda
+superfície visível diz **grupo**. A palavra sobrevive em dois sentidos que não são este: a
+**porta de um bloco** de automação (a saída de um nó, oposta à entrada) e o **ato de viajar**
+("levar na viagem" ganhou dela). O parâmetro `?saida=` do link público (IN-25) também fica: é
+contrato de anúncio já publicado, e renomeá-lo quebraria links pagos.
 
 **Oportunidade não é cliente:** `customer` exige CPF, e quem pergunta o preço no WhatsApp não
 tem. Oportunidade nunca vira cliente sozinha — quem promove é a equipe, ao fechar (OP-08).

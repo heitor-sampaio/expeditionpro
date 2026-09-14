@@ -169,7 +169,7 @@ function FamilyAllocation({
         </div>
       )}
 
-      <p className="field-help">Marque quem participa desta saída.</p>
+      <p className="field-help">Marque quem participa deste grupo.</p>
       <div className="members">
         {members.map((member) => (
           <label key={member.id} className="member member-select">

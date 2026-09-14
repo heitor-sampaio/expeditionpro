@@ -212,7 +212,7 @@ export function ExpeditionsTab({
       <div className="state" role="status">
         <div className="state-text">
           <span className="state-title">Nenhuma expedição ainda</span>
-          <span className="state-line">Nenhuma saída registrada ainda.</span>
+          <span className="state-line">Nenhum grupo registrado ainda.</span>
         </div>
       </div>
     );
@@ -338,7 +338,7 @@ export function CashbackTab({
           <div className="state-text">
             <span className="state-title">Sem extrato</span>
             <span className="state-line">
-              Nenhum crédito ou resgate ainda. O cashback é liberado após a saída.
+              Nenhum crédito ou resgate ainda. O cashback é liberado após a viagem.
             </span>
           </div>
         </div>

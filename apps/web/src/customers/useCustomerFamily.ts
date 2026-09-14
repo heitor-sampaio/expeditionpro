@@ -114,7 +114,7 @@ function editErrorFor(code: string): string {
     case 'forbidden':
       return 'Alterar identidade ou remover cadastro exige owner ou admin.';
     case 'has_history':
-      return 'Já participou de uma saída ou tem cashback: o histórico não se apaga.';
+      return 'Já participou de um grupo ou tem cashback: o histórico não se apaga.';
     case 'not_a_companion':
       return 'Só acompanhante pode ser removido aqui.';
     default:

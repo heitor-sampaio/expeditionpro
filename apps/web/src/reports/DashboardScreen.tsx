@@ -17,7 +17,7 @@ export function DashboardScreen({
     <main className="page page-wide">
       <div className="page-header">
         <h1 className="page-title">Visão geral</h1>
-        <p className="page-meta">Confirmado × projetado, a receber e as próximas saídas.</p>
+        <p className="page-meta">Confirmado × projetado, a receber e os próximos grupos.</p>
       </div>
 
       {state.status === 'loading' && (
@@ -90,15 +90,15 @@ function Overview({
 
       <section className="card">
         <div className="panel-head">
-          <h2 className="card-title">Próximas saídas</h2>
+          <h2 className="card-title">Próximos grupos</h2>
         </div>
         {dashboard.upcoming.length === 0 ? (
-          <p className="members-empty">Nenhuma saída futura agendada.</p>
+          <p className="members-empty">Nenhum grupo futuro agendado.</p>
         ) : (
           <div className="tbl-wrap">
             <div className="tbl tbl-upcoming">
               <div className="tbl-row tbl-head">
-                <span>Saída</span>
+                <span>Grupo</span>
                 <span>Datas</span>
                 <span className="col-num">Confirmadas</span>
                 <span className="col-num">Pendentes</span>

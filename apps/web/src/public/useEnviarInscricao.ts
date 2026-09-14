@@ -58,7 +58,7 @@ async function mensagemDe(res: Response): Promise<string> {
     return 'Muitas tentativas em pouco tempo. Espere um minuto e tente de novo.';
   }
   if (res.status === 404) {
-    return 'Esta saída não está mais aberta. Escolha outra data.';
+    return 'Este grupo não está mais aberto. Escolha outra data.';
   }
   if (res.status === 422) {
     // O servidor diz o campo culpado; a tela diz o que fazer com ele.

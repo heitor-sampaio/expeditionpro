@@ -370,7 +370,7 @@ function RestorePriceControl({
     <div className="rowpanel-drawer">
       <h3 className="drawer-title">Restaurar preço de tabela</h3>
       <p className="drawer-sub">
-        Desfaz o ajuste e devolve a inscrição ao preço do roteiro para esta saída. O motivo
+        Desfaz o ajuste e devolve a inscrição ao preço do roteiro para este grupo. O motivo
         registrado no ajuste some junto.
       </p>
       <div className="form-actions">

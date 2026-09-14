@@ -25,7 +25,7 @@ export function FornecedoresScreen({
         <div className="toolbar">
           <div>
             <h1 className="page-title">Fornecedores</h1>
-            <p className="page-meta">Parceiros que prestam serviço nas saídas.</p>
+            <p className="page-meta">Parceiros que prestam serviço nos grupos.</p>
           </div>
           <button
             type="button"
@@ -79,7 +79,7 @@ export function FornecedoresScreen({
           <div className="state-text">
             <span className="state-title">Nenhum fornecedor ainda</span>
             <span className="state-line">
-              Cadastre o primeiro parceiro para lançar gastos nas saídas.
+              Cadastre o primeiro parceiro para lançar gastos nos grupos.
             </span>
           </div>
         </div>

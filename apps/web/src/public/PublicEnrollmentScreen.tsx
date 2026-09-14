@@ -50,7 +50,7 @@ export function PublicEnrollmentScreen({
       <Casca>
         <EstadoSemSaida
           titulo="Este link não leva a uma expedição"
-          linha="Ele pode ter sido encerrado. Fale com a equipe que a gente acha a saída certa para você."
+          linha="Ele pode ter sido encerrado. Fale com a equipe que a gente acha o grupo certo para você."
         />
       </Casca>
     );
@@ -115,7 +115,7 @@ export function PublicEnrollmentScreen({
       {semNenhuma ? (
         <EstadoSemSaida
           titulo="Sem data aberta no momento"
-          linha="As próximas saídas deste roteiro ainda não foram abertas. Fale com a equipe para saber quando entram."
+          linha="Os próximos grupos deste roteiro ainda não foram abertos. Fale com a equipe para saber quando entram."
         />
       ) : (
         <>
@@ -135,7 +135,7 @@ export function PublicEnrollmentScreen({
           )}
 
           <section className="card pub-card">
-            <span className="field-label">{escolhaAberta ? 'Escolha a saída' : 'Sua saída'}</span>
+            <span className="field-label">{escolhaAberta ? 'Escolha o grupo' : 'Seu grupo'}</span>
 
             <div className="enroll-list">
               {opcoes.map((saida) =>

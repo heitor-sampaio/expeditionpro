@@ -106,9 +106,9 @@ export function usePortalEnroll() {
 }
 
 function messageFor(code: string | undefined, status: number): string {
-  if (code === 'already_allocated') return 'Você já tem uma inscrição nessa saída.';
-  if (code === 'group_not_open') return 'Essa saída não está mais aberta para inscrição.';
-  if (code === 'no_price_for_group_date') return 'Essa saída ainda não tem preço definido.';
+  if (code === 'already_allocated') return 'Você já tem uma inscrição nesse grupo.';
+  if (code === 'group_not_open') return 'Esse grupo não está mais aberto para inscrição.';
+  if (code === 'no_price_for_group_date') return 'Esse grupo ainda não tem preço definido.';
   if (status === 403) return 'Você só inscreve a sua própria família.';
   return 'Não foi possível concluir a inscrição. Tente de novo.';
 }

@@ -16,8 +16,8 @@ export interface GroupDocumentAction {
   readonly reason: string | null;
 }
 
-const NEEDS_ROLE = 'Gerar documentos da saída exige owner ou admin.';
-const NO_CONFIRMED = 'Nenhuma inscrição confirmada nesta saída.';
+const NEEDS_ROLE = 'Gerar documentos do grupo exige owner ou admin.';
+const NO_CONFIRMED = 'Nenhuma inscrição confirmada neste grupo.';
 
 export function resolveGroupDocumentAction(input: GroupDocumentInput): GroupDocumentAction {
   // Permissão primeiro: quem não pode gerar não resolve o resto esperando alguém pagar.
@@ -35,7 +35,7 @@ export function documentErrorFor(code: string): string {
     case 'forbidden':
       return NEEDS_ROLE;
     case 'not_found':
-      return 'Esta saída não existe mais.';
+      return 'Este grupo não existe mais.';
     default:
       return 'Não foi possível gerar o documento. Tente de novo.';
   }

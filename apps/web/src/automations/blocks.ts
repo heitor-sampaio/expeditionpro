@@ -76,7 +76,7 @@ export const GATILHOS: readonly BlockType[] = [
     type: 'booking_cancelled',
     kind: 'trigger',
     label: 'Inscrição cancelada',
-    hint: 'Alguém saiu da saída, com motivo',
+    hint: 'Alguém saiu do grupo, com motivo',
     config: {},
   },
   {
@@ -89,7 +89,7 @@ export const GATILHOS: readonly BlockType[] = [
   {
     type: 'scheduled',
     kind: 'trigger',
-    label: 'Tempo: antes ou depois de uma saída',
+    label: 'Tempo: antes ou depois de um grupo',
     hint: 'Tantos dias antes ou depois da data de início',
     config: { offsetDays: -3 },
   },
@@ -431,10 +431,10 @@ export const CAMPOS: Record<string, readonly BlockField[]> = {
   scheduled: [
     {
       key: 'offsetDays',
-      label: 'Dias em relação à saída',
+      label: 'Dias em relação ao grupo',
       kind: 'number',
       placeholder: '-3',
-      help: 'Negativo é antes da saída; positivo, depois. Zero é o dia dela.',
+      help: 'Negativo é antes do grupo; positivo, depois. Zero é o dia dele.',
     },
   ],
   // AU-17: as mesmas chaves do bloco de espera, de propósito — é a mesma pergunta ("quanto

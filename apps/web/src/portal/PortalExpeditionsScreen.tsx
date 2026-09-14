@@ -45,7 +45,7 @@ export function PortalExpeditionsScreen({
       {state.status === 'error' && (
         <div className="state" role="alert">
           <div className="state-text">
-            <span className="state-title">Não deu para carregar as saídas</span>
+            <span className="state-title">Não deu para carregar os grupos</span>
             <span className="state-line is-error">Verifique a conexão e tente de novo.</span>
           </div>
           <div className="state-grow" />
@@ -58,7 +58,7 @@ export function PortalExpeditionsScreen({
       {state.status === 'ready' && state.expeditions.length === 0 && (
         <div className="state" role="status">
           <div className="state-text">
-            <span className="state-title">Nenhuma saída aberta agora</span>
+            <span className="state-title">Nenhum grupo aberto agora</span>
             <span className="state-line">Volte em breve — novas expedições aparecem aqui.</span>
           </div>
         </div>

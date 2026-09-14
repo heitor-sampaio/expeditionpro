@@ -5,11 +5,11 @@ import { resolveGroupDocumentAction } from './groupDocumentAction.js';
 import { NavIcon } from '../ui/NavIcon.js';
 
 /**
- * GR-15/GR-16/GR-17 — os documentos da saída num menu só, ao lado do menu "Saída":
+ * GR-15/GR-16/GR-17 — os documentos do grupo num menu só, ao lado do menu "Grupo":
  * roomlist para o hotel, lista do seguro para o corretor e a do comboio para a estrada.
  *
  * Menu, e não três botões: o cabeçalho tem espaço para dois disparadores, não para
- * cinco, e os três documentos respondem à mesma pergunta ("o que eu levo desta saída?").
+ * cinco, e os três documentos respondem à mesma pergunta ("o que eu levo deste grupo?").
  * Item indisponível fica **visível e desabilitado com o motivo à vista** — esconder a
  * ação esconderia o sistema de quem ainda não tem permissão.
  */
@@ -131,7 +131,7 @@ function ConvoyFormatModal({
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Gerar lista do comboio">
       <div className="modal">
         <h2 className="modal-title">Gerar lista do comboio</h2>
-        <p className="modal-sub">Condutor, marca, modelo e placa de cada carro da saída.</p>
+        <p className="modal-sub">Condutor, marca, modelo e placa de cada carro do grupo.</p>
 
         <label className="check-row">
           <input
@@ -140,7 +140,7 @@ function ConvoyFormatModal({
             checked={format === 'pdf'}
             onChange={() => setFormat('pdf')}
           />
-          <span>PDF — para imprimir e levar na saída</span>
+          <span>PDF — para imprimir e levar na viagem</span>
         </label>
         <label className="check-row">
           <input

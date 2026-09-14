@@ -55,7 +55,7 @@ export function PortalAgendaScreen({
       <div className="page-header agenda-header">
         <div>
           <h1 className="page-title">Agenda</h1>
-          <p className="page-meta">As saídas abertas. Clique numa data para ver o roteiro.</p>
+          <p className="page-meta">Os grupos abertos. Clique numa data para ver o roteiro.</p>
         </div>
       </div>
 
@@ -126,7 +126,7 @@ export function PortalAgendaScreen({
       {state.status === 'ready' && all.length === 0 && (
         <div className="state" role="status">
           <div className="state-text">
-            <span className="state-title">Nenhuma saída aberta agora</span>
+            <span className="state-title">Nenhum grupo aberto agora</span>
             <span className="state-line">Volte em breve — novas expedições aparecem aqui.</span>
           </div>
         </div>
@@ -135,7 +135,7 @@ export function PortalAgendaScreen({
       {state.status === 'ready' && all.length > 0 && events.length === 0 && (
         <div className="state" role="status">
           <div className="state-text">
-            <span className="state-title">Nenhuma saída com esse filtro</span>
+            <span className="state-title">Nenhum grupo com esse filtro</span>
             <span className="state-line">Ajuste o roteiro para ver mais.</span>
           </div>
           <div className="state-grow" />

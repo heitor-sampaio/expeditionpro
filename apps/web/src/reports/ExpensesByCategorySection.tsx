@@ -47,7 +47,7 @@ export function ExpensesByCategorySection({ filter }: { filter: ReportFilter }):
           <div className="state-text">
             <span className="state-title">Nenhum gasto no período</span>
             <span className="state-line">
-              Gastos lançados nas saídas aparecem aqui, agrupados pela categoria do fornecedor.
+              Gastos lançados nos grupos aparecem aqui, agrupados pela categoria do fornecedor.
             </span>
           </div>
         </div>

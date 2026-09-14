@@ -134,7 +134,7 @@ export function RefundControl({
             className="field-input"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Saída cancelada, desistência…"
+            placeholder="Grupo cancelado, desistência…"
           />
         </label>
       </div>

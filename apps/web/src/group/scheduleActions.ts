@@ -21,8 +21,8 @@ export interface ScheduleActionsInput {
   readonly groupStatus: string;
 }
 
-const HAS_BOOKINGS = 'Tem inscrição lançada: cancele a saída em vez de excluir.';
-const ALREADY_CANCELLED = 'Esta saída já está cancelada.';
+const HAS_BOOKINGS = 'Tem inscrição lançada: cancele o grupo em vez de excluir.';
+const ALREADY_CANCELLED = 'Este grupo já está cancelado.';
 
 export function resolveScheduleActions(input: ScheduleActionsInput): readonly ScheduleAction[] {
   const cancelled = input.groupStatus === 'cancelled';
@@ -36,13 +36,13 @@ export function resolveScheduleActions(input: ScheduleActionsInput): readonly Sc
     },
     {
       id: 'cancel',
-      label: 'Cancelar saída',
+      label: 'Cancelar grupo',
       enabled: !cancelled,
       reason: cancelled ? ALREADY_CANCELLED : null,
     },
     {
       id: 'delete',
-      label: 'Excluir saída',
+      label: 'Excluir grupo',
       enabled: input.bookingCount === 0,
       reason: input.bookingCount > 0 ? HAS_BOOKINGS : null,
     },
@@ -54,19 +54,19 @@ export function scheduleErrorFor(code: string): string {
     case 'group_has_bookings':
       return HAS_BOOKINGS;
     case 'group_has_expenses':
-      return 'Tem gasto com fornecedor lançado: cancele a saída em vez de excluir.';
+      return 'Tem gasto com fornecedor lançado: cancele o grupo em vez de excluir.';
     case 'already_cancelled':
       return ALREADY_CANCELLED;
     case 'invalid_date_range':
       return 'O término não pode ser antes do início.';
     case 'forbidden':
-      return 'Cancelar ou excluir uma saída exige owner ou admin.';
+      return 'Cancelar ou excluir um grupo exige owner ou admin.';
     case 'required_field':
       return 'Escreva o motivo do cancelamento.';
     case 'missing_event':
-      return 'Recarregue a página: esta tela está com dados antigos da saída.';
+      return 'Recarregue a página: esta tela está com dados antigos do grupo.';
     case 'not_found':
-      return 'Saída não encontrada — atualize a página.';
+      return 'Grupo não encontrado — atualize a página.';
     case 'network':
       return 'Sem conexão com o servidor. Tente de novo.';
     default:

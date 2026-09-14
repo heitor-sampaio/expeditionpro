@@ -52,8 +52,8 @@ export function FamilyBudgetCard({
 
       <p className="field-help">
         {hasGroup
-          ? 'Estimativa para a próxima saída, com as idades na data da viagem. '
-          : 'Estimativa com as idades de hoje — sem saída marcada, a data ainda não conta. '}
+          ? 'Estimativa para o próximo grupo, com as idades na data da viagem. '
+          : 'Estimativa com as idades de hoje — sem grupo marcado, a data ainda não conta. '}
         Você escolhe quem vai na hora de se inscrever, e o valor é fechado na confirmação.
       </p>
     </div>

@@ -60,7 +60,7 @@ export function PortalDashboardScreen({
       <div className="page-header">
         <div>
           <h1 className="page-title">Início</h1>
-          <p className="page-meta">Sua próxima aventura e as saídas que estão chegando.</p>
+          <p className="page-meta">Sua próxima aventura e os grupos que estão chegando.</p>
         </div>
       </div>
 
@@ -148,7 +148,7 @@ export function PortalDashboardScreen({
           ) : (
             <div className="next-adv is-empty">
               <div className="state-text">
-                <span className="state-title">Nenhuma saída marcada ainda</span>
+                <span className="state-title">Nenhum grupo marcado ainda</span>
                 <span className="state-line">Escolha uma expedição e garanta sua vaga.</span>
               </div>
               <button type="button" className="btn btn-primary" onClick={onGoExpeditions}>
@@ -181,7 +181,7 @@ export function PortalDashboardScreen({
         {vitrine.status === 'error' && (
           <div className="state" role="alert">
             <div className="state-text">
-              <span className="state-title">Não deu para carregar as saídas</span>
+              <span className="state-title">Não deu para carregar os grupos</span>
               <span className="state-line is-error">Tente de novo em instantes.</span>
             </div>
           </div>
@@ -192,7 +192,7 @@ export function PortalDashboardScreen({
               <div className="state-text">
                 <span className="state-title">Nada nos próximos 2 meses</span>
                 <span className="state-line">
-                  Veja a agenda completa para as saídas mais adiante.
+                  Veja a agenda completa para os grupos mais adiante.
                 </span>
               </div>
             </div>

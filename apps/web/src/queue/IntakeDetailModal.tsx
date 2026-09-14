@@ -99,12 +99,12 @@ export function IntakeDetailModal({
               </>
             )}
 
-            <span className="field-label form-subhead">Saída</span>
+            <span className="field-label form-subhead">Grupo</span>
             <select
               className="field-input"
               value={groupId}
               onChange={(e) => setGroupId(e.target.value)}
-              aria-label="Saída para alocar"
+              aria-label="Grupo para alocar"
             >
               <option value="">Escolher grupo</option>
               {groups.map((g) => (
@@ -124,7 +124,7 @@ export function IntakeDetailModal({
               </div>
             ) : (
               <p className="field-help">
-                Escolha a saída para ver as idades na data da viagem e o valor.
+                Escolha o grupo para ver as idades na data da viagem e o valor.
               </p>
             )}
 

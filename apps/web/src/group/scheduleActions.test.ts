@@ -7,7 +7,7 @@ import { resolveScheduleActions, scheduleErrorFor } from './scheduleActions.js';
  * não cabe, com o motivo à vista; a decisão final é sempre do servidor (que também
  * enxerga os gastos com fornecedor, invisíveis aqui).
  */
-describe('AG-05: ações da saída na mesa', () => {
+describe('AG-05: ações do grupo na mesa', () => {
   it('saída vazia pode ser editada, cancelada e excluída', () => {
     const actions = resolveScheduleActions({ bookingCount: 0, groupStatus: 'open' });
     expect(actions.map((a) => a.id)).toEqual(['edit', 'cancel', 'delete']);
@@ -17,13 +17,13 @@ describe('AG-05: ações da saída na mesa', () => {
   it('com inscrição, excluir sai de cena e o motivo aponta o cancelamento', () => {
     const remove = actionOf('delete', { bookingCount: 2, groupStatus: 'open' });
     expect(remove.enabled).toBe(false);
-    expect(remove.reason).toBe('Tem inscrição lançada: cancele a saída em vez de excluir.');
+    expect(remove.reason).toBe('Tem inscrição lançada: cancele o grupo em vez de excluir.');
   });
 
-  it('saída já cancelada não cancela de novo nem tem datas editadas', () => {
+  it('grupo já cancelado não cancela de novo nem tem datas editadas', () => {
     const cancel = actionOf('cancel', { bookingCount: 1, groupStatus: 'cancelled' });
     expect(cancel.enabled).toBe(false);
-    expect(cancel.reason).toBe('Esta saída já está cancelada.');
+    expect(cancel.reason).toBe('Este grupo já está cancelado.');
     expect(actionOf('edit', { bookingCount: 1, groupStatus: 'cancelled' }).enabled).toBe(false);
   });
 
@@ -34,12 +34,12 @@ describe('AG-05: ações da saída na mesa', () => {
 
 describe('AG-05: erro do servidor vira uma frase', () => {
   it.each([
-    ['group_has_bookings', 'Tem inscrição lançada: cancele a saída em vez de excluir.'],
-    ['group_has_expenses', 'Tem gasto com fornecedor lançado: cancele a saída em vez de excluir.'],
-    ['already_cancelled', 'Esta saída já está cancelada.'],
+    ['group_has_bookings', 'Tem inscrição lançada: cancele o grupo em vez de excluir.'],
+    ['group_has_expenses', 'Tem gasto com fornecedor lançado: cancele o grupo em vez de excluir.'],
+    ['already_cancelled', 'Este grupo já está cancelado.'],
     ['invalid_date_range', 'O término não pode ser antes do início.'],
-    ['forbidden', 'Cancelar ou excluir uma saída exige owner ou admin.'],
-    ['missing_event', 'Recarregue a página: esta tela está com dados antigos da saída.'],
+    ['forbidden', 'Cancelar ou excluir um grupo exige owner ou admin.'],
+    ['missing_event', 'Recarregue a página: esta tela está com dados antigos do grupo.'],
   ])('%s', (code, message) => {
     expect(scheduleErrorFor(code)).toBe(message);
   });
