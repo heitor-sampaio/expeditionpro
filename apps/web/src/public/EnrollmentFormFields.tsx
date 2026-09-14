@@ -1,3 +1,4 @@
+import { formatCpfInput, formatPhoneInput } from '@expedition/domain';
 import { VeiculoFields } from './VeiculoFields.js';
 import { AddressFields } from '../ui/AddressFields.js';
 import { acompanhanteVazio, type AcompanhanteForm, type EnrollmentForm } from './enrollmentForm.js';
@@ -46,8 +47,9 @@ export function EnrollmentFormFields({
           <Campo
             rotulo="CPF"
             valor={form.cpf}
-            onChange={(cpf) => set({ cpf })}
+            onChange={(cpf) => set({ cpf: formatCpfInput(cpf) })}
             inputMode="numeric"
+            placeholder="000.000.000-00"
           />
           <Campo
             rotulo="Data de nascimento"
@@ -56,18 +58,19 @@ export function EnrollmentFormFields({
             type="date"
           />
           <Campo
+            rotulo="Telefone"
+            valor={form.telefone}
+            onChange={(telefone) => set({ telefone: formatPhoneInput(telefone) })}
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="(48) 99999-8877"
+          />
+          <Campo
             rotulo="E-mail"
             valor={form.email}
             onChange={(email) => set({ email })}
             type="email"
             autoComplete="email"
-          />
-          <Campo
-            rotulo="Telefone"
-            valor={form.telefone}
-            onChange={(telefone) => set({ telefone })}
-            inputMode="tel"
-            autoComplete="tel"
           />
         </div>
       </section>
@@ -92,8 +95,9 @@ export function EnrollmentFormFields({
               <Campo
                 rotulo="CPF"
                 valor={acompanhante.cpf}
-                onChange={(cpf) => setAcompanhante(i, { cpf })}
+                onChange={(cpf) => setAcompanhante(i, { cpf: formatCpfInput(cpf) })}
                 inputMode="numeric"
+                placeholder="000.000.000-00"
               />
               <Campo
                 rotulo="Data de nascimento"
@@ -145,6 +149,7 @@ function Campo({
   type = 'text',
   inputMode,
   autoComplete,
+  placeholder,
 }: {
   rotulo: string;
   valor: string;
@@ -152,16 +157,20 @@ function Campo({
   type?: string;
   inputMode?: 'numeric' | 'tel';
   autoComplete?: string;
+  placeholder?: string;
 }): React.JSX.Element {
   return (
     <label className="field">
       <span className="field-label">{rotulo}</span>
       <input
-        className="field-input"
+        // Mono em CPF e telefone: o design system reserva a JetBrains a todo número, e é ela
+        // que faz a máscara alinhar em vez de dançar a cada dígito.
+        className={inputMode === undefined ? 'field-input' : 'field-input is-mono'}
         type={type}
         value={valor}
         inputMode={inputMode}
         autoComplete={autoComplete}
+        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
       />
     </label>

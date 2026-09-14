@@ -15,8 +15,23 @@ const cheio = () => ({
   cpf: '900.000.100-57',
   nascimento: '1989-01-14',
   email: 'vanessa@exemplo.com',
-  telefone: '48999998877',
+  telefone: '(48) 99999-8877',
   aceite: true,
+});
+
+/**
+ * A tela escreve CPF e telefone **pontuados** (máscara na digitação) e manda assim mesmo: o
+ * formato de salvamento não muda, porque quem normaliza é o mapeador canônico, no servidor —
+ * o mesmo que já recebe o formulário do WordPress pontuado.
+ */
+describe('IN-25b: o que a máscara escreveu é o que viaja', () => {
+  it('CPF e telefone chegam ao payload como estão na tela', () => {
+    const corpo = corpoDaInscricao(cheio(), { roteiro: 'coxilha-rica', groupId: 'g-jan' });
+    const responsavel = corpo['responsible'] as Record<string, string>;
+
+    expect(responsavel['cpf']).toBe('900.000.100-57');
+    expect(responsavel['phone']).toBe('(48) 99999-8877');
+  });
 });
 
 describe('IN-25b: quando o botão de enviar acende', () => {
@@ -71,7 +86,7 @@ describe('IN-25b: o corpo que vai para o servidor', () => {
         cpf: '900.000.100-57',
         birth_date: '1989-01-14',
         email: 'vanessa@exemplo.com',
-        phone: '48999998877',
+        phone: '(48) 99999-8877',
       },
       consent: true,
     });

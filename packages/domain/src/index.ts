@@ -36,6 +36,7 @@ export { normalizePersonName } from './person/name.js';
 
 // Telefone (E.164, §3.2)
 export { parsePhone, isValidPhone, formatPhone, InvalidPhoneError } from './contact/phone.js';
+export { formatPhoneInput } from './contact/phoneInput.js';
 export { phoneVariants } from './contact/phoneVariants.js';
 
 // §5.18 — automações
@@ -114,6 +115,7 @@ export {
   maskCpf,
   InvalidCpfError,
 } from './identity/cpf.js';
+export { formatCpfInput } from './identity/cpfInput.js';
 export {
   type Cnpj,
   parseCnpj,
